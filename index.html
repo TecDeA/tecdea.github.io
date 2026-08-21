@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0b2545">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="TecDEA Portal">
+<meta name="apple-mobile-web-app-title" content="TecDeA Portal">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="format-detection" content="telephone=no">
 <meta name="description" content="Portal de aplicaciones del Departamento de Tecnología del IES Virgen de Villadiego. Acceso rápido a las aplicaciones creadas por angelmicelti para TecnoApps, Departamento y Cajón de sastre.">
@@ -22,7 +22,7 @@
 <meta name="msapplication-TileImage" content="img/icon-144x144.svg">
 <meta name="msapplication-config" content="browserconfig.xml">
 
-<title>TecDEA - Portal de Aplicaciones de Tecnología</title>
+<title>TecDeA - Portal de Aplicaciones de Tecnología</title>
 
 <!-- Firebase SDK -->
 <script type="module">
@@ -965,7 +965,7 @@
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(15);
     doc.setFont('helvetica', 'bold');
-    doc.text('Portal TecDEA — Configuración', 14, 14);
+    doc.text('Portal TecDeA — Configuración', 14, 14);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.text(`Exportado el ${new Date().toLocaleString('es-ES')}`, 14, 19);
@@ -1035,7 +1035,7 @@
       doc.setFontSize(8);
       doc.setTextColor(120);
       doc.text(`Página ${i} de ${pageCount}`, pageW - 30, pageH - 8);
-      doc.text('Portal TecDEA', 14, pageH - 8);
+      doc.text('Portal TecDeA', 14, pageH - 8);
     }
 
     const date = new Date().toISOString().slice(0, 10);
@@ -2091,7 +2091,7 @@
 <!-- ═══════════ CABECERA ═══════════════════════════════════ -->
 <header>
   <div>
-    <h1>TecDEA - Portal Tecnología</h1>
+    <h1>TecDeA - Portal Tecnología</h1>
     <div class="subtitle">IES Virgen de Villadiego · angelmicelti</div>
   </div>
   <button class="btn-config" onclick="tecdea.showLoginModal()">⚙ Configuración</button>
@@ -2103,11 +2103,11 @@
   <!-- Vista: HOME -->
   <section id="view-home">
     <div class="shield-wrap">
-      <!-- Logo de TecDEA desde carpeta img -->
-      <img src="img/logo.png" alt="Logo TecDEA" onerror="this.style.display='none'">
+      <!-- Logo de TecDeA desde carpeta img -->
+      <img src="img/logo.png" alt="Logo TecDeA" onerror="this.style.display='none'">
     </div>
-    <p class="home-title">Portal de Aplicaciones TecDEA</p>
-    <p class="home-sub">Departamento de Tecnología · IES Virgen de Villadiego<br>Peñaflor (Sevilla)</p>
+    <p class="home-title">Portal de Aplicaciones TecDeA</p>
+    <p class="home-sub">Departamento de Tecnología <br> IES Virgen de Villadiego<br>Peñaflor (Sevilla)</p>
 
     <div class="main-buttons">
       <button class="main-btn" onclick="tecdea.requestGroupAccess('tecnoApps')">
