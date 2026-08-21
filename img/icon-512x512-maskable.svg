@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#0b2545" />
+      <stop offset="100%" stopColor="#1a4d7a" />
+    </linearGradient>
+  </defs>
+  <!-- Fondo transparente para maskable -->
+  <!-- Escudo centrado con padding para safe zone -->
+  <path d="M256,80 L400,140 L400,270 C400,355 332,415 256,440 C180,415 112,355 112,270 L112,140 Z" 
+        fill="url(#shieldGrad)" stroke="#c8a84b" stroke-width="12"/>
+  <!-- Letra T grande -->
+  <text x="256" y="290" text-anchor="middle" font-size="160" font-family="Arial, sans-serif" font-weight="bold" fill="#c8a84b">T</text>
+</svg>
