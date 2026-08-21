@@ -1,0 +1,2531 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<!-- ═══════ VIEWPORT MULTIPLATAFORMA ═══════ -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0, user-scalable=yes">
+<!-- ═══════ TEMA Y COLORES ═══════ -->
+<meta name="theme-color" content="#0b2545" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b2545" media="(prefers-color-scheme: dark)">
+<meta name="msapplication-navbutton-color" content="#0b2545">
+<meta name="msapplication-TileColor" content="#0b2545">
+<!-- ═══════ iOS / Safari PWA ═══════ -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TecDEA Portal">
+<link rel="mask-icon" href="img/icon-512x512-maskable.svg" color="#0b2545">
+<!-- ═══════ Android / Chrome PWA ═══════ -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<meta name="format-detection" content="email=no">
+<meta name="format-detection" content="address=no">
+<meta name="x-ua-compatible" content="IE=edge">
+<!-- ═══════ OPEN GRAPH / SOCIAL ═══════ -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="TecDEA - Portal de Aplicaciones de Tecnología">
+<meta property="og:description" content="Portal de aplicaciones del Departamento de Tecnología del IES Virgen de Villadiego">
+<meta property="og:image" content="img/logo.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="TecDEA Portal">
+<meta name="description" content="Portal de aplicaciones del Departamento de Tecnología del IES Virgen de Villadiego. Acceso rápido a las aplicaciones creadas por angelmicelti para TecnoApps, Departamento y Cajón de sastre.">
+<!-- ═══════ SEGURIDAD ═══════ -->
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+
+<!-- ═══════ PWA: manifest, iconos y favicon ═══════ -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="512x512" href="img/icon-512x512.png">
+<link rel="icon" type="image/png" sizes="192x192" href="img/icon-192x192.png">
+<link rel="icon" type="image/x-icon" href="img/favicon.ico">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<meta name="msapplication-TileColor" content="#0b2545">
+<meta name="msapplication-TileImage" content="img/icon-144x144.png">
+
+<title>TecDEA - Portal de Aplicaciones de Tecnología</title>
+
+<!-- Firebase SDK -->
+<script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  // ════════════════════════════════════════════════════════
+  //  CONFIGURACIÓN FIREBASE - TECDEA
+  // ════════════════════════════════════════════════════════
+  const firebaseConfig = {
+    apiKey: "AIzaSyAsJ3PnUTp7SOizYQgoKbnMBJoaRKNIbMM",
+    authDomain: "tecdea.firebaseapp.com",
+    databaseURL: "https://tecdea-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "tecdea",
+    storageBucket: "tecdea.firebasestorage.app",
+    messagingSenderId: "53877853663",
+    appId: "1:53877853663:web:52b8986f56d8474d13886a"
+  };
+
+  // ── Mapeo palabras-clave → emoji para iconos auto-generados ──
+  const DESCRIPTION_EMOJIS = [
+    { kw: ['calendario','agenda','horario','schedule'], em: '📅' },
+    { kw: ['biblioteca','library','libro','libros','book'], em: '📚' },
+    { kw: ['alumno','alumn','estudiante','student'], em: '👨‍🎓' },
+    { kw: ['profesor','docente','teacher'], em: '👨‍🏫' },
+    { kw: ['correo','mail','email','buzón'], em: '📧' },
+    { kw: ['chat','mensaje','comunic','whatsapp','telegram'], em: '💬' },
+    { kw: ['nota','apunte','note'], em: '📝' },
+    { kw: ['mapa','map'], em: '🗺️' },
+    { kw: ['foto','photo','image','galería'], em: '📷' },
+    { kw: ['video','vídeo','multimedia'], em: '🎬' },
+    { kw: ['música','music','audio'], em: '🎵' },
+    { kw: ['mate','math','matemátic'], em: '➗' },
+    { kw: ['ciencia','science','física','química','biología'], em: '🔬' },
+    { kw: ['arte','art','dibujo'], em: '🎨' },
+    { kw: ['deporte','sport','fútbol','baloncesto'], em: '⚽' },
+    { kw: ['comida','comedor','food','menú','almuerzo'], em: '🍽️' },
+    { kw: ['dinero','money','pago','caja','tesorería'], em: '💰' },
+    { kw: ['hora','tiempo','reloj','time'], em: '⏰' },
+    { kw: ['clima','weather','meteorolog'], em: '☀️' },
+    { kw: ['noticia','news','periodico'], em: '📰' },
+    { kw: ['nube','cloud','drive'], em: '☁️' },
+    { kw: ['documento','doc','pdf','word'], em: '📄' },
+    { kw: ['carpeta','folder'], em: '📁' },
+    { kw: ['enlace','link','acceso directo'], em: '🔗' },
+    { kw: ['seguridad','password','contraseña','lock','acceso'], em: '🔐' },
+    { kw: ['llave','key'], em: '🗝️' },
+    { kw: ['inicio','home','portada'], em: '🏠' },
+    { kw: ['escuela','instituto','school','centro'], em: '🏫' },
+    { kw: ['ordenador','portatil','computer','pc','laptop'], em: '💻' },
+    { kw: ['teléfono','phone','movil','móvil'], em: '📱' },
+    { kw: ['imprimir','print','impresora'], em: '🖨️' },
+    { kw: ['servicio','service','mantenimiento'], em: '🛠️' },
+    { kw: ['registro','register','listado','lista'], em: '📋' },
+    { kw: ['gráfico','graph','chart','estadístic'], em: '📊' },
+    { kw: ['tecnología','tech','digital','app','software'], em: '💻' },
+    { kw: ['programación','code','codigo','developer'], em: '⚙️' },
+    { kw: ['juego','game','play'], em: '🎮' },
+    { kw: ['herramienta','tool','utilidad'], em: '🔧' },
+  ];
+
+  function descriptionToEmoji(text) {
+    if (!text) return null;
+    const lower = text.toLowerCase();
+    for (const item of DESCRIPTION_EMOJIS) {
+      for (const k of item.kw) {
+        if (lower.includes(k)) return item.em;
+      }
+    }
+    return null;
+  }
+
+  function generateAutoIcon(app) {
+    const name = (app.name || "").trim();
+    const desc = (app.desc || "").trim();
+    const emoji = descriptionToEmoji(desc) || descriptionToEmoji(name);
+
+    const sourceText = name || desc || "?";
+    let hash = 0;
+    for (let i = 0; i < sourceText.length; i++) {
+      hash = ((hash << 5) - hash + sourceText.charCodeAt(i)) | 0;
+    }
+    const hue = Math.abs(hash) % 360;
+    const bgColor = `hsl(${hue}, 65%, 45%)`;
+
+    if (emoji) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">`
+        + `<rect width="64" height="64" rx="14" fill="${bgColor}"/>`
+        + `<text x="32" y="46" font-size="38" text-anchor="middle">${emoji}</text>`
+        + `</svg>`;
+      return "data:image/svg+xml," + encodeURIComponent(svg);
+    }
+
+    const letter = (sourceText.charAt(0) || "?").toUpperCase();
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">`
+      + `<rect width="64" height="64" rx="14" fill="${bgColor}"/>`
+      + `<text x="32" y="46" font-size="36" font-family="Arial, Helvetica, sans-serif" font-weight="bold" text-anchor="middle" fill="white">${escHtml(letter)}</text>`
+      + `</svg>`;
+    return "data:image/svg+xml," + encodeURIComponent(svg);
+  }
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // ── Estado global ──────────────────────────────────────
+  let apps = [];
+  let admins = [{ user: "admin", pass: "admin" }];
+  let groupPasswords = { tecnoApps: "", departamento: "", cajonDeSastre: "" };
+  let pendingGroup = null;
+  let appsFilter = 'all';
+  let appsSort = { field: 'name', direction: 'asc' };
+
+  const ROOT = "portal-tecdea";
+  const appsRef = ref(db, `${ROOT}/apps`);
+  const adminsRef = ref(db, `${ROOT}/admins`);
+  const groupPassRef = ref(db, `${ROOT}/groupPasswords`);
+  const legacyAdminRef = ref(db, `${ROOT}/admin`);
+
+  // ── Normalización de datos desde Firebase ─────────────
+  function normalizeList(v) {
+    if (Array.isArray(v)) return v;
+    if (v && typeof v === 'object') return Object.values(v);
+    return [];
+  }
+
+  // ── Carga inicial ──────────────────────────────────────
+  async function loadData() {
+    const results = await Promise.allSettled([
+      get(appsRef),
+      get(adminsRef),
+      get(groupPassRef),
+      get(legacyAdminRef)
+    ]);
+
+    if (results[0].status === "fulfilled") {
+      const snap = results[0].value;
+      if (snap.exists()) {
+        apps = normalizeList(snap.val());
+        apps = apps.filter(a => a && typeof a === 'object');
+      }
+    }
+
+    if (results[1].status === "fulfilled") {
+      const snap = results[1].value;
+      const v = snap.exists() ? snap.val() : null;
+      const list = normalizeList(v).filter(a => a && a.user && a.pass);
+      if (list.length > 0) admins = list;
+    }
+
+    if (admins.length === 0 && results[3].status === "fulfilled") {
+      const snap = results[3].value;
+      if (snap.exists()) {
+        const a = snap.val();
+        admins = [{ user: a.user || "admin", pass: a.pass || "admin" }];
+      }
+    }
+    if (admins.length === 0) admins = [{ user: "admin", pass: "admin" }];
+
+    if (results[2].status === "fulfilled") {
+      const snap = results[2].value;
+      if (snap.exists()) {
+        const gp = snap.val() || {};
+        groupPasswords = {
+          tecnoApps: gp.tecnoApps || "",
+          departamento: gp.departamento || "",
+          cajonDeSastre: gp.cajonDeSastre || ""
+        };
+      }
+    }
+
+    const configView = document.getElementById("view-config");
+    if (configView && !configView.classList.contains("hidden")) {
+      buildConfigTable();
+      buildAdminsTable();
+      fillGroupPasswordInputs();
+    } else {
+      renderHome();
+    }
+
+    const errs = results.filter(r => r.status === "rejected");
+    if (errs.length > 0) {
+      showToast(`Aviso: ${errs.length} ruta(s) de Firebase no se pudieron leer.`, "err", 7000);
+    }
+  }
+
+  // ── Persistencia ──────────────────────────────────────
+  async function saveApps() {
+    try { await set(appsRef, apps); return true; }
+    catch(e) { console.error("Error guardando apps:", e); return false; }
+  }
+  async function saveAdmins() {
+    try { await set(adminsRef, admins); return true; }
+    catch(e) { console.error("Error guardando admins:", e); return false; }
+  }
+  async function saveGroupPasswords() {
+    try { await set(groupPassRef, groupPasswords); return true; }
+    catch(e) { console.error("Error guardando groupPasswords:", e); return false; }
+  }
+
+  // ══════════════════════════════════════════════════════
+  //  LÓGICA DE PANTALLAS
+  // ══════════════════════════════════════════════════════
+
+  function renderHome() {
+    setView("home");
+  }
+
+  // ── Botones principales: piden contraseña antes de mostrar el grupo ──
+  function requestGroupAccess(group) {
+    const expected = groupPasswords[group];
+    if (!expected) {
+      showGroup(group);
+      return;
+    }
+    pendingGroup = group;
+    const label = groupLabel(group);
+    document.getElementById("groupPassTitle").textContent = "Acceso a " + label;
+    document.getElementById("groupPassError").textContent = "";
+    document.getElementById("groupPassInput").value = "";
+    document.getElementById("groupPassModal").classList.remove("hidden");
+    setTimeout(() => document.getElementById("groupPassInput").focus(), 50);
+  }
+
+  function closeGroupPassModal() {
+    document.getElementById("groupPassModal").classList.add("hidden");
+    pendingGroup = null;
+  }
+
+  function doGroupLogin() {
+    const input = document.getElementById("groupPassInput").value;
+    const expected = groupPasswords[pendingGroup];
+    const g = pendingGroup;
+    if (!expected) {
+      closeGroupPassModal();
+      showGroup(g);
+    } else if (input === expected) {
+      closeGroupPassModal();
+      showGroup(g);
+    } else {
+      document.getElementById("groupPassError").textContent = "Contraseña incorrecta.";
+      const inp = document.getElementById("groupPassInput");
+      inp.value = "";
+      inp.focus();
+    }
+  }
+
+  function showGroup(group) {
+    let filtered = apps.filter(a => a[group]);
+    filtered.sort((a, b) => {
+      const va = (a.name || "").toString().toLowerCase().trim();
+      const vb = (b.name || "").toString().toLowerCase().trim();
+      return va.localeCompare(vb, 'es', { numeric: true, sensitivity: 'base' });
+    });
+    const grid = document.getElementById("appGrid");
+    grid.innerHTML = filtered.length
+      ? filtered.map(a => appCard(a)).join("")
+      : "<p class='empty'>No hay aplicaciones configuradas para este perfil.</p>";
+
+    document.getElementById("groupTitle").textContent = groupLabel(group);
+    setView("group");
+
+    if (filtered.length) {
+      grid.querySelectorAll("img[data-app-url]").forEach(img => {
+        const url = img.getAttribute("data-app-url");
+        if (url) {
+          discoverIcons(img, url).catch(err =>
+            console.warn("discoverIcons error:", err)
+          );
+        }
+      });
+    }
+  }
+
+  function groupLabel(g) {
+    return { 
+      tecnoApps: "TecnoApps", 
+      departamento: "Departamento", 
+      cajonDeSastre: "Cajón de sastre" 
+    }[g] || g;
+  }
+
+  function groupIcon(g) {
+    return { 
+      tecnoApps: "📱", 
+      departamento: "🏫", 
+      cajonDeSastre: "🧰" 
+    }[g] || "📁";
+  }
+
+  // ── Iconos: cadena de fallback desde la propia URL de la app ──
+  function iconSources(url) {
+    const sources = [];
+    let appUrl, origin, hostname;
+    try {
+      const u = new URL(url);
+      origin = u.origin;
+      hostname = u.hostname;
+      appUrl = url.replace(/\/+$/, '');
+    } catch { return sources; }
+
+    const fileNames = [
+      'icon-512x512.png', 'icon-512.png', 'icon-384x384.png', 'icon-310x310.png',
+      'icon-256x256.png', 'icon-256.png', 'icon-192x192.png', 'icon-192.png',
+      'icon-180x180.png', 'icon-167x167.png', 'icon-152x152.png', 'icon-150x150.png',
+      'icon-144x144.png', 'apple-touch-icon.png', 'apple-touch-icon-precomposed.png',
+      'apple-touch-icon-180x180.png', 'apple-touch-icon-167x167.png', 'apple-touch-icon-152x152.png',
+      'apple-touch-icon-144x144.png', 'icon.png', 'favicon.png', 'favicon.ico',
+    ];
+
+    const subFolders = ['', 'icons', 'img', 'images', 'assets', 'static'];
+
+    for (const sub of subFolders) {
+      const base = sub ? `${appUrl}/${sub}` : appUrl;
+      for (const f of fileNames) {
+        sources.push(`${base}/${f}`);
+      }
+    }
+
+    if (origin && origin !== "null") {
+      sources.push(`${origin}/apple-touch-icon.png`);
+      sources.push(`${origin}/icon-512x512.png`);
+      sources.push(`${origin}/icon-192x192.png`);
+      sources.push(`${origin}/favicon.png`);
+      sources.push(`${origin}/favicon.ico`);
+    }
+
+    if (hostname) {
+      sources.push(`https://www.google.com/s2/favicons?sz=128&domain=${hostname}`);
+      sources.push(`https://icons.duckduckgo.com/ip3/${hostname}.ico`);
+    }
+
+    return sources;
+  }
+
+  const DEFAULT_ICON_SVG = "data:image/svg+xml," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><text y="18" font-size="20">🔗</text></svg>'
+  );
+
+  function appCard(a) {
+    const sources = iconSources(a.url);
+    sources.push(generateAutoIcon(a));
+    const first = sources[0] || DEFAULT_ICON_SVG;
+    const rest = sources.slice(1);
+    const fbAttr = rest.length
+      ? ` data-fb="${escHtml(JSON.stringify(rest))}"`
+      : "";
+    return `
+      <a href="${a.url}" target="_blank" rel="noopener" class="app-card">
+        <div class="app-card-icon-wrap">
+          <img src="${first}" alt="" loading="lazy"${fbAttr}
+               data-app-url="${escHtml(a.url)}"
+               onerror="tecdea.iconFallback(this)">
+        </div>
+        <span class="app-card-name">${a.name}</span>
+      </a>`;
+  }
+
+  function iconFallback(img) {
+    const raw = img.getAttribute("data-fb");
+    if (!raw) {
+      img.src = DEFAULT_ICON_SVG;
+      img.removeAttribute("onerror");
+      return;
+    }
+    try {
+      const list = JSON.parse(raw);
+      if (!Array.isArray(list) || list.length === 0) throw new Error("empty");
+      const next = list.shift();
+      img.src = next;
+      if (list.length) img.setAttribute("data-fb", JSON.stringify(list));
+      else img.removeAttribute("data-fb");
+    } catch {
+      img.src = DEFAULT_ICON_SVG;
+      img.removeAttribute("onerror");
+    }
+  }
+
+  // ── Descubrimiento asíncrono de iconos vía manifest PWA ──
+  async function tryManifestIcons(baseUrl) {
+    let appUrl, origin;
+    try {
+      const u = new URL(baseUrl);
+      origin = u.origin;
+      appUrl = baseUrl.replace(/\/+$/, '');
+    } catch { return []; }
+
+    const manifestCandidates = [
+      `${appUrl}/manifest.webmanifest`,
+      `${appUrl}/manifest.json`,
+      `${appUrl}/site.webmanifest`,
+      `${appUrl}/static/manifest.json`,
+      `${origin}/manifest.webmanifest`,
+      `${origin}/manifest.json`,
+    ];
+
+    const discovered = [];
+    for (const mUrl of manifestCandidates) {
+      try {
+        const resp = await fetch(mUrl, { mode: 'cors', redirect: 'follow' });
+        if (!resp.ok) continue;
+        const manifest = await resp.json();
+        if (manifest && Array.isArray(manifest.icons)) {
+          const iconList = manifest.icons
+            .filter(ic => ic && ic.src)
+            .map(ic => {
+              try {
+                const abs = new URL(ic.src, mUrl).href;
+                let size = 0;
+                if (ic.sizes) {
+                  const sizes = String(ic.sizes).split(/\s+/);
+                  for (const s of sizes) {
+                    const m = s.match(/(\d+)x(\d+)/i);
+                    if (m) {
+                      const area = parseInt(m[1]) * parseInt(m[2]);
+                      if (area > size) size = area;
+                    }
+                  }
+                }
+                const isMaskable = ic.purpose === 'maskable';
+                return { url: abs, size, isMaskable };
+              } catch { return null; }
+            })
+            .filter(ic => ic !== null);
+
+          iconList.sort((a, b) => {
+            if (a.isMaskable !== b.isMaskable) return a.isMaskable ? 1 : -1;
+            return b.size - a.size;
+          });
+
+          for (const ic of iconList) {
+            discovered.push(ic.url);
+          }
+          if (discovered.length > 0) break;
+        }
+      } catch {
+        continue;
+      }
+    }
+    return discovered;
+  }
+
+  async function tryHtmlIcons(baseUrl) {
+    try {
+      const resp = await fetch(baseUrl, { mode: 'cors', redirect: 'follow' });
+      if (!resp.ok) return [];
+      const html = await resp.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const icons = [];
+      const selectors = [
+        'link[rel="icon"]',
+        'link[rel="shortcut icon"]',
+        'link[rel="apple-touch-icon"]',
+        'link[rel="apple-touch-icon-precomposed"]',
+      ];
+      for (const sel of selectors) {
+        doc.querySelectorAll(sel).forEach(link => {
+          const href = link.getAttribute('href');
+          if (href) {
+            try { icons.push(new URL(href, baseUrl).href); } catch {}
+          }
+        });
+      }
+      return icons;
+    } catch {
+      return [];
+    }
+  }
+
+  async function discoverIcons(img, appUrl) {
+    if (img.complete && img.naturalWidth > 0) return;
+
+    let discovered = await tryManifestIcons(appUrl);
+    const htmlIcons = await tryHtmlIcons(appUrl);
+    discovered = [...discovered, ...htmlIcons];
+
+    if (discovered.length === 0) return;
+
+    if (img.complete && img.naturalWidth > 0) {
+      if (!String(img.src).startsWith(DEFAULT_ICON_SVG.slice(0, 50))) return;
+    }
+
+    let currentRemaining = [];
+    try {
+      const raw = img.getAttribute('data-fb');
+      if (raw) currentRemaining = JSON.parse(raw);
+    } catch {}
+
+    const newChain = [...discovered, ...currentRemaining]
+      .filter((u, i, arr) => arr.indexOf(u) === i);
+
+    const first = newChain.shift();
+    img.src = first;
+    if (newChain.length > 0) {
+      img.setAttribute('data-fb', JSON.stringify(newChain));
+    } else {
+      img.removeAttribute('data-fb');
+    }
+  }
+
+  // ── Login pantalla configuración (multi-admin) ───────
+  function showLoginModal() {
+    document.getElementById("loginError").textContent = "";
+    document.getElementById("loginUser").value = "";
+    document.getElementById("loginPass").value = "";
+    document.getElementById("loginModal").classList.remove("hidden");
+    setTimeout(() => document.getElementById("loginUser").focus(), 50);
+  }
+
+  function closeLoginModal() {
+    document.getElementById("loginModal").classList.add("hidden");
+  }
+
+  function doLogin() {
+    const u = document.getElementById("loginUser").value.trim();
+    const p = document.getElementById("loginPass").value;
+    const found = admins.find(a => a.user === u && a.pass === p);
+    if (found) {
+      closeLoginModal();
+      renderConfig();
+    } else {
+      document.getElementById("loginError").textContent = "Usuario o contraseña incorrectos.";
+    }
+  }
+
+  // ── Pantalla configuración ────────────────────────────
+  function renderConfig() {
+    buildConfigTable();
+    buildAdminsTable();
+    fillGroupPasswordInputs();
+    setView("config");
+  }
+
+  // ── Tabla de aplicaciones ─────────────────────────────
+  function buildConfigTable() {
+    const tbody = document.querySelector("#appsTable tbody");
+    const rowsData = [];
+    apps.forEach((a, i) => {
+      const matches = appsFilter === 'all' || a[appsFilter];
+      if (matches) rowsData.push({ app: a, idx: i });
+    });
+
+    rowsData.sort((x, y) => {
+      const va = (x.app[appsSort.field] || "").toString().toLowerCase().trim();
+      const vb = (y.app[appsSort.field] || "").toString().toLowerCase().trim();
+      const cmp = va.localeCompare(vb, 'es', { numeric: true, sensitivity: 'base' });
+      return appsSort.direction === 'asc' ? cmp : -cmp;
+    });
+
+    const emptyRow = rowsData.length === 0
+      ? `<tr class="no-apps-row"><td colspan="7" style="text-align:center;color:var(--muted);padding:1.5rem;font-style:italic;">No hay aplicaciones que coincidan con el filtro seleccionado.</td></tr>`
+      : "";
+
+    tbody.innerHTML = emptyRow + rowsData.map(({ app: a, idx: i }) => `
+      <tr data-i="${i}">
+        <td data-label="Nombre"><input type="text" class="fi" value="${escHtml(a.name)}" placeholder="Nombre" data-field="name"></td>
+        <td data-label="Descripción" class="desc-cell">
+          <input type="text" class="fi desc-fi" value="${escHtml(a.desc || '')}" placeholder="Descripción" data-field="desc">
+        </td>
+        <td data-label="URL" class="url-cell">
+          <input type="url" class="fi url-fi" value="${escHtml(a.url)}" placeholder="https://tecdea.github.io/…" data-field="url">
+        </td>
+        <td data-label="Tec." class="chk"><input type="checkbox" ${a.tecnoApps     ? "checked" : ""} data-field="tecnoApps"></td>
+        <td data-label="Dep." class="chk"><input type="checkbox" ${a.departamento   ? "checked" : ""} data-field="departamento"></td>
+        <td data-label="Caj." class="chk"><input type="checkbox" ${a.cajonDeSastre ? "checked" : ""} data-field="cajonDeSastre"></td>
+        <td data-label="" class="chk"><button class="btn-del" onclick="window._delApp(${i})" title="Eliminar">✕</button></td>
+      </tr>`).join("");
+
+    tbody.querySelectorAll("input").forEach(inp => {
+      inp.addEventListener("change", () => collectTableData());
+      inp.addEventListener("input",  () => collectTableData());
+      inp.addEventListener("blur",    () => handleAppCellBlur(inp));
+    });
+
+    tbody.querySelectorAll(".desc-fi").forEach(inp => {
+      inp.addEventListener("mouseenter", () => {
+        if (!window.matchMedia('(hover: hover)').matches) return;
+        if (document.activeElement === inp) return;
+        showDescModal(inp.value);
+      });
+      inp.addEventListener("mouseleave", hideDescModal);
+      inp.addEventListener("focus", () => hideDescModal(true));
+    });
+  }
+
+  function setAppsFilter(filter) {
+    appsFilter = filter;
+    document.querySelectorAll('#appsFilterBar .filter-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.filter === filter);
+    });
+    buildConfigTable();
+  }
+
+  function collectTableData() {
+    document.querySelectorAll("#appsTable tbody tr").forEach(tr => {
+      const i = parseInt(tr.dataset.i);
+      if (isNaN(i)) return;
+      tr.querySelectorAll("[data-field]").forEach(el => {
+        const f = el.dataset.field;
+        apps[i][f] = el.type === "checkbox" ? el.checked : el.value.trim();
+      });
+    });
+  }
+
+  function handleAppCellBlur(input) {
+    const tr = input.closest("tr");
+    if (!tr) return;
+    const i = parseInt(tr.dataset.i);
+    if (isNaN(i)) return;
+
+    collectTableData();
+    autoSaveApps();
+  }
+
+  let _autoSaveToastTimer = null;
+  async function autoSaveApps() {
+    const ok = await saveApps();
+    if (ok) {
+      showToast("✓ Guardado", "ok", 1000);
+    } else {
+      showToast("Error al guardar en Firebase.", "err", 4000);
+    }
+  }
+
+  function sortApps(byField) {
+    collectTableData();
+    if (appsSort.field === byField) {
+      appsSort.direction = appsSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      appsSort.field = byField;
+      appsSort.direction = 'asc';
+    }
+    buildConfigTable();
+    const fieldLabel = byField === 'name' ? 'nombre' : 'URL';
+    const dirLabel = appsSort.direction === 'asc' ? 'ascendente' : 'descendente';
+    showToast(`Aplicaciones ordenadas por ${fieldLabel} (${dirLabel}).`, "ok", 2500);
+  }
+
+  function addAppRow() {
+    collectTableData();
+    apps.push({ name: "", desc: "", url: "https://tecdea.github.io/", tecnoApps: false, departamento: false, cajonDeSastre: false });
+    buildConfigTable();
+  }
+
+  window._delApp = function(i) {
+    collectTableData();
+    apps.splice(i, 1);
+    buildConfigTable();
+  };
+
+  async function saveConfig() {
+    collectTableData();
+    apps = apps.filter(a => a.name || a.url);
+    const ok = await saveApps();
+    if (!ok) {
+      showToast("Error al guardar aplicaciones en Firebase.", "err", 7000);
+      return;
+    }
+    let verifiedCount = apps.length;
+    try {
+      const snap = await get(appsRef);
+      const v = snap.exists() ? normalizeList(snap.val()) : [];
+      apps = v.filter(a => a && typeof a === 'object');
+      verifiedCount = apps.length;
+    } catch (e) {
+      console.warn("No se pudo verificar la lectura tras guardar apps:", e);
+    }
+    showToast(`Aplicaciones guardadas en base de datos Firebase (${verifiedCount}).`, "ok", 4500);
+    renderConfig();
+  }
+
+  // ── Gestión de administradores (CRUD multi-admin) ─────
+  function buildAdminsTable() {
+    const tbody = document.querySelector("#adminsTable tbody");
+    tbody.innerHTML = admins.map((a, i) => `
+      <tr data-i="${i}">
+        <td data-label="Usuario"><input type="text" class="fi" value="${escHtml(a.user)}" placeholder="usuario" data-af="user" autocomplete="off"></td>
+        <td data-label="Contraseña"><input type="text" class="fi" value="${escHtml(a.pass)}" placeholder="contraseña" data-af="pass" autocomplete="new-password"></td>
+        <td data-label="" class="chk"><button class="btn-del" onclick="window._delAdmin(${i})" title="Eliminar">✕</button></td>
+      </tr>`).join("");
+
+    tbody.querySelectorAll("input").forEach(inp => {
+      inp.addEventListener("input",  () => collectAdminsData());
+      inp.addEventListener("change", () => collectAdminsData());
+      inp.addEventListener("blur",    () => handleAdminCellBlur(inp));
+    });
+  }
+
+  function collectAdminsData() {
+    document.querySelectorAll("#adminsTable tbody tr").forEach(tr => {
+      const i = parseInt(tr.dataset.i);
+      if (isNaN(i)) return;
+      tr.querySelectorAll("[data-af]").forEach(el => {
+        const f = el.dataset.af;
+        admins[i][f] = el.value.trim();
+      });
+    });
+  }
+
+  function handleAdminCellBlur(input) {
+    collectAdminsData();
+    autoSaveAdmins();
+  }
+
+  async function autoSaveAdmins() {
+    const hasEmpty = admins.some(a => !a.user || !a.pass);
+    if (hasEmpty) return;
+    const users = admins.map(a => a.user);
+    const hasDup = new Set(users).size !== users.length;
+    if (hasDup) return;
+    const ok = await saveAdmins();
+    if (ok) showToast("✓ Guardado", "ok", 1000);
+    else showToast("Error al guardar administradores.", "err", 4000);
+  }
+
+  function addAdminRow() {
+    collectAdminsData();
+    admins.push({ user: "", pass: "" });
+    buildAdminsTable();
+  }
+
+  window._delAdmin = function(i) {
+    if (admins.length <= 1) {
+      showToast("Debe existir al menos un administrador.", "err", 5000);
+      return;
+    }
+    collectAdminsData();
+    admins.splice(i, 1);
+    buildAdminsTable();
+  };
+
+  async function saveAdminsConfig() {
+    collectAdminsData();
+    const cleaned = admins.filter(a => a.user && a.pass);
+    if (cleaned.length === 0) {
+      showToast("Debe existir al menos un administrador con usuario y contraseña.", "err", 5000);
+      return;
+    }
+    const users = cleaned.map(a => a.user);
+    if (new Set(users).size !== users.length) {
+      showToast("No puede haber usuarios duplicados.", "err", 5000);
+      return;
+    }
+    admins = cleaned;
+    const ok = await saveAdmins();
+    if (!ok) {
+      showToast("Error al guardar administradores en Firebase.", "err", 7000);
+      return;
+    }
+    try {
+      const snap = await get(adminsRef);
+      const v = snap.exists() ? snap.val() : null;
+      const list = normalizeList(v).filter(a => a && a.user && a.pass);
+      if (list.length > 0) admins = list;
+    } catch (e) {
+      console.warn("No se pudo verificar la lectura tras guardar admins:", e);
+    }
+    showToast(`Administradores guardados en base de datos Firebase (${admins.length}).`, "ok", 4500);
+    buildAdminsTable();
+  }
+
+  // ── Contraseñas de grupos ─────────────────────────────
+  function fillGroupPasswordInputs() {
+    document.getElementById("passTecnoApps").value     = groupPasswords.tecnoApps     || "";
+    document.getElementById("passDepartamento").value   = groupPasswords.departamento   || "";
+    document.getElementById("passCajonDeSastre").value  = groupPasswords.cajonDeSastre  || "";
+  }
+
+  async function saveGroupPasswordsConfig() {
+    groupPasswords = {
+      tecnoApps:     document.getElementById("passTecnoApps").value,
+      departamento:   document.getElementById("passDepartamento").value,
+      cajonDeSastre:  document.getElementById("passCajonDeSastre").value
+    };
+    const ok = await saveGroupPasswords();
+    if (!ok) {
+      showToast("Error al guardar contraseñas en Firebase.", "err", 7000);
+      return;
+    }
+    try {
+      const snap = await get(groupPassRef);
+      if (snap.exists()) {
+        const gp = snap.val() || {};
+        groupPasswords = {
+          tecnoApps:     gp.tecnoApps     || "",
+          departamento:   gp.departamento   || "",
+          cajonDeSastre:  gp.cajonDeSastre  || ""
+        };
+        fillGroupPasswordInputs();
+      }
+    } catch (e) {
+      console.warn("No se pudo verificar la lectura tras guardar groupPasswords:", e);
+    }
+    showToast("Contraseñas de perfiles guardadas en base de datos Firebase.", "ok", 4500);
+  }
+
+  async function autoSaveGroupPasswords() {
+    groupPasswords = {
+      tecnoApps:     document.getElementById("passTecnoApps").value,
+      departamento:   document.getElementById("passDepartamento").value,
+      cajonDeSastre:  document.getElementById("passCajonDeSastre").value
+    };
+    const ok = await saveGroupPasswords();
+    if (ok) showToast("✓ Guardado", "ok", 1000);
+    else showToast("Error al guardar contraseñas.", "err", 4000);
+  }
+
+  // ════════════════════════════════════════════════════════
+  //  EXPORTACIÓN A PDF / EXCEL
+  // ════════════════════════════════════════════════════════
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const existing = document.querySelector(`script[src="${src}"]`);
+      if (existing) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('No se pudo cargar ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  function collectExportData() {
+    const expApps = document.getElementById('expApps').checked;
+    const expAdmins = document.getElementById('expAdmins').checked;
+    const expPass = document.getElementById('expPass').checked;
+    const formatInput = document.querySelector('input[name="expFormat"]:checked');
+    const format = formatInput ? formatInput.value : 'excel';
+
+    if (!expApps && !expAdmins && !expPass) {
+      return { error: 'Selecciona al menos una sección para exportar.' };
+    }
+
+    const data = { format };
+
+    if (expApps) {
+      let list = apps.slice();
+      list.sort((a, b) => {
+        const va = (a.name || '').toString().toLowerCase().trim();
+        const vb = (b.name || '').toString().toLowerCase().trim();
+        return va.localeCompare(vb, 'es', { numeric: true, sensitivity: 'base' });
+      });
+      data.apps = list.map(a => ({
+        'Nombre':         a.name || '',
+        'Descripción':    a.desc || '',
+        'URL':            a.url || '',
+        'TecnoApps':      a.tecnoApps     ? 'Sí' : 'No',
+        'Departamento':   a.departamento   ? 'Sí' : 'No',
+        'Cajón de sastre': a.cajonDeSastre ? 'Sí' : 'No'
+      }));
+    }
+
+    if (expAdmins) {
+      data.admins = admins.map(a => ({
+        'Usuario':     a.user || '',
+        'Contraseña':  a.pass || ''
+      }));
+    }
+
+    if (expPass) {
+      data.groupPasswords = [
+        { 'Perfil': 'TecnoApps',       'Contraseña': groupPasswords.tecnoApps     || '(vacío)' },
+        { 'Perfil': 'Departamento',    'Contraseña': groupPasswords.departamento   || '(vacío)' },
+        { 'Perfil': 'Cajón de sastre', 'Contraseña': groupPasswords.cajonDeSastre  || '(vacío)' }
+      ];
+    }
+
+    return data;
+  }
+
+  async function exportData() {
+    const data = collectExportData();
+    if (data.error) {
+      showToast(data.error, 'err', 4000);
+      return;
+    }
+    try {
+      const formatInput = document.querySelector('input[name="expFormat"]:checked');
+      if (formatInput && formatInput.value === 'pdf') {
+        await exportToPDF(data);
+      } else {
+        await exportToExcel(data);
+      }
+    } catch (e) {
+      console.error('Error al exportar:', e);
+      showToast('Error al generar el archivo: ' + e.message, 'err', 5000);
+    }
+  }
+
+  async function exportToExcel(data) {
+    showToast('Generando Excel…', 'ok', 1500);
+    await loadScript('https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js');
+    const X = window.XLSX;
+    if (!X) throw new Error('SheetJS no disponible');
+
+    const wb = X.utils.book_new();
+
+    if (data.apps) {
+      const ws = X.utils.json_to_sheet(data.apps);
+      ws['!cols'] = [
+        { wch: 25 }, { wch: 45 }, { wch: 55 }, { wch: 12 }, { wch: 14 }, { wch: 16 }
+      ];
+      X.utils.book_append_sheet(wb, ws, 'Aplicaciones');
+    }
+
+    if (data.admins) {
+      const ws = X.utils.json_to_sheet(data.admins);
+      ws['!cols'] = [{ wch: 25 }, { wch: 25 }];
+      X.utils.book_append_sheet(wb, ws, 'Administradores');
+    }
+
+    if (data.groupPasswords) {
+      const ws = X.utils.json_to_sheet(data.groupPasswords);
+      ws['!cols'] = [{ wch: 20 }, { wch: 30 }];
+      X.utils.book_append_sheet(wb, ws, 'Contraseñas perfiles');
+    }
+
+    const date = new Date().toISOString().slice(0, 10);
+    X.writeFile(wb, `tecdea-config-${date}.xlsx`);
+    showToast('Excel exportado correctamente.', 'ok', 2500);
+  }
+
+  async function exportToPDF(data) {
+    showToast('Generando PDF…', 'ok', 1500);
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const NAVY = [11, 37, 69];
+    const GOLD = [200, 168, 75];
+    const pageW = doc.internal.pageSize.width;
+    const pageH = doc.internal.pageSize.height;
+
+    doc.setFillColor(...NAVY);
+    doc.rect(0, 0, pageW, 22, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(15);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Portal TecDEA — Configuración', 14, 14);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Exportado el ${new Date().toLocaleString('es-ES')}`, 14, 19);
+
+    let y = 30;
+
+    function addSectionTitle(title) {
+      if (y > pageH - 30) { doc.addPage(); y = 20; }
+      doc.setTextColor(...NAVY);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setFillColor(...GOLD);
+      doc.rect(14, y - 4, 2, 7, 'F');
+      doc.text(title, 20, y + 2);
+      y += 6;
+    }
+
+    if (data.apps) {
+      addSectionTitle(`Aplicaciones (${data.apps.length})`);
+      doc.autoTable({
+        startY: y,
+        head: [Object.keys(data.apps[0])],
+        body: data.apps.map(a => Object.values(a)),
+        theme: 'striped',
+        headStyles: { fillColor: NAVY, textColor: 255, fontSize: 9, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 8, cellPadding: 1.5 },
+        alternateRowStyles: { fillColor: [247, 244, 239] },
+        columnStyles: { 2: { cellWidth: 70 } },
+        margin: { left: 14, right: 14 },
+        didDrawPage: () => { y = doc.lastAutoTable.finalY + 8; }
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    if (data.admins) {
+      addSectionTitle(`Administradores (${data.admins.length})`);
+      doc.autoTable({
+        startY: y,
+        head: [Object.keys(data.admins[0])],
+        body: data.admins.map(a => Object.values(a)),
+        theme: 'striped',
+        headStyles: { fillColor: NAVY, textColor: 255, fontSize: 9, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 9, cellPadding: 2 },
+        alternateRowStyles: { fillColor: [247, 244, 239] },
+        margin: { left: 14, right: 14 }
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    if (data.groupPasswords) {
+      addSectionTitle('Contraseñas por perfil');
+      doc.autoTable({
+        startY: y,
+        head: [Object.keys(data.groupPasswords[0])],
+        body: data.groupPasswords.map(g => Object.values(g)),
+        theme: 'striped',
+        headStyles: { fillColor: NAVY, textColor: 255, fontSize: 9, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 9, cellPadding: 2 },
+        alternateRowStyles: { fillColor: [247, 244, 239] },
+        margin: { left: 14, right: 14 }
+      });
+    }
+
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(120);
+      doc.text(`Página ${i} de ${pageCount}`, pageW - 30, pageH - 8);
+      doc.text('Portal TecDEA', 14, pageH - 8);
+    }
+
+    const date = new Date().toISOString().slice(0, 10);
+    doc.save(`tecdea-config-${date}.pdf`);
+    showToast('PDF exportado correctamente.', 'ok', 2500);
+  }
+
+  // ── Utilidades ────────────────────────────────────────
+  function setView(id) {
+    ["home","group","config"].forEach(v =>
+      document.getElementById("view-" + v).classList.toggle("hidden", v !== id));
+  }
+
+  function escHtml(s) {
+    return (s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  function showToast(msg, variant = "", duration = 3000) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.className = "toast" + (variant ? " " + variant : "");
+    t.classList.remove("hidden");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.add("hidden"), duration);
+  }
+
+  // ── Modal de descripción (hover / tap) ────────────────
+  let descHideTimer = null;
+
+  const _mousePos = { x: 0, y: 0 };
+  document.addEventListener('mousemove', (e) => {
+    _mousePos.x = e.clientX;
+    _mousePos.y = e.clientY;
+    const modal = document.getElementById('descModal');
+    if (modal && !modal.classList.contains("hidden") && window.matchMedia('(hover: hover)').matches && window.innerWidth >= 768) {
+      updateDescModalPosition();
+    }
+  });
+
+  function showDescModal(text) {
+    clearTimeout(descHideTimer);
+    if (!text || !text.trim()) return;
+    const modal = document.getElementById("descModal");
+    document.getElementById("descModalText").textContent = text;
+    modal.classList.remove("hidden");
+    updateDescModalPosition();
+  }
+
+  function updateDescModalPosition() {
+    const modal = document.getElementById('descModal');
+    if (!modal || modal.classList.contains("hidden")) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    if (vw < 768) {
+      modal.style.top  = "50%";
+      modal.style.left = "50%";
+      modal.style.transform = "translate(-50%, -50%)";
+      modal.style.maxWidth = "85vw";
+      modal.style.width = "auto";
+    } else {
+      const modalW = 320;
+      const estH = 160;
+      let top  = _mousePos.y + 20;
+      let left = _mousePos.x + 20;
+      if (left + modalW > vw - 8) left = _mousePos.x - modalW - 20;
+      if (top + estH > vh - 8) top = _mousePos.y - estH - 20;
+      if (top < 8) top = 8;
+      if (left < 8) left = 8;
+      modal.style.transform = "none";
+      modal.style.maxWidth = modalW + "px";
+      modal.style.width = "auto";
+      modal.style.top  = top + "px";
+      modal.style.left = left + "px";
+    }
+  }
+
+  function hideDescModal(immediate = false) {
+    if (immediate) {
+      clearTimeout(descHideTimer);
+      document.getElementById("descModal").classList.add("hidden");
+      return;
+    }
+    descHideTimer = setTimeout(() => {
+      document.getElementById("descModal").classList.add("hidden");
+    }, 180);
+  }
+
+  document.addEventListener("click", (e) => {
+    if (window.innerWidth < 768 && !e.target.closest(".desc-modal-box") && !e.target.closest(".desc-fi")) {
+      const dm = document.getElementById("descModal");
+      if (dm) dm.classList.add("hidden");
+    }
+    if (e.target.classList && e.target.classList.contains("modal-bg")) {
+      e.target.classList.add("hidden");
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      document.querySelectorAll(".modal-bg:not(.hidden)").forEach(m => m.classList.add("hidden"));
+      const dm = document.getElementById("descModal");
+      if (dm) dm.classList.add("hidden");
+    }
+  });
+
+  // ── Exponemos al HTML ──────────────────────────────────
+  window.tecdea = {
+    requestGroupAccess, closeGroupPassModal, doGroupLogin,
+    showGroup, showLoginModal, closeLoginModal, doLogin,
+    renderHome, renderConfig, addAppRow, saveConfig,
+    addAdminRow, saveAdminsConfig,
+    saveGroupPasswordsConfig,
+    hideDescModal, iconFallback,
+    sortApps, setAppsFilter,
+    exportData
+  };
+
+  // ── Arranque ──────────────────────────────────────────
+  loadData();
+
+  ['passTecnoApps', 'passDepartamento', 'passCajonDeSastre'].forEach(id => {
+    const inp = document.getElementById(id);
+    if (inp) {
+      inp.addEventListener('change', () => autoSaveGroupPasswords());
+      inp.addEventListener('blur',   () => autoSaveGroupPasswords());
+    }
+  });
+</script>
+
+<style>
+  /* ══ Reset & variables ══════════════════════════════ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy:   #0b2545;
+    --gold:   #c8a84b;
+    --gold2:  #e8c96a;
+    --cream:  #f7f4ef;
+    --white:  #ffffff;
+    --text:   #1a1a2e;
+    --muted:  #6b7280;
+    --danger: #c0392b;
+    --radius: 14px;
+    --shadow: 0 4px 24px rgba(11,37,69,.15);
+    --safe-top:    env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left:   env(safe-area-inset-left, 0px);
+    --safe-right:  env(safe-area-inset-right, 0px);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+    -webkit-scroll-behavior: smooth;
+    /* Soporte para dynamic viewport units */
+    --dvh: dvh;
+    --dvw: dvw;
+  }
+
+  @supports not (height: 100dvh) {
+    :root { --dvh: 100vh; --dvw: 100vw; }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    background: var(--cream);
+    color: var(--text);
+    min-height: 100vh;
+    min-height: var(--dvh, 100vh);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    /* Prevención de pull-to-refresh en móviles */
+    overscroll-behavior-x: none;
+    /* Soporte para modo oscuro futuro */
+    color-scheme: light;
+    /* Touch action global */
+    touch-action: pan-x pan-y;
+    -webkit-touch-callout: none;
+    /* Selección de texto */
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Permitir selección en inputs y textos editables */
+  input, textarea, [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  .hidden { display: none !important; }
+
+  /* ══ Utilidades accesibilidad ═══════════════════ */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* Focus visible para navegación por teclado */
+  :focus-visible {
+    outline: 3px solid var(--gold);
+    outline-offset: 2px;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Reducir animaciones si el usuario lo prefiere */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Modo alto contraste */
+  @media (prefers-contrast: high) {
+    :root {
+      --navy: #000000;
+      --gold: #FFD700;
+      --gold2: #FFEA80;
+      --shadow: 0 4px 24px rgba(0,0,0,.4);
+    }
+  }
+
+  /* ══ Topbar ═════════════════════════════════════════ */
+  header {
+    background: var(--navy);
+    color: var(--white);
+    padding: .75rem 1rem;
+    padding-top: calc(.75rem + var(--safe-top));
+    padding-left: calc(1rem + var(--safe-left));
+    padding-right: calc(1rem + var(--safe-right));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 12px rgba(0,0,0,.3);
+    position: sticky; top: 0; z-index: 100;
+    gap: .75rem;
+  }
+  header h1 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: .03em;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  header .subtitle {
+    font-size: .72rem;
+    color: var(--gold2);
+    margin-top: 1px;
+  }
+
+  .btn-config {
+    background: transparent;
+    border: 1.5px solid var(--gold);
+    color: var(--gold2);
+    padding: .45rem .85rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: .78rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    transition: background .2s, color .2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    min-height: 40px;
+    display: inline-flex; align-items: center;
+  }
+  .btn-config:hover { background: var(--gold); color: var(--navy); }
+  .btn-config:active { background: var(--gold); color: var(--navy); transform: scale(.96); }
+
+  /* ══ Main wrapper ═══════════════════════════════════ */
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+    padding-bottom: calc(3rem + var(--safe-bottom));
+    width: 100%;
+  }
+
+  /* ══ Home ═══════════════════════════════════════════ */
+  #view-home { text-align: center; }
+
+  /* ── ESCUDO/LOGO ── */
+  .shield-wrap {
+    margin: 1.5rem auto 1.8rem;
+    width: 300px; height: 300px;
+    background: transparent;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: none;
+    overflow: hidden;
+    flex-shrink: 0;
+    padding: 0;
+    border: none;
+    outline: none;
+  }
+  .shield-wrap img {
+    width: 200%; height: 200%;
+    object-fit: cover;
+    border-radius: 50%;
+    margin: -50%;
+  }
+
+  .home-title {
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: .25rem;
+  }
+  .home-sub {
+    font-size: .9rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+    padding: 0 .5rem;
+    line-height: 1.5;
+  }
+
+  .main-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 0 .25rem;
+  }
+
+  .main-btn {
+    background: var(--navy);
+    color: var(--white);
+    border: none;
+    border-radius: var(--radius);
+    padding: 1.3rem 1.6rem;
+    cursor: pointer;
+    font-size: .95rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    min-width: 140px;
+    flex: 1 1 140px;
+    max-width: 200px;
+    position: relative;
+    overflow: hidden;
+    transition: transform .18s, box-shadow .18s;
+    box-shadow: var(--shadow);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    font-family: inherit;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .main-btn::before {
+    content: "";
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 4px;
+    background: var(--gold);
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .main-btn .btn-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: .4rem;
+  }
+  .main-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 32px rgba(11,37,69,.25);
+  }
+  .main-btn:active { transform: translateY(0) scale(.97); }
+
+  /* ══ Group view ═════════════════════════════════════ */
+  #view-group {}
+
+  .back-btn {
+    display: inline-flex; align-items: center; gap: .5rem;
+    background: var(--navy);
+    color: var(--white);
+    border: none; cursor: pointer;
+    font-size: .92rem; font-weight: 600;
+    padding: .7rem 1.3rem .7rem 1rem;
+    border-radius: 30px;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 14px rgba(11,37,69,.28);
+    transition: transform .18s, box-shadow .18s, background .18s, color .18s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    min-height: 44px;
+    letter-spacing: .02em;
+    text-decoration: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .back-btn::before {
+    content: "←";
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1;
+    transition: transform .2s;
+    margin-right: .15rem;
+  }
+  .back-btn:hover {
+    background: var(--gold);
+    color: var(--navy);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 22px rgba(200,168,75,.45);
+  }
+  .back-btn:hover::before {
+    transform: translateX(-4px);
+  }
+  .back-btn:active {
+    transform: translateY(0) scale(.97);
+    box-shadow: 0 2px 10px rgba(11,37,69,.25);
+  }
+
+  .group-heading {
+    font-size: 1.3rem; font-weight: 700;
+    color: var(--navy);
+    border-left: 4px solid var(--gold);
+    padding-left: .75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .app-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 1rem;
+  }
+
+  .app-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.1rem .6rem .9rem;
+    display: flex; flex-direction: column;
+    align-items: center; gap: .55rem;
+    text-decoration: none; color: var(--text);
+    text-align: center;
+    transition: transform .18s, box-shadow .18s;
+    border: 1.5px solid transparent;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    min-height: 0;
+  }
+  .app-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 28px rgba(11,37,69,.18);
+    border-color: var(--gold);
+  }
+  .app-card:active { transform: scale(.96); }
+
+  .app-card-icon-wrap {
+    width: 72px; height: 72px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .app-card-icon-wrap img {
+    width: 72px; height: 72px;
+    object-fit: contain;
+    border-radius: 12px;
+  }
+
+  .app-card-name {
+    font-size: .78rem;
+    font-weight: 600;
+    line-height: 1.3;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .empty {
+    color: var(--muted); font-size: .9rem; padding: 1.5rem 0;
+    grid-column: 1 / -1;
+    text-align: center;
+  }
+
+  /* ══ Config view ════════════════════════════════════ */
+  .config-header {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    gap: .75rem; margin-bottom: 1.5rem;
+  }
+  .config-header .back-btn { margin-bottom: 0; }
+  .config-title { font-size: 1.3rem; font-weight: 700; color: var(--navy); }
+
+  .back-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1.5rem;
+  }
+  .back-row .back-btn { margin-bottom: 0; }
+
+  .section-box {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .section-box h3 {
+    font-size: 1rem; font-weight: 700; color: var(--navy);
+    margin-bottom: 1rem;
+    padding-bottom: .5rem;
+    border-bottom: 2px solid var(--gold);
+  }
+
+  /* ══ Tablas (desktop) → Tarjetas (móvil) ══════════ */
+  .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  table#appsTable,
+  table#adminsTable {
+    width: 100%; border-collapse: collapse; font-size: .85rem;
+    table-layout: auto;
+  }
+  table#appsTable th,
+  table#adminsTable th {
+    background: var(--navy); color: var(--white);
+    padding: .55rem .6rem; text-align: center; font-weight: 600;
+    white-space: nowrap;
+  }
+  table#appsTable th:first-child,
+  table#adminsTable th:first-child { text-align: left; border-radius: var(--radius) 0 0 0; }
+  table#appsTable th:last-child,
+  table#adminsTable th:last-child  { border-radius: 0 var(--radius) 0 0; }
+
+  table#appsTable td,
+  table#adminsTable td {
+    padding: .45rem .5rem;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: middle;
+  }
+  table#appsTable tr:hover td,
+  table#adminsTable tr:hover td { background: #f0f4ff; }
+
+  .chk { text-align: center; }
+  .fi {
+    width: 100%; border: 1.5px solid #d1d5db;
+    border-radius: 7px; padding: .4rem .55rem;
+    font-size: .85rem;
+    transition: border-color .15s;
+    min-height: 40px;
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+  }
+  .fi:focus { outline: none; border-color: var(--navy); box-shadow: 0 0 0 2px rgba(11,37,69,.15); }
+  .url-fi { min-width: 180px; }
+
+  .btn-del {
+    background: none; border: none; cursor: pointer;
+    color: var(--danger); font-size: 1.1rem; font-weight: 700;
+    transition: transform .15s;
+    min-width: 40px; min-height: 40px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-del:hover { transform: scale(1.3); background: rgba(192,57,43,.08); }
+  .btn-del:active { transform: scale(1.1); }
+
+  .desc-cell { min-width: 160px; }
+  .desc-fi    { cursor: help; }
+
+  .desc-modal-box {
+    background: var(--white);
+    color: var(--text);
+    border: 1px solid rgba(11,37,69,.12);
+    border-left: 4px solid var(--gold);
+    border-radius: 12px;
+    padding: 0 1.1rem .85rem;
+    max-width: 320px;
+    max-height: 60vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 36px rgba(0,0,0,.20);
+    font-size: .88rem;
+    line-height: 1.55;
+    pointer-events: auto;
+    animation: descFadeIn .15s ease-out;
+  }
+  .desc-modal-box::before {
+    content: "📝 Descripción";
+    display: block;
+    font-size: .7rem;
+    font-weight: 800;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    padding: .55rem 0 .4rem;
+    margin-bottom: .45rem;
+    border-bottom: 1px solid rgba(11,37,69,.08);
+  }
+  @keyframes descFadeIn {
+    from { opacity: 0; transform: translateY(-4px) scale(.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .actions {
+    display: flex; gap: .7rem; flex-wrap: wrap; margin-top: 1rem;
+  }
+
+  /* ══ Barra de filtros por perfil ════════════════════ */
+  .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    margin: .9rem 0 1.1rem;
+    padding: .65rem .8rem;
+    background: linear-gradient(to right, #f5f7fb, #eef2f8);
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+  }
+  .filter-label {
+    font-size: .82rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-right: .2rem;
+    letter-spacing: .02em;
+    flex-shrink: 0;
+  }
+  .filter-btn {
+    background: #fff;
+    border: 1.5px solid #d1d5db;
+    color: var(--text);
+    padding: .4rem .9rem;
+    border-radius: 22px;
+    cursor: pointer;
+    font-size: .82rem;
+    font-weight: 600;
+    transition: all .18s ease;
+    min-height: 36px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+  }
+  .filter-btn:hover {
+    border-color: var(--navy);
+    background: #f0f4ff;
+    transform: translateY(-1px);
+  }
+  .filter-btn.active {
+    background: var(--navy);
+    color: var(--white);
+    border-color: var(--navy);
+    box-shadow: 0 3px 12px rgba(11,37,69,.25);
+  }
+  .filter-btn.active:hover {
+    background: var(--gold);
+    color: var(--navy);
+    border-color: var(--gold);
+    box-shadow: 0 4px 14px rgba(200,168,75,.4);
+  }
+
+  /* ══ Sección Exportar ═════════════════════════════════ */
+  .export-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+    margin: .5rem 0 1rem;
+    padding: 1rem;
+    background: #f5f7fb;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+  }
+  @media (max-width: 599px) {
+    .export-grid { grid-template-columns: 1fr; }
+  }
+  .export-checkboxes, .export-radios {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    margin-top: .3rem;
+  }
+  .exp-label {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: .9rem;
+    color: var(--text);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    font-weight: 500;
+  }
+  .exp-label input[type="checkbox"],
+  .exp-label input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--navy);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .exp-label input[type="radio"] { width: 18px; height: 18px; }
+  .exp-select {
+    margin-top: .3rem;
+    max-width: 100%;
+    font-size: .82rem;
+  }
+  .export-checkboxes .exp-label:hover,
+  .export-radios .exp-label:hover {
+    color: var(--navy);
+  }
+  .exp-label input[type="checkbox"]:checked + span,
+  .exp-label input[type="radio"]:checked + span {
+    color: var(--navy);
+    font-weight: 700;
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: .4rem;
+    border: none; border-radius: 9px;
+    padding: .6rem 1.1rem; cursor: pointer;
+    font-size: .88rem; font-weight: 600;
+    transition: filter .18s, transform .15s;
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: var(--navy); color: var(--white); }
+  .btn-gold    { background: var(--gold); color: var(--navy); }
+  .btn-ghost   { background: #e5e7eb; color: var(--text); }
+
+  /* grids de credenciales */
+  .cred-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: .8rem;
+    margin-bottom: 1rem;
+  }
+  .fi-label {
+    font-size: .78rem; color: var(--muted);
+    margin-bottom: .25rem; font-weight: 600;
+  }
+  .hint {
+    font-size: .75rem;
+    color: var(--muted);
+    margin-top: .5rem;
+    margin-bottom: .5rem;
+    line-height: 1.4;
+    font-style: italic;
+  }
+
+  /* ══ Modales (login + grupo) ═══════════════════════ */
+  .modal-bg {
+    position: fixed; inset: 0;
+    background: rgba(11,37,69,.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 999;
+    padding: 1rem;
+  }
+  .modal {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 48px rgba(0,0,0,.25);
+    padding: 1.75rem 1.5rem 1.5rem;
+    width: min(420px, 100%);
+    max-height: 90vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal h2 {
+    font-size: 1.15rem; font-weight: 700; color: var(--navy);
+    margin-bottom: 1.1rem; text-align: center;
+  }
+  .modal .fi { margin-bottom: .7rem; }
+  .modal-error { color: var(--danger); font-size: .82rem; min-height: 1.2rem; margin-bottom: .5rem; }
+  .modal-actions { display: flex; gap: .7rem; justify-content: flex-end; margin-top: .5rem; }
+
+  /* ══ Toast ══════════════════════════════════════════ */
+  .toast {
+    position: fixed;
+    bottom: calc(1.5rem + var(--safe-bottom));
+    left: 50%; transform: translateX(-50%);
+    background: var(--navy); color: var(--white);
+    padding: .85rem 1.6rem .85rem 2.8rem; border-radius: 30px;
+    font-size: .92rem; font-weight: 600;
+    box-shadow: 0 4px 20px rgba(0,0,0,.25);
+    z-index: 9999;
+    animation: fadeIn .25s;
+    max-width: calc(100vw - 2rem);
+    text-align: center;
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: fixed;
+  }
+  .toast::before {
+    content: "";
+    position: absolute;
+    left: .85rem; top: 50%; transform: translate(0, -50%);
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.25);
+  }
+  .toast.err {
+    background: var(--danger);
+    padding-left: 2.8rem;
+  }
+  .toast.err::before {
+    content: "✕";
+    background: rgba(255,255,255,.25);
+    color: #fff;
+    font-size: .8rem; font-weight: 900;
+    line-height: 20px; text-align: center;
+    display: inline-block;
+  }
+  .toast.ok {
+    background: #1a7f37;
+    padding-left: 2.8rem;
+  }
+  .toast.ok::before {
+    content: "✓";
+    background: rgba(255,255,255,.25);
+    color: #fff;
+    font-size: .85rem; font-weight: 900;
+    line-height: 20px; text-align: center;
+    display: inline-block;
+  }
+  @keyframes fadeIn { from { opacity:0; bottom: calc(1rem + var(--safe-bottom)); } to { opacity:1; bottom: calc(1.5rem + var(--safe-bottom)); } }
+
+  /* ════════════════════════════════════════════════════════
+     RESPONSIVE — Mobile First & Multiplataforma
+     ════════════════════════════════════════════════════════ */
+
+  /* ── Landscape en móvil ────────────────────────────── */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .shield-wrap {
+      width: 180px; height: 180px;
+      margin: .5rem auto;
+      box-shadow: 0 0 0 6px var(--gold), var(--shadow);
+    }
+    .shield-wrap img { width: 155px; height: 155px; margin: -2.5%; }
+    
+    header { padding: .4rem 1rem; padding-top: calc(.4rem + var(--safe-top)); }
+    main { padding: .75rem 1rem 2rem; }
+    
+    .home-title { font-size: 1.1rem; margin-bottom: .15rem; }
+    .home-sub { font-size: .75rem; margin-bottom: 1rem; }
+    
+    .main-btn {
+      padding: .7rem 1rem;
+      min-width: 110px;
+      max-width: 150px;
+      flex-direction: row;
+      gap: .5rem;
+    }
+    .main-btn .btn-icon { font-size: 1.8rem; margin-bottom: 0; }
+    
+    .main-buttons { gap: .6rem; }
+    .modal { max-height: 95vh; }
+  }
+
+  /* ── Safe Area para iPhone con notch/dynamic island ── */
+  @supports (padding: env(safe-area-inset-top)) {
+    body {
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+    header {
+      padding-left: calc(1rem + env(safe-area-inset-left));
+      padding-right: calc(1rem + env(safe-area-inset-right));
+    }
+    .toast {
+      bottom: calc(1.5rem + env(safe-area-inset-bottom));
+    }
+  }
+
+  /* ── Impresión ══════════════════════════════════════ */
+  @media print {
+    body { background: white; color: black; }
+    header, .btn-config, .toast, .modal-bg { display: none !important; }
+    .app-grid { grid-template-columns: repeat(4, 1fr); }
+    .app-card { break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
+  }
+
+  /* ── Móvil pequeño (< 400px) ─────────────────────── */
+  @media (max-width: 400px) {
+    .main-btn {
+      min-width: 100px;
+      flex: 1 1 100px;
+      max-width: none;
+      padding: 1rem 1rem;
+      font-size: .88rem;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .main-btn .btn-icon { font-size: 2.5rem; }
+
+    .shield-wrap {
+      width: 210px; height: 210px;
+      box-shadow: 0 0 0 7px var(--gold), var(--shadow);
+    }
+    .shield-wrap img { width: 180px; height: 180px; }
+
+    .app-grid {
+      grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+      gap: .75rem;
+    }
+    .app-card { padding: .85rem .4rem .7rem; border-radius: 12px; }
+    .app-card-icon-wrap,
+    .app-card-icon-wrap img { width: 56px; height: 56px; }
+    .app-card-name { font-size: .72rem; }
+
+    header h1 { font-size: .95rem; }
+    .home-title { font-size: 1.25rem; }
+    .home-sub { font-size: .82rem; }
+    .group-heading { font-size: 1.15rem; }
+
+    .section-box { padding: 1rem; }
+    .config-title { font-size: 1.15rem; }
+
+    .btn { padding: .55rem .9rem; font-size: .82rem; }
+
+    table#appsTable thead,
+    table#adminsTable thead { display: none; }
+    table#appsTable,
+    table#adminsTable { display: block; width: 100%; }
+    table#appsTable tbody,
+    table#adminsTable tbody { display: block; width: 100%; }
+    table#appsTable tr,
+    table#adminsTable tr {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .6rem;
+      padding: .85rem;
+      margin-bottom: .75rem;
+      border: 1.5px solid #e5e7eb;
+      border-radius: var(--radius);
+      background: var(--white);
+    }
+    table#appsTable tr:hover td,
+    table#adminsTable tr:hover td { background: transparent; }
+    table#appsTable td,
+    table#adminsTable td {
+      display: flex; flex-direction: column;
+      border: none; padding: 0;
+    }
+    table#appsTable td::before,
+    table#adminsTable td::before {
+      content: attr(data-label);
+      font-size: .68rem; font-weight: 700; color: var(--navy);
+      margin-bottom: .25rem; text-transform: uppercase; letter-spacing: .03em;
+    }
+    table#appsTable td:last-child,
+    table#adminsTable td:last-child {
+      grid-column: 1 / -1;
+      align-items: stretch;
+    }
+    table#appsTable td:last-child::before,
+    table#adminsTable td:last-child::before { display: none; }
+    .desc-cell { min-width: 0; }
+    .url-fi { min-width: 0; }
+    .url-cell { min-width: 0; }
+
+    .modal {
+      width: 100%;
+      padding: 1.25rem 1rem 1rem;
+      border-radius: 12px;
+    }
+  }
+
+  /* ── Móvil medio (400–599px) ─────────────────────── */
+  @media (min-width: 401px) and (max-width: 599px) {
+    .shield-wrap {
+      width: 255px; height: 255px;
+    }
+    .shield-wrap img { width: 218px; height: 218px; }
+
+    .app-grid {
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: .85rem;
+    }
+
+    table#appsTable thead,
+    table#adminsTable thead { display: none; }
+    table#appsTable,
+    table#adminsTable { display: block; width: 100%; }
+    table#appsTable tbody,
+    table#adminsTable tbody { display: block; width: 100%; }
+    table#appsTable tr,
+    table#adminsTable tr {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .6rem;
+      padding: .85rem;
+      margin-bottom: .75rem;
+      border: 1.5px solid #e5e7eb;
+      border-radius: var(--radius);
+      background: var(--white);
+    }
+    table#appsTable tr:hover td,
+    table#adminsTable tr:hover td { background: transparent; }
+    table#appsTable td,
+    table#adminsTable td {
+      display: flex; flex-direction: column;
+      border: none; padding: 0;
+    }
+    table#appsTable td::before,
+    table#adminsTable td::before {
+      content: attr(data-label);
+      font-size: .68rem; font-weight: 700; color: var(--navy);
+      margin-bottom: .25rem; text-transform: uppercase; letter-spacing: .03em;
+    }
+    table#appsTable td:last-child,
+    table#adminsTable td:last-child {
+      grid-column: 1 / -1;
+      align-items: stretch;
+    }
+    table#appsTable td:last-child::before,
+    table#adminsTable td:last-child::before { display: none; }
+    .desc-cell { min-width: 0; }
+    .url-fi { min-width: 0; }
+    .url-cell { min-width: 0; }
+  }
+
+  /* ── Móvil/tablet (600–767px) ────────────────────── */
+  @media (min-width: 600px) and (max-width: 767px) {
+    .cred-grid { grid-template-columns: 1fr 1fr 1fr; }
+  }
+
+  /* ── Móvil: credenciales en 1 columna ────────────── */
+  @media (max-width: 599px) {
+    .cred-grid { grid-template-columns: 1fr; }
+    .modal { padding: 1.5rem 1.25rem 1.25rem; }
+  }
+
+  /* ── Tablet (768px+) ─────────────────────────────── */
+  @media (min-width: 768px) {
+    main { padding: 2rem 1.5rem 4rem; }
+
+    .shield-wrap { width: 360px; height: 360px; box-shadow: var(--shadow); }
+    .shield-wrap img { width: 308px; height: 308px; }
+
+    .home-title { font-size: 1.6rem; }
+    .home-sub { font-size: .95rem; }
+
+    .main-btn {
+      min-width: 170px;
+      max-width: 210px;
+      padding: 1.4rem 2rem;
+      font-size: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .main-btn .btn-icon { font-size: 3rem; }
+
+    .app-grid {
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 1.25rem;
+    }
+    .app-card { padding: 1.2rem .8rem 1rem; }
+    .app-card-name { font-size: .82rem; }
+
+    .group-heading { font-size: 1.4rem; }
+    .config-title { font-size: 1.4rem; }
+    .section-box { padding: 1.5rem; }
+
+    header { padding: .75rem 1.5rem; }
+    header h1 { font-size: 1.1rem; }
+  }
+
+  /* ── Desktop (1024px+) ───────────────────────────── */
+  @media (min-width: 1024px) {
+    .shield-wrap { width: 420px; height: 420px; }
+    .shield-wrap img { width: 360px; height: 360px; }
+
+    .app-grid {
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 1.3rem;
+    }
+  }
+
+  /* ── Pantallas muy anchas (1280px+) ──────────────── */
+  @media (min-width: 1280px) {
+    main { max-width: 1080px; margin: 0 auto; }
+    .app-grid {
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    }
+    .shield-wrap { width: 450px; height: 450px; }
+    .shield-wrap img { width: 385px; height: 385px; }
+  }
+
+  /* ── Pantallas 4K/Ultra-wide (1920px+) ─────────────── */
+  @media (min-width: 1920px) {
+    main { max-width: 1400px; }
+    .app-grid {
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1.5rem;
+    }
+    .shield-wrap { width: 500px; height: 500px; }
+    .shield-wrap img { width: 430px; height: 430px; }
+    .main-btn { max-width: 240px; padding: 1.6rem 2.5rem; font-size: 1.1rem; }
+  }
+
+  /* ── Dispositivos pequeños tipo watch/mini ═══════════ */
+  @media (max-width: 320px) {
+    .main-buttons { flex-direction: column; align-items: center; }
+    .main-btn { max-width: 100%; width: 100%; }
+    .shield-wrap { width: 180px; height: 180px; }
+    .header-content { flex-direction: column; text-align: center; gap: .5rem; }
+  }
+
+  /* ══ Utilidades adicionales ═══════════════════════ */
+
+  /* Checkboxes accesibles en móvil */
+  input[type="checkbox"] {
+    width: 22px; height: 22px;
+    accent-color: var(--navy);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  @media (max-width: 767px) {
+    input[type="checkbox"] {
+      width: 26px; height: 26px;
+    }
+  }
+
+  /* Scroll suave en iOS para tablas */
+  .tbl-wrap {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .tbl-wrap::-webkit-scrollbar { height: 4px; }
+  .tbl-wrap::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 4px; }
+
+  /* Prevenir selección de texto en botones (móvil) */
+  button, .app-card, .btn-config, .back-btn {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Fix para teclado virtual en iOS */
+  @supports (padding: max(0px)) {
+    main {
+      padding-bottom: calc(4rem + var(--safe-bottom));
+    }
+  }
+
+  /* Evitar zoom automático en inputs iOS (font-size >= 16px) */
+  @media (max-width: 767px) {
+    input.fi, input[type="text"], input[type="password"], input[type="url"] {
+      font-size: 16px;
+    }
+    table#appsTable .fi,
+    table#adminsTable .fi {
+      font-size: 14px;
+    }
+  }
+
+  /* Pantallas con prefers-reduced-motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      transition-duration: .01ms !important;
+    }
+    html { scroll-behavior: auto; }
+  }
+
+  /* Modo horizontal en móvil: ajustar shields */
+  @media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+    .shield-wrap {
+      width: 180px; height: 180px;
+      margin: 1rem auto 1.2rem;
+    }
+    .shield-wrap img { width: 155px; height: 155px; }
+    .home-sub { margin-bottom: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ CABECERA ═══════════════════════════════════ -->
+<header>
+  <div>
+    <h1>TecDEA - Portal Tecnología</h1>
+    <div class="subtitle">IES Virgen de Villadiego · angelmicelti</div>
+  </div>
+  <button class="btn-config" onclick="tecdea.showLoginModal()">⚙ Configuración</button>
+</header>
+
+<!-- ═══════════ MAIN ═══════════════════════════════════════ -->
+<main>
+
+  <!-- Vista: HOME -->
+  <section id="view-home">
+    <div class="shield-wrap">
+      <!-- Logo de TecDEA desde carpeta img -->
+      <img src="img/logo.png" alt="Logo TecDEA" onerror="this.style.display='none'">
+    </div>
+    <p class="home-title">Portal de Aplicaciones TecDEA</p>
+    <p class="home-sub">Departamento de Tecnología · IES Virgen de Villadiego<br>Peñaflor (Sevilla)</p>
+
+    <div class="main-buttons">
+      <button class="main-btn" onclick="tecdea.requestGroupAccess('tecnoApps')">
+        <span class="btn-icon"><svg viewBox="0 0 64 64" width="48" height="48" style="display:inline-block;vertical-align:middle"><defs><linearGradient id="appGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1E7A3D"/><stop offset="100%" stop-color="#145a28"/></linearGradient></defs><rect x="10" y="4" width="44" height="56" rx="10" fill="url(#appGrad)" stroke="#E8943A" stroke-width="2.5"/><rect x="16" y="12" width="32" height="36" rx="3" fill="#F5E6A3" opacity="0.95"/><circle cx="32" cy="54" r="2.5" fill="#E8943A"/><rect x="28" y="18" width="8" height="12" rx="2" fill="#1A3A8E" opacity="0.7"/><rect x="20" y="34" width="24" height="3" rx="1.5" fill="#1A3A8E" opacity="0.4"/></svg></span>TecnoApps
+      </button>
+      <button class="main-btn" onclick="tecdea.requestGroupAccess('departamento')">
+        <span class="btn-icon"><svg viewBox="0 0 64 64" width="48" height="48" style="display:inline-block;vertical-align:middle"><defs><linearGradient id="buildGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1A3A8E"/><stop offset="100%" stop-color="#0d2460"/></linearGradient></defs><rect x="6" y="22" width="52" height="38" rx="3" fill="url(#buildGrad)" stroke="#E8943A" stroke-width="2"/><polygon points="32,4 56,22 8,22" fill="#E8943A" stroke="#1E7A3D" stroke-width="1.5"/><rect x="26" y="34" width="12" height="22" rx="1.5" fill="#F5E6A3"/><rect x="14" y="40" width="8" height="14" rx="1" fill="#F5E6A3" opacity="0.75"/><rect x="42" y="40" width="8" height="14" rx="1" fill="#F5E6A3" opacity="0.75"/><circle cx="32" cy="45" r="2" fill="#1A3A8E"/></svg></span>Departamento
+      </button>
+      <button class="main-btn" onclick="tecdea.requestGroupAccess('cajonDeSastre')">
+        <span class="btn-icon"><svg viewBox="0 0 64 64" width="48" height="48" style="display:inline-block;vertical-align:middle"><defs><linearGradient id="boxGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#E8943A"/><stop offset="100%" stop-color="#c77a28"/></linearGradient></defs><rect x="6" y="16" width="52" height="42" rx="4" fill="url(#boxGrad)" stroke="#1A3A8E" stroke-width="2.5"/><rect x="11" y="21" width="42" height="31" rx="2" fill="#1A3A8E" opacity="0.9"/><path d="M20,30 L28,30 L24,38 Z" fill="#1E7A3D" stroke="#E8943A" stroke-width="1"/><circle cx="40" cy="33" r="6" fill="#1E7A3D" stroke="#E8943A" stroke-width="1.5"/><path d="M37,33 L39,35 L43,31" stroke="#F5E6A3" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><line x1="15" y1="44" x2="30" y2="44" stroke="#F5E6A3" stroke-width="2" stroke-linecap="round"/><line x1="34" y1="44" x2="49" y2="44" stroke="#F5E6A3" stroke-width="2" stroke-linecap="round"/></svg></span>Cajón de sastre
+      </button>
+    </div>
+  </section>
+
+  <!-- Vista: GRUPO -->
+  <section id="view-group" class="hidden">
+    <div class="back-row">
+      <button class="back-btn" onclick="tecdea.renderHome()">Volver</button>
+    </div>
+    <h2 class="group-heading" id="groupTitle"></h2>
+    <div class="app-grid" id="appGrid"></div>
+  </section>
+
+  <!-- Vista: CONFIGURACIÓN -->
+  <section id="view-config" class="hidden">
+    <div class="config-header">
+      <span class="config-title">Configuración</span>
+      <button class="back-btn" onclick="tecdea.renderHome()">Volver</button>
+    </div>
+
+    <!-- Aplicaciones -->
+    <div class="section-box">
+      <h3>📋 Aplicaciones</h3>
+      <p class="hint">
+        💾 Los cambios se guardan automáticamente al salir de cada celda.
+        La URL base fija es <code>https://tecdea.github.io/</code>. Añade solo el path final de cada aplicación (ej: <code>mi-app/index.html</code>).
+      </p>
+      <div class="filter-bar" id="appsFilterBar">
+        <span class="filter-label">🔎 Filtrar por perfil:</span>
+        <button class="filter-btn active" data-filter="all" onclick="tecdea.setAppsFilter('all')">Todas</button>
+        <button class="filter-btn" data-filter="tecnoApps" onclick="tecdea.setAppsFilter('tecnoApps')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="4" y="1" width="16" height="22" rx="3" fill="#1E7A3D" stroke="#E8943A" stroke-width="1"/><rect x="6" y="4" width="12" height="13" rx="1" fill="#F5E6A3" opacity="0.9"/><circle cx="12" cy="20" r="1" fill="#E8943A"/></svg>TecnoApps</button>
+        <button class="filter-btn" data-filter="departamento" onclick="tecdea.setAppsFilter('departamento')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="2" y="9" width="20" height="13" rx="1" fill="#1A3A8E" stroke="#E8943A" stroke-width="1"/><polygon points="12,2 20,9 4,9" fill="#E8943A" stroke="#1E7A3D" stroke-width="0.5"/><rect x="10" y="13" width="4" height="7" rx="0.5" fill="#F5E6A3"/></svg>Departamento</button>
+        <button class="filter-btn" data-filter="cajonDeSastre" onclick="tecdea.setAppsFilter('cajonDeSastre')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="2" y="6" width="20" height="15" rx="2" fill="#E8943A" stroke="#1A3A8E" stroke-width="1"/><rect x="4" y="8" width="16" height="11" rx="1" fill="#1A3A8E" opacity="0.9"/><path d="M7,11 L11,11 L9,15 Z" fill="#1E7A3D" stroke="#E8943A" stroke-width="0.5"/><circle cx="15" cy="12" r="2.5" fill="#1E7A3D" stroke="#E8943A" stroke-width="0.7"/></svg>Cajón de sastre</button>
+      </div>
+      <div class="tbl-wrap">
+        <table id="appsTable">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Descripción</th>
+              <th>URL</th>
+              <th>Tec.</th>
+              <th>Dep.</th>
+              <th>Caj.</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="actions">
+        <button class="btn btn-gold" onclick="tecdea.addAppRow()">＋ Añadir aplicación</button>
+        <button class="btn btn-ghost" onclick="tecdea.sortApps('name')">↕ Ordenar por nombre</button>
+        <button class="btn btn-ghost" onclick="tecdea.sortApps('url')">↕ Ordenar por URL</button>
+        <button class="btn btn-primary" onclick="tecdea.saveConfig()">💾 Guardar aplicaciones</button>
+      </div>
+    </div>
+
+    <!-- Contraseñas de acceso por perfil -->
+    <div class="section-box">
+      <h3>🔐 Contraseñas de acceso por perfil</h3>
+      <p class="hint">Al pulsar cada botón en la pantalla principal, se pedirá la contraseña correspondiente. Déjala vacía para permitir acceso libre a ese perfil (no recomendado).</p>
+      <div class="cred-grid">
+        <div>
+          <div class="fi-label">TecnoApps</div>
+          <input type="text" id="passTecnoApps" class="fi" placeholder="••••••" autocomplete="off">
+        </div>
+        <div>
+          <div class="fi-label">Departamento</div>
+          <input type="text" id="passDepartamento" class="fi" placeholder="••••••" autocomplete="off">
+        </div>
+        <div>
+          <div class="fi-label">Cajón de sastre</div>
+          <input type="text" id="passCajonDeSastre" class="fi" placeholder="••••••" autocomplete="off">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="tecdea.saveGroupPasswordsConfig()">🔒 Guardar contraseñas</button>
+      </div>
+    </div>
+
+    <!-- Administradores (CRUD multi-admin) -->
+    <div class="section-box">
+      <h3>👥 Administradores</h3>
+      <p class="hint">Gestiona los usuarios con permiso para acceder a esta pantalla de Configuración. Debe existir al menos uno; no se permiten usuarios duplicados.</p>
+      <div class="tbl-wrap">
+        <table id="adminsTable">
+          <thead>
+            <tr>
+              <th>Usuario</th>
+              <th>Contraseña</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="actions">
+        <button class="btn btn-gold" onclick="tecdea.addAdminRow()">＋ Añadir administrador</button>
+        <button class="btn btn-primary" onclick="tecdea.saveAdminsConfig()">💾 Guardar administradores</button>
+      </div>
+    </div>
+
+    <!-- Exportar datos -->
+    <div class="section-box">
+      <h3>📤 Exportar datos</h3>
+      <p class="hint">Exporta todo o parte de la configuración a PDF o Excel (.xlsx). Las librerías se cargan bajo demanda al pulsar el botón (no afectan al rendimiento inicial).</p>
+
+      <div class="export-grid">
+        <div>
+          <div class="fi-label">¿Qué exportar?</div>
+          <div class="export-checkboxes">
+            <label class="exp-label">
+              <input type="checkbox" id="expApps" checked>
+              <span>Aplicaciones</span>
+            </label>
+            <label class="exp-label">
+              <input type="checkbox" id="expAdmins" checked>
+              <span>Administradores</span>
+            </label>
+            <label class="exp-label">
+              <input type="checkbox" id="expPass" checked>
+              <span>Contraseñas por perfil</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <div class="fi-label">Formato de exportación</div>
+          <div class="export-radios">
+            <label class="exp-label">
+              <input type="radio" name="expFormat" value="excel" checked>
+              <span>📊 Excel (.xlsx)</span>
+            </label>
+            <label class="exp-label">
+              <input type="radio" name="expFormat" value="pdf">
+              <span>📄 PDF (.pdf)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" onclick="tecdea.exportData()">📥 Exportar</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═══════════ MODAL LOGIN ADMINISTRADOR ══════════════════ -->
+<div id="loginModal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>🔐 Acceso a Configuración</h2>
+    <div class="fi-label">Usuario</div>
+    <input type="text"     id="loginUser" class="fi" placeholder="admin" autocomplete="username"
+           onkeydown="if(event.key==='Enter') document.getElementById('loginPass').focus()">
+    <div class="fi-label" style="margin-top:.5rem">Contraseña</div>
+    <input type="password" id="loginPass" class="fi" placeholder="••••••" autocomplete="current-password"
+           onkeydown="if(event.key==='Enter')  tecdea.doLogin()">
+    <div id="loginError" class="modal-error"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="tecdea.closeLoginModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="tecdea.doLogin()">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL CONTRASEÑA DE GRUPO ══════════════════ -->
+<div id="groupPassModal" class="modal-bg hidden">
+  <div class="modal">
+    <h2 id="groupPassTitle">Acceso</h2>
+    <div class="fi-label">Contraseña</div>
+    <input type="password" id="groupPassInput" class="fi" placeholder="••••••" autocomplete="current-password"
+           onkeydown="if(event.key==='Enter')  tecdea.doGroupLogin()">
+    <div id="groupPassError" class="modal-error"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="tecdea.closeGroupPassModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="tecdea.doGroupLogin()">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL DESCRIPCIÓN (hover / tap) ═══════════ -->
+<div id="descModal" class="hidden" style="position:fixed;top:0;left:0;z-index:9000;pointer-events:none;">
+  <div class="desc-modal-box">
+    <p id="descModalText"></p>
+  </div>
+</div>
+
+<!-- ═══════════ TOAST ══════════════════════════════════════ -->
+<div id="toast" class="toast hidden"></div>
+
+<!-- ═══════ Registro del Service Worker (PWA) ═══════ -->
+<script>
+  window.addEventListener('load', () => {
+    if (!('serviceWorker' in navigator)) return;
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
+
+    navigator.serviceWorker.register('sw.js', { scope: './' })
+      .then((reg) => {
+        console.log('[PWA] Service Worker registrado con scope:', reg.scope);
+
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('[PWA] Nueva versión disponible. Recarga para aplicar.');
+            }
+          });
+        });
+      })
+      .catch((err) => {
+        console.warn('[PWA] Error al registrar el Service Worker:', err);
+      });
+
+    if (navigator.serviceWorker.controller) {
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!window._swReloaded) {
+          window._swReloaded = true;
+        }
+      });
+    }
+  });
+</script>
+
+</body>
+</html>
