@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="192" height="192">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#0b2545" />
+      <stop offset="100%" stopColor="#1a4d7a" />
+    </linearGradient>
+  </defs>
+  <!-- Fondo circular -->
+  <circle cx="256" cy="256" r="256" fill="#f7f4ef"/>
+  <!-- Escudo -->
+  <path d="M256,60 L420,130 L420,280 C420,380 340,450 256,480 C172,450 92,380 92,280 L92,130 Z" 
+        fill="url(#shieldGrad)" stroke="#c8a84b" stroke-width="10"/>
+  <!-- Letra T -->
+  <text x="256" y="270" text-anchor="middle" font-size="140" font-family="Arial, sans-serif" font-weight="bold" fill="#c8a84b">T</text>
+  <!-- Texto TECDEA -->
+  <text x="256" y="350" text-anchor="middle" font-size="45" font-family="Arial, sans-serif" font-weight="600" fill="#e8c96a">TECDEA</text>
+  <!-- Subtítulo -->
+  <text x="256" y="395" text-anchor="middle" font-size="28" font-family="Arial, sans-serif" fill="#ffffff" opacity="0.85">Tecnología</text>
+</svg>
