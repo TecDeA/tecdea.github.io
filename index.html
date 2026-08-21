@@ -2,14 +2,36 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
-<meta name="theme-color" content="#0b2545">
+<!-- ═══════ VIEWPORT MULTIPLATAFORMA ═══════ -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0, user-scalable=yes">
+<!-- ═══════ TEMA Y COLORES ═══════ -->
+<meta name="theme-color" content="#0b2545" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b2545" media="(prefers-color-scheme: dark)">
+<meta name="msapplication-navbutton-color" content="#0b2545">
+<meta name="msapplication-TileColor" content="#0b2545">
+<!-- ═══════ iOS / Safari PWA ═══════ -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="TecDeA Portal">
+<meta name="apple-mobile-web-app-title" content="TecDEA Portal">
+<link rel="mask-icon" href="img/icon-512x512-maskable.svg" color="#0b2545">
+<!-- ═══════ Android / Chrome PWA ═══════ -->
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="format-detection" content="telephone=no">
+<meta name="format-detection" content="email=no">
+<meta name="format-detection" content="address=no">
+<meta name="x-ua-compatible" content="IE=edge">
+<!-- ═══════ OPEN GRAPH / SOCIAL ═══════ -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="TecDEA - Portal de Aplicaciones de Tecnología">
+<meta property="og:description" content="Portal de aplicaciones del Departamento de Tecnología del IES Virgen de Villadiego">
+<meta property="og:image" content="img/logo.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="TecDEA Portal">
 <meta name="description" content="Portal de aplicaciones del Departamento de Tecnología del IES Virgen de Villadiego. Acceso rápido a las aplicaciones creadas por angelmicelti para TecnoApps, Departamento y Cajón de sastre.">
+<!-- ═══════ SEGURIDAD ═══════ -->
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 
 <!-- ═══════ PWA: manifest, iconos y favicon ═══════ -->
 <link rel="manifest" href="manifest.webmanifest">
@@ -22,7 +44,7 @@
 <meta name="msapplication-TileImage" content="img/icon-144x144.svg">
 <meta name="msapplication-config" content="browserconfig.xml">
 
-<title>TecDeA - Portal de Aplicaciones de Tecnología</title>
+<title>TecDEA - Portal de Aplicaciones de Tecnología</title>
 
 <!-- Firebase SDK -->
 <script type="module">
@@ -965,7 +987,7 @@
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(15);
     doc.setFont('helvetica', 'bold');
-    doc.text('Portal TecDeA — Configuración', 14, 14);
+    doc.text('Portal TecDEA — Configuración', 14, 14);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.text(`Exportado el ${new Date().toLocaleString('es-ES')}`, 14, 19);
@@ -1035,7 +1057,7 @@
       doc.setFontSize(8);
       doc.setTextColor(120);
       doc.text(`Página ${i} de ${pageCount}`, pageW - 30, pageH - 8);
-      doc.text('Portal TecDeA', 14, pageH - 8);
+      doc.text('Portal TecDEA', 14, pageH - 8);
     }
 
     const date = new Date().toISOString().slice(0, 10);
@@ -1189,23 +1211,94 @@
 
   html {
     -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
+    tap-highlight-color: transparent;
     scroll-behavior: smooth;
+    -webkit-scroll-behavior: smooth;
+    /* Soporte para dynamic viewport units */
+    --dvh: dvh;
+    --dvw: dvw;
+  }
+
+  @supports not (height: 100dvh) {
+    :root { --dvh: 100vh; --dvw: 100vw; }
   }
 
   body {
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
     background: var(--cream);
     color: var(--text);
     min-height: 100vh;
-    min-height: 100dvh;
+    min-height: var(--dvh, 100vh);
     overflow-x: hidden;
+    overflow-y: auto;
     overscroll-behavior-y: none;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    /* Prevención de pull-to-refresh en móviles */
+    overscroll-behavior-x: none;
+    /* Soporte para modo oscuro futuro */
+    color-scheme: light;
+    /* Touch action global */
+    touch-action: pan-x pan-y;
+    -webkit-touch-callout: none;
+    /* Selección de texto */
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Permitir selección en inputs y textos editables */
+  input, textarea, [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
   }
 
   .hidden { display: none !important; }
+
+  /* ══ Utilidades accesibilidad ═══════════════════ */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* Focus visible para navegación por teclado */
+  :focus-visible {
+    outline: 3px solid var(--gold);
+    outline-offset: 2px;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Reducir animaciones si el usuario lo prefiere */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Modo alto contraste */
+  @media (prefers-contrast: high) {
+    :root {
+      --navy: #000000;
+      --gold: #FFD700;
+      --gold2: #FFEA80;
+      --shadow: 0 4px 24px rgba(0,0,0,.4);
+    }
+  }
 
   /* ══ Topbar ═════════════════════════════════════════ */
   header {
@@ -1333,6 +1426,11 @@
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
     font-family: inherit;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
   }
   .main-btn::before {
     content: "";
@@ -1814,8 +1912,61 @@
   @keyframes fadeIn { from { opacity:0; bottom: calc(1rem + var(--safe-bottom)); } to { opacity:1; bottom: calc(1.5rem + var(--safe-bottom)); } }
 
   /* ════════════════════════════════════════════════════════
-     RESPONSIVE — Mobile First
+     RESPONSIVE — Mobile First & Multiplataforma
      ════════════════════════════════════════════════════════ */
+
+  /* ── Landscape en móvil ────────────────────────────── */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .shield-wrap {
+      width: 180px; height: 180px;
+      margin: .5rem auto;
+      box-shadow: 0 0 0 6px var(--gold), var(--shadow);
+    }
+    .shield-wrap img { width: 155px; height: 155px; margin: -2.5%; }
+    
+    header { padding: .4rem 1rem; padding-top: calc(.4rem + var(--safe-top)); }
+    main { padding: .75rem 1rem 2rem; }
+    
+    .home-title { font-size: 1.1rem; margin-bottom: .15rem; }
+    .home-sub { font-size: .75rem; margin-bottom: 1rem; }
+    
+    .main-btn {
+      padding: .7rem 1rem;
+      min-width: 110px;
+      max-width: 150px;
+      flex-direction: row;
+      gap: .5rem;
+    }
+    .main-btn .btn-icon { font-size: 1.8rem; margin-bottom: 0; }
+    
+    .main-buttons { gap: .6rem; }
+    .modal { max-height: 95vh; }
+  }
+
+  /* ── Safe Area para iPhone con notch/dynamic island ── */
+  @supports (padding: env(safe-area-inset-top)) {
+    body {
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+    header {
+      padding-left: calc(1rem + env(safe-area-inset-left));
+      padding-right: calc(1rem + env(safe-area-inset-right));
+    }
+    .toast {
+      bottom: calc(1.5rem + env(safe-area-inset-bottom));
+    }
+  }
+
+  /* ── Impresión ══════════════════════════════════════ */
+  @media print {
+    body { background: white; color: black; }
+    header, .btn-config, .toast, .modal-bg { display: none !important; }
+    .app-grid { grid-template-columns: repeat(4, 1fr); }
+    .app-card { break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
+  }
 
   /* ── Móvil pequeño (< 400px) ─────────────────────── */
   @media (max-width: 400px) {
@@ -1826,6 +1977,11 @@
       padding: 1rem 1rem;
       font-size: .88rem;
       border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
     }
     .main-btn .btn-icon { font-size: 2.5rem; }
 
@@ -1982,6 +2138,11 @@
       max-width: 210px;
       padding: 1.4rem 2rem;
       font-size: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
     }
     .main-btn .btn-icon { font-size: 3rem; }
 
@@ -2013,10 +2174,32 @@
 
   /* ── Pantallas muy anchas (1280px+) ──────────────── */
   @media (min-width: 1280px) {
-    main { max-width: 1080px; }
+    main { max-width: 1080px; margin: 0 auto; }
     .app-grid {
       grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
     }
+    .shield-wrap { width: 450px; height: 450px; }
+    .shield-wrap img { width: 385px; height: 385px; }
+  }
+
+  /* ── Pantallas 4K/Ultra-wide (1920px+) ─────────────── */
+  @media (min-width: 1920px) {
+    main { max-width: 1400px; }
+    .app-grid {
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1.5rem;
+    }
+    .shield-wrap { width: 500px; height: 500px; }
+    .shield-wrap img { width: 430px; height: 430px; }
+    .main-btn { max-width: 240px; padding: 1.6rem 2.5rem; font-size: 1.1rem; }
+  }
+
+  /* ── Dispositivos pequeños tipo watch/mini ═══════════ */
+  @media (max-width: 320px) {
+    .main-buttons { flex-direction: column; align-items: center; }
+    .main-btn { max-width: 100%; width: 100%; }
+    .shield-wrap { width: 180px; height: 180px; }
+    .header-content { flex-direction: column; text-align: center; gap: .5rem; }
   }
 
   /* ══ Utilidades adicionales ═══════════════════════ */
@@ -2091,7 +2274,7 @@
 <!-- ═══════════ CABECERA ═══════════════════════════════════ -->
 <header>
   <div>
-    <h1>TecDeA - Portal Tecnología</h1>
+    <h1>TecDEA - Portal Tecnología</h1>
     <div class="subtitle">IES Virgen de Villadiego · angelmicelti</div>
   </div>
   <button class="btn-config" onclick="tecdea.showLoginModal()">⚙ Configuración</button>
@@ -2103,21 +2286,21 @@
   <!-- Vista: HOME -->
   <section id="view-home">
     <div class="shield-wrap">
-      <!-- Logo de TecDeA desde carpeta img -->
-      <img src="img/logo.png" alt="Logo TecDeA" onerror="this.style.display='none'">
+      <!-- Logo de TecDEA desde carpeta img -->
+      <img src="img/logo.png" alt="Logo TecDEA" onerror="this.style.display='none'">
     </div>
-    <p class="home-title">Portal de Aplicaciones TecDeA</p>
-    <p class="home-sub">Departamento de Tecnología <br> IES Virgen de Villadiego<br>Peñaflor (Sevilla)</p>
+    <p class="home-title">Portal de Aplicaciones TecDEA</p>
+    <p class="home-sub">Departamento de Tecnología · IES Virgen de Villadiego<br>Peñaflor (Sevilla)</p>
 
     <div class="main-buttons">
       <button class="main-btn" onclick="tecdea.requestGroupAccess('tecnoApps')">
-        <span class="btn-icon">📱</span>TecnoApps
+        <span class="btn-icon"><svg viewBox="0 0 64 64" width="48" height="48" style="display:inline-block;vertical-align:middle"><defs><linearGradient id="tecGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1E7A3D"/><stop offset="100%" stop-color="#165a2d"/></linearGradient></defs><rect x="8" y="4" width="48" height="56" rx="8" fill="url(#tecGrad)" stroke="#E8943A" stroke-width="2.5"/><rect x="14" y="12" width="36" height="32" rx="2" fill="#f7f4ef"/><circle cx="32" cy="50" r="3" fill="#E8943A"/></svg></span>TecnoApps
       </button>
       <button class="main-btn" onclick="tecdea.requestGroupAccess('departamento')">
-        <span class="btn-icon">🏫</span>Departamento
+        <span class="btn-icon"><svg viewBox="0 0 64 64" width="48" height="48" style="display:inline-block;vertical-align:middle"><defs><linearGradient id="depGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1A3A8E"/><stop offset="100%" stop-color="#0d2460"/></linearGradient></defs><rect x="4" y="20" width="56" height="40" rx="3" fill="url(#depGrad)" stroke="#E8943A" stroke-width="2.5"/><polygon points="32,4 58,20 6,20" fill="#E8943A" stroke="#1E7A3D" stroke-width="1.5"/><rect x="26" y="34" width="12" height="26" rx="1" fill="#F5E6A3"/><rect x="14" y="38" width="8" height="16" rx="1" fill="#F5E6A3" opacity="0.85"/><rect x="42" y="38" width="8" height="16" rx="1" fill="#F5E6A3" opacity="0.85"/></svg></span>Departamento
       </button>
       <button class="main-btn" onclick="tecdea.requestGroupAccess('cajonDeSastre')">
-        <span class="btn-icon">🧰</span>Cajón de sastre
+        <span class="btn-icon"><svg viewBox="0 0 64 64" width="48" height="48" style="display:inline-block;vertical-align:middle"><defs><linearGradient id="cajGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#E8943A"/><stop offset="100%" stop-color="#c77a28"/></linearGradient></defs><rect x="6" y="18" width="52" height="38" rx="4" fill="url(#cajGrad)" stroke="#1A3A8E" stroke-width="2.5"/><rect x="10" y="22" width="44" height="30" rx="2" fill="#1A3A8E" opacity="0.9"/><circle cx="28" cy="34" r="5" fill="#1E7A3D" stroke="#E8943A" stroke-width="1.5"/><path d="M24,42 L32,34 L40,42" stroke="#1A3A8E" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M42,28 L50,28 L46,36 Z" fill="#F5E6A3"/><line x1="14" y1="28" x2="22" y2="28" stroke="#F5E6A3" stroke-width="2.5" stroke-linecap="round"/><line x1="14" y1="46" x2="24" y2="46" stroke="#F5E6A3" stroke-width="2.5" stroke-linecap="round"/></svg></span>Cajón de sastre
       </button>
     </div>
   </section>
@@ -2148,9 +2331,9 @@
       <div class="filter-bar" id="appsFilterBar">
         <span class="filter-label">🔎 Filtrar por perfil:</span>
         <button class="filter-btn active" data-filter="all" onclick="tecdea.setAppsFilter('all')">Todas</button>
-        <button class="filter-btn" data-filter="tecnoApps" onclick="tecdea.setAppsFilter('tecnoApps')">📱 TecnoApps</button>
-        <button class="filter-btn" data-filter="departamento" onclick="tecdea.setAppsFilter('departamento')">🏫 Departamento</button>
-        <button class="filter-btn" data-filter="cajonDeSastre" onclick="tecdea.setAppsFilter('cajonDeSastre')">🧰 Cajón de sastre</button>
+        <button class="filter-btn" data-filter="tecnoApps" onclick="tecdea.setAppsFilter('tecnoApps')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="3" y="1" width="18" height="22" rx="2" fill="#1E7A3D" stroke="#E8943A" stroke-width="1.2"/><rect x="5" y="4" width="14" height="13" rx="1" fill="#fff"/><circle cx="12" cy="19.5" r="1.2" fill="#E8943A"/></svg>TecnoApps</button>
+        <button class="filter-btn" data-filter="departamento" onclick="tecdea.setAppsFilter('departamento')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="1" y="8" width="22" height="15" rx="1" fill="#1A3A8E" stroke="#E8943A" stroke-width="1.2"/><polygon points="12,2 21,8 3,8" fill="#E8943A" stroke="#1E7A3D" stroke-width="0.6"/><rect x="9.5" y="13" width="5" height="10" rx="0.5" fill="#F5E6A3"/></svg>Departamento</button>
+        <button class="filter-btn" data-filter="cajonDeSastre" onclick="tecdea.setAppsFilter('cajonDeSastre')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="2" y="7" width="20" height="15" rx="2" fill="#E8943A" stroke="#1A3A8E" stroke-width="1.2"/><rect x="4" y="9" width="16" height="11" rx="1" fill="#1A3A8E" opacity="0.9"/><circle cx="10" cy="13" r="2" fill="#1E7A3D" stroke="#E8943A" stroke-width="0.6"/><path d="M8,16 L10,13 L12,16" stroke="#1A3A8E" stroke-width="1.2" fill="none"/></svg>Cajón de sastre</button>
       </div>
       <div class="tbl-wrap">
         <table id="appsTable">
