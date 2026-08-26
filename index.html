@@ -1162,6 +1162,27 @@
     }
   });
 
+  // ── Función para controlar acordeones (solo uno abierto a la vez) ──
+  function toggleAccordion(headerBtn) {
+    const item = headerBtn.parentElement;
+    const content = item.querySelector('.accordion-content');
+    const isOpen = content.classList.contains('open');
+
+    // Cerrar todos los acordeones
+    document.querySelectorAll('.accordion-item').forEach(acc => {
+      acc.querySelector('.accordion-header').classList.remove('active');
+      acc.querySelector('.accordion-header').setAttribute('aria-expanded', 'false');
+      acc.querySelector('.accordion-content').classList.remove('open');
+    });
+
+    // Abrir el clickeado si estaba cerrado
+    if (!isOpen) {
+      headerBtn.classList.add('active');
+      headerBtn.setAttribute('aria-expanded', 'true');
+      content.classList.add('open');
+    }
+  }
+
   // ── Exponemos al HTML ──────────────────────────────────
   window.tecdea = {
     requestGroupAccess, closeGroupPassModal, doGroupLogin,
@@ -1171,7 +1192,8 @@
     saveGroupPasswordsConfig,
     hideDescModal, iconFallback,
     sortApps, setAppsFilter,
-    exportData
+    exportData,
+    toggleAccordion
   };
 
   // ── Arranque ──────────────────────────────────────────
@@ -1578,6 +1600,62 @@
   }
   .back-row .back-btn { margin-bottom: 0; }
 
+  /* ══ Acordeones de configuración ═════════════════════ */
+  .accordion-item {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+  }
+  .accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s ease;
+    border: none;
+    width: 100%;
+    text-align: left;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--navy);
+    background: transparent;
+  }
+  .accordion-header:hover {
+    background: rgba(11,37,69,0.04);
+  }
+  .accordion-header.active {
+    background: rgba(200,168,75,0.08);
+    border-bottom: 2px solid var(--gold);
+  }
+  .accordion-icon {
+    font-size: 1.2rem;
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+    margin-left: 0.75rem;
+    color: var(--gold);
+  }
+  .accordion-header.active .accordion-icon {
+    transform: rotate(180deg);
+  }
+  .accordion-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease, padding 0.35s ease;
+    padding: 0 1.25rem;
+  }
+  .accordion-content.open {
+    max-height: 3000px;
+    padding: 1rem 1.25rem 1.25rem;
+  }
+  .accordion-content > p.hint:first-child {
+    margin-top: 0;
+  }
+
+  /* Estilo legacy para section-box */
   .section-box {
     background: var(--white);
     border-radius: var(--radius);
@@ -2325,130 +2403,148 @@
       <button class="back-btn" onclick="tecdea.renderHome()">Volver</button>
     </div>
 
-    <!-- Aplicaciones -->
-    <div class="section-box">
-      <h3>📋 Aplicaciones</h3>
-      <p class="hint">
-        💾 Los cambios se guardan automáticamente al salir de cada celda.
-        La URL base fija es <code>https://tecdea.github.io/</code>. Añade solo el path final de cada aplicación (ej: <code>mi-app/index.html</code>).
-      </p>
-      <div class="filter-bar" id="appsFilterBar">
-        <span class="filter-label">🔎 Filtrar por perfil:</span>
-        <button class="filter-btn active" data-filter="all" onclick="tecdea.setAppsFilter('all')">Todas</button>
-        <button class="filter-btn" data-filter="tecnoApps" onclick="tecdea.setAppsFilter('tecnoApps')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="4" y="1" width="16" height="22" rx="3" fill="#1E7A3D" stroke="#E8943A" stroke-width="1"/><rect x="6" y="4" width="12" height="13" rx="1" fill="#F5E6A3" opacity="0.9"/><circle cx="12" cy="20" r="1" fill="#E8943A"/></svg>TecnoApps</button>
-        <button class="filter-btn" data-filter="departamento" onclick="tecdea.setAppsFilter('departamento')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="2" y="9" width="20" height="13" rx="1" fill="#1A3A8E" stroke="#E8943A" stroke-width="1"/><polygon points="12,2 20,9 4,9" fill="#E8943A" stroke="#1E7A3D" stroke-width="0.5"/><rect x="10" y="13" width="4" height="7" rx="0.5" fill="#F5E6A3"/></svg>Departamento</button>
-        <button class="filter-btn" data-filter="cajonDeSastre" onclick="tecdea.setAppsFilter('cajonDeSastre')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="2" y="6" width="20" height="15" rx="2" fill="#E8943A" stroke="#1A3A8E" stroke-width="1"/><rect x="4" y="8" width="16" height="11" rx="1" fill="#1A3A8E" opacity="0.9"/><path d="M7,11 L11,11 L9,15 Z" fill="#1E7A3D" stroke="#E8943A" stroke-width="0.5"/><circle cx="15" cy="12" r="2.5" fill="#1E7A3D" stroke="#E8943A" stroke-width="0.7"/></svg>Cajón de sastre</button>
-      </div>
-      <div class="tbl-wrap">
-        <table id="appsTable">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Descripción</th>
-              <th>URL</th>
-              <th>Tec.</th>
-              <th>Dep.</th>
-              <th>Caj.</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="actions">
-        <button class="btn btn-gold" onclick="tecdea.addAppRow()">＋ Añadir aplicación</button>
-        <button class="btn btn-ghost" onclick="tecdea.sortApps('name')">↕ Ordenar por nombre</button>
-        <button class="btn btn-ghost" onclick="tecdea.sortApps('url')">↕ Ordenar por URL</button>
-        <button class="btn btn-primary" onclick="tecdea.saveConfig()">💾 Guardar aplicaciones</button>
+    <!-- Acordeón 1: Aplicaciones -->
+    <div class="accordion-item">
+      <button class="accordion-header" onclick="tecdea.toggleAccordion(this)" aria-expanded="false">
+        <span>📋 Aplicaciones</span>
+        <span class="accordion-icon">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p class="hint" style="margin-top:0;margin-bottom:1rem">
+          💾 Los cambios se guardan automáticamente al salir de cada celda.
+          La URL base fija es <code>https://tecdea.github.io/</code>. Añade el path final de cada aplicación (ejemplo: <code>miapp/</code>).<br>
+          Si la aplicación no está en el dominio <code>https://tecdea.github.io</code>, introduce la ruta completa de la PWA.
+        </p>
+        <div class="actions" style="margin-bottom:1rem">
+          <button class="btn btn-gold" onclick="tecdea.addAppRow()">＋ Añadir aplicación</button>
+          <button class="btn btn-ghost" onclick="tecdea.sortApps('name')">↕ Ordenar por nombre</button>
+          <button class="btn btn-ghost" onclick="tecdea.sortApps('url')">↕ Ordenar por URL</button>
+          <button class="btn btn-primary" onclick="tecdea.saveConfig()">💾 Guardar aplicaciones</button>
+        </div>
+        <div class="filter-bar" id="appsFilterBar">
+          <span class="filter-label">🔎 Filtrar por perfil:</span>
+          <button class="filter-btn active" data-filter="all" onclick="tecdea.setAppsFilter('all')">Todas</button>
+          <button class="filter-btn" data-filter="tecnoApps" onclick="tecdea.setAppsFilter('tecnoApps')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="4" y="1" width="16" height="22" rx="3" fill="#1E7A3D" stroke="#E8943A" stroke-width="1"/><rect x="6" y="4" width="12" height="13" rx="1" fill="#F5E6A3" opacity="0.9"/><circle cx="12" cy="20" r="1" fill="#E8943A"/></svg>TecnoApps</button>
+          <button class="filter-btn" data-filter="departamento" onclick="tecdea.setAppsFilter('departamento')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="2" y="9" width="20" height="13" rx="1" fill="#1A3A8E" stroke="#E8943A" stroke-width="1"/><polygon points="12,2 20,9 4,9" fill="#E8943A" stroke="#1E7A3D" stroke-width="0.5"/><rect x="10" y="13" width="4" height="7" rx="0.5" fill="#F5E6A3"/></svg>Departamento</button>
+          <button class="filter-btn" data-filter="cajonDeSastre" onclick="tecdea.setAppsFilter('cajonDeSastre')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="2" y="6" width="20" height="15" rx="2" fill="#E8943A" stroke="#1A3A8E" stroke-width="1"/><rect x="4" y="8" width="16" height="11" rx="1" fill="#1A3A8E" opacity="0.9"/><path d="M7,11 L11,11 L9,15 Z" fill="#1E7A3D" stroke="#E8943A" stroke-width="0.5"/><circle cx="15" cy="12" r="2.5" fill="#1E7A3D" stroke="#E8943A" stroke-width="0.7"/></svg>Cajón de sastre</button>
+        </div>
+        <div class="tbl-wrap">
+          <table id="appsTable">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Descripción</th>
+                <th>URL</th>
+                <th>Tec.</th>
+                <th>Dep.</th>
+                <th>Caj.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <!-- Contraseñas de acceso por perfil -->
-    <div class="section-box">
-      <h3>🔐 Contraseñas de acceso por perfil</h3>
-      <p class="hint">Al pulsar cada botón en la pantalla principal, se pedirá la contraseña correspondiente. Déjala vacía para permitir acceso libre a ese perfil (no recomendado).</p>
-      <div class="cred-grid">
-        <div>
-          <div class="fi-label">TecnoApps</div>
-          <input type="text" id="passTecnoApps" class="fi" placeholder="••••••" autocomplete="off">
-        </div>
-        <div>
-          <div class="fi-label">Departamento</div>
-          <input type="text" id="passDepartamento" class="fi" placeholder="••••••" autocomplete="off">
-        </div>
-        <div>
-          <div class="fi-label">Cajón de sastre</div>
-          <input type="text" id="passCajonDeSastre" class="fi" placeholder="••••••" autocomplete="off">
-        </div>
-      </div>
-      <div class="actions">
-        <button class="btn btn-primary" onclick="tecdea.saveGroupPasswordsConfig()">🔒 Guardar contraseñas</button>
-      </div>
-    </div>
-
-    <!-- Administradores (CRUD multi-admin) -->
-    <div class="section-box">
-      <h3>👥 Administradores</h3>
-      <p class="hint">Gestiona los usuarios con permiso para acceder a esta pantalla de Configuración. Debe existir al menos uno; no se permiten usuarios duplicados.</p>
-      <div class="tbl-wrap">
-        <table id="adminsTable">
-          <thead>
-            <tr>
-              <th>Usuario</th>
-              <th>Contraseña</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="actions">
-        <button class="btn btn-gold" onclick="tecdea.addAdminRow()">＋ Añadir administrador</button>
-        <button class="btn btn-primary" onclick="tecdea.saveAdminsConfig()">💾 Guardar administradores</button>
-      </div>
-    </div>
-
-    <!-- Exportar datos -->
-    <div class="section-box">
-      <h3>📤 Exportar datos</h3>
-      <p class="hint">Exporta todo o parte de la configuración a PDF o Excel (.xlsx). Las librerías se cargan bajo demanda al pulsar el botón (no afectan al rendimiento inicial).</p>
-
-      <div class="export-grid">
-        <div>
-          <div class="fi-label">¿Qué exportar?</div>
-          <div class="export-checkboxes">
-            <label class="exp-label">
-              <input type="checkbox" id="expApps" checked>
-              <span>Aplicaciones</span>
-            </label>
-            <label class="exp-label">
-              <input type="checkbox" id="expAdmins" checked>
-              <span>Administradores</span>
-            </label>
-            <label class="exp-label">
-              <input type="checkbox" id="expPass" checked>
-              <span>Contraseñas por perfil</span>
-            </label>
+    <!-- Acordeón 2: Contraseñas de acceso por perfil -->
+    <div class="accordion-item">
+      <button class="accordion-header" onclick="tecdea.toggleAccordion(this)" aria-expanded="false">
+        <span>🔐 Contraseñas de acceso por perfil</span>
+        <span class="accordion-icon">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p class="hint">Al pulsar cada botón en la pantalla principal, se pedirá la contraseña correspondiente. Déjala vacía para permitir acceso libre a ese perfil (no recomendado).</p>
+        <div class="cred-grid">
+          <div>
+            <div class="fi-label">TecnoApps</div>
+            <input type="text" id="passTecnoApps" class="fi" placeholder="••••••" autocomplete="off">
+          </div>
+          <div>
+            <div class="fi-label">Departamento</div>
+            <input type="text" id="passDepartamento" class="fi" placeholder="••••••" autocomplete="off">
+          </div>
+          <div>
+            <div class="fi-label">Cajón de sastre</div>
+            <input type="text" id="passCajonDeSastre" class="fi" placeholder="••••••" autocomplete="off">
           </div>
         </div>
-
-        <div>
-          <div class="fi-label">Formato de exportación</div>
-          <div class="export-radios">
-            <label class="exp-label">
-              <input type="radio" name="expFormat" value="excel" checked>
-              <span>📊 Excel (.xlsx)</span>
-            </label>
-            <label class="exp-label">
-              <input type="radio" name="expFormat" value="pdf">
-              <span>📄 PDF (.pdf)</span>
-            </label>
-          </div>
+        <div class="actions">
+          <button class="btn btn-primary" onclick="tecdea.saveGroupPasswordsConfig()">🔒 Guardar contraseñas</button>
         </div>
       </div>
+    </div>
 
-      <div class="actions">
-        <button class="btn btn-primary" onclick="tecdea.exportData()">📥 Exportar</button>
+    <!-- Acordeón 3: Administradores -->
+    <div class="accordion-item">
+      <button class="accordion-header" onclick="tecdea.toggleAccordion(this)" aria-expanded="false">
+        <span>👥 Administradores</span>
+        <span class="accordion-icon">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p class="hint">Gestiona los usuarios con permiso para acceder a esta pantalla de Configuración. Debe existir al menos uno; no se permiten usuarios duplicados.</p>
+        <div class="tbl-wrap">
+          <table id="adminsTable">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>Contraseña</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="actions">
+          <button class="btn btn-gold" onclick="tecdea.addAdminRow()">＋ Añadir administrador</button>
+          <button class="btn btn-primary" onclick="tecdea.saveAdminsConfig()">💾 Guardar administradores</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Acordeón 4: Exportar datos -->
+    <div class="accordion-item">
+      <button class="accordion-header" onclick="tecdea.toggleAccordion(this)" aria-expanded="false">
+        <span>📤 Exportar datos</span>
+        <span class="accordion-icon">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p class="hint">Exporta todo o parte de la configuración a PDF o Excel (.xlsx). Las librerías se cargan bajo demanda al pulsar el botón (no afectan al rendimiento inicial).</p>
+        <div class="export-grid">
+          <div>
+            <div class="fi-label">¿Qué exportar?</div>
+            <div class="export-checkboxes">
+              <label class="exp-label">
+                <input type="checkbox" id="expApps" checked>
+                <span>Aplicaciones</span>
+              </label>
+              <label class="exp-label">
+                <input type="checkbox" id="expAdmins" checked>
+                <span>Administradores</span>
+              </label>
+              <label class="exp-label">
+                <input type="checkbox" id="expPass" checked>
+                <span>Contraseñas por perfil</span>
+              </label>
+            </div>
+          </div>
+          <div>
+            <div class="fi-label">Formato de exportación</div>
+            <div class="export-radios">
+              <label class="exp-label">
+                <input type="radio" name="expFormat" value="excel" checked>
+                <span>📊 Excel (.xlsx)</span>
+              </label>
+              <label class="exp-label">
+                <input type="radio" name="expFormat" value="pdf">
+                <span>📄 PDF (.pdf)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" onclick="tecdea.exportData()">📥 Exportar</button>
+        </div>
       </div>
     </div>
   </section>
