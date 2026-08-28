@@ -8,7 +8,6 @@
 <meta name="theme-color" content="#0b2545" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0b2545" media="(prefers-color-scheme: dark)">
 <meta name="msapplication-navbutton-color" content="#0b2545">
-<meta name="msapplication-TileColor" content="#0b2545">
 <!-- ═══════ iOS / Safari PWA ═══════ -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -47,6 +46,7 @@
 <!-- Firebase SDK -->
 <script type="module">
   // Import the functions you need from the SDKs you need
+  // Firebase SDK v10.12.0 (ES6 modules - NOT compat version)
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
@@ -138,9 +138,11 @@
     }
 
     const letter = (sourceText.charAt(0) || "?").toUpperCase();
+    // Sanitizar letra para prevenir XSS en SVG
+    const safeLetter = letter.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\-\s]/g, '?').substring(0, 2);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">`
       + `<rect width="64" height="64" rx="14" fill="${bgColor}"/>`
-      + `<text x="32" y="46" font-size="36" font-family="Arial, Helvetica, sans-serif" font-weight="bold" text-anchor="middle" fill="white">${escHtml(letter)}</text>`
+      + `<text x="32" y="46" font-size="36" font-family="Arial, Helvetica, sans-serif" font-weight="bold" text-anchor="middle" fill="white">${safeLetter}</text>`
       + `</svg>`;
     return "data:image/svg+xml," + encodeURIComponent(svg);
   }
@@ -288,11 +290,20 @@
   }
 
   function doGroupLogin() {
+    // Validación de seguridad: verificar que hay un grupo pendiente
+    if (!pendingGroup) {
+      console.error('[TecDeA] doGroupLogin llamado sin pendingGroup');
+      closeGroupPassModal();
+      return;
+    }
+    
     const input = document.getElementById("groupPassInput").value;
     const expected = groupPasswords[pendingGroup];
     const g = pendingGroup;
     const cat = pendingCategory;
-    if (!expected) {
+    
+    // Si no hay contraseña configurada, permitir acceso libre
+    if (!expected || expected.trim() === '') {
       closeGroupPassModal();
       showGroup(g, cat);
     } else if (input === expected) {
@@ -386,12 +397,28 @@
   function iconSources(url) {
     const sources = [];
     let appUrl, origin, hostname;
+    
+    // Validación de URL antes de procesar
+    if (!url || typeof url !== 'string' || url === '#') {
+      return sources; // Devolver array vacío si la URL no es válida
+    }
+    
     try {
       const u = new URL(url);
+      
+      // Seguridad: no procesar URLs con protocolos peligrosos
+      if (!['http:', 'https:'].includes(u.protocol)) {
+        console.warn('[TecDeA] Protocolo no permitido para iconos:', u.protocol);
+        return sources;
+      }
+      
       origin = u.origin;
       hostname = u.hostname;
       appUrl = url.replace(/\/+$/, '');
-    } catch { return sources; }
+    } catch (e) {
+      console.warn('[TecDeA] URL inválida para iconos:', url, e);
+      return sources;
+    }
 
     const fileNames = [
       'icon-512x512.png', 'icon-512.png', 'icon-384x384.png', 'icon-310x310.png',
@@ -432,7 +459,11 @@
   );
 
   function appCard(a) {
-    const sources = iconSources(a.url);
+    // Sanitización XSS: escapar nombre y validar URL
+    const safeName = escHtml(a.name || 'Sin nombre');
+    const safeUrl = sanitizeUrl(a.url);
+    
+    const sources = iconSources(safeUrl);
     sources.push(generateAutoIcon(a));
     const first = sources[0] || DEFAULT_ICON_SVG;
     const rest = sources.slice(1);
@@ -440,20 +471,53 @@
       ? ` data-fb="${escHtml(JSON.stringify(rest))}"`
       : "";
     return `
-      <a href="${a.url}" target="_blank" rel="noopener" class="app-card">
+      <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="app-card">
         <div class="app-card-icon-wrap">
           <img src="${first}" alt="" loading="lazy"${fbAttr}
-               data-app-url="${escHtml(a.url)}"
-               onerror="tecdea.iconFallback(this)">
+               data-app-url="${safeUrl}"
+               onerror="window.tecdea.iconFallback(this)">
         </div>
-        <span class="app-card-name">${a.name}</span>
+        <span class="app-card-name">${safeName}</span>
       </a>`;
+  }
+
+  // ══════════════════════════════════════════════════════
+  //  SANITIZACIÓN DE URLs (Seguridad)
+  // ══════════════════════════════════════════════════════
+  function sanitizeUrl(url) {
+    if (typeof url !== 'string') return '#';
+    url = url.trim();
+    
+    // Solo permitir http/https/mailto/tel
+    const allowedProtocols = /^https?:\/\//i;
+    if (!allowedProtocols.test(url)) {
+      // Si no tiene protocolo, asumir https para validación
+      if (url.includes('://') || url.includes('javascript:') || url.includes('data:')) {
+        return '#'; // Protocolo peligroso
+      }
+      // URL relativa o sin protocolo - intentar arreglar
+      if (url && !url.startsWith('#')) {
+        url = 'https://' + url;
+      } else {
+        return '#';
+      }
+    }
+    
+    // Limitar longitud máxima para evitar DoS
+    if (url.length > 2000) return '#';
+    
+    // Eliminar caracteres de control y null bytes
+    url = url.replace(/[\x00-\x1f\x7f]/g, '');
+    
+    return url;
   }
 
   function iconFallback(img) {
     const raw = img.getAttribute("data-fb");
     if (!raw) {
+      // Último recurso: usar SVG por defecto y remover onerror para evitar bucle
       img.src = DEFAULT_ICON_SVG;
+      img.onerror = null; // Prevenir más llamadas
       img.removeAttribute("onerror");
       return;
     }
@@ -463,14 +527,40 @@
       const next = list.shift();
       img.src = next;
       if (list.length) img.setAttribute("data-fb", JSON.stringify(list));
-      else img.removeAttribute("data-fb");
+      else {
+        img.removeAttribute("data-fb");
+        // Si este último también falla, onerror se llamará una vez más
+        // y entrará en el primer if (raw vacío)
+      }
     } catch {
       img.src = DEFAULT_ICON_SVG;
+      img.onerror = null; // Prevenir bucle infinito
       img.removeAttribute("onerror");
     }
   }
 
   // ── Descubrimiento asíncrono de iconos vía manifest PWA ──
+  
+  // Timeout global para fetch de iconos (5 segundos)
+  const ICON_FETCH_TIMEOUT = 5000;
+  
+  async function fetchWithTimeout(url, options = {}, timeout = ICON_FETCH_TIMEOUT) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        console.warn(`[TecDeA] Timeout cargando: ${url}`);
+      }
+      throw error;
+    }
+  }
+  
   async function tryManifestIcons(baseUrl) {
     let appUrl, origin;
     try {
@@ -491,8 +581,15 @@
     const discovered = [];
     for (const mUrl of manifestCandidates) {
       try {
-        const resp = await fetch(mUrl, { mode: 'cors', redirect: 'follow' });
+        const resp = await fetchWithTimeout(mUrl, { mode: 'cors', redirect: 'follow' });
         if (!resp.ok) continue;
+        
+        // Validar content-type antes de parsear JSON
+        const contentType = resp.headers.get('content-type') || '';
+        if (!contentType.includes('json') && !contentType.includes('text/plain')) {
+          continue;
+        }
+        
         const manifest = await resp.json();
         if (manifest && Array.isArray(manifest.icons)) {
           const iconList = manifest.icons
@@ -500,6 +597,10 @@
             .map(ic => {
               try {
                 const abs = new URL(ic.src, mUrl).href;
+                // Validar que sea URL segura (http/https)
+                if (!abs.startsWith('http://') && !abs.startsWith('https://')) {
+                  return null;
+                }
                 let size = 0;
                 if (ic.sizes) {
                   const sizes = String(ic.sizes).split(/\s+/);
@@ -525,10 +626,10 @@
           for (const ic of iconList) {
             discovered.push(ic.url);
           }
-          if (discovered.length > 0) break;
+          if (discovered.length > 0) break; // Usar solo el primer manifesto válido
         }
       } catch {
-        continue;
+        continue; // Ignorar errores individuales y continuar con siguiente candidato
       }
     }
     return discovered;
@@ -536,9 +637,23 @@
 
   async function tryHtmlIcons(baseUrl) {
     try {
-      const resp = await fetch(baseUrl, { mode: 'cors', redirect: 'follow' });
+      const resp = await fetchWithTimeout(baseUrl, { mode: 'cors', redirect: 'follow' });
       if (!resp.ok) return [];
+      
+      // Validar content-type (debe ser HTML)
+      const contentType = resp.headers.get('content-type') || '';
+      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+        return [];
+      }
+      
       const html = await resp.text();
+      
+      // Limitar tamaño para prevenir DoS por memoria
+      if (html.length > 500000) { // 500KB max
+        console.warn('[TecDeA] HTML demasiado grande para parsear iconos');
+        return [];
+      }
+      
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
       const icons = [];
@@ -552,11 +667,17 @@
         doc.querySelectorAll(sel).forEach(link => {
           const href = link.getAttribute('href');
           if (href) {
-            try { icons.push(new URL(href, baseUrl).href); } catch {}
+            try { 
+              const url = new URL(href, baseUrl).href;
+              // Solo aceptar URLs seguras
+              if (url.startsWith('http://') || url.startsWith('https://')) {
+                icons.push(url);
+              }
+            } catch {}
           }
         });
       }
-      return icons;
+      return icons.slice(0, 10); // Limitar a 10 iconos máximos
     } catch {
       return [];
     }
@@ -565,31 +686,45 @@
   async function discoverIcons(img, appUrl) {
     if (img.complete && img.naturalWidth > 0) return;
 
-    let discovered = await tryManifestIcons(appUrl);
-    const htmlIcons = await tryHtmlIcons(appUrl);
-    discovered = [...discovered, ...htmlIcons];
+    // Marcar como procesando para evitar llamadas duplicadas
+    if (img.dataset.iconProcessing === 'true') return;
+    img.dataset.iconProcessing = 'true';
 
-    if (discovered.length === 0) return;
-
-    if (img.complete && img.naturalWidth > 0) {
-      if (!String(img.src).startsWith(DEFAULT_ICON_SVG.slice(0, 50))) return;
-    }
-
-    let currentRemaining = [];
     try {
-      const raw = img.getAttribute('data-fb');
-      if (raw) currentRemaining = JSON.parse(raw);
-    } catch {}
+      let discovered = await tryManifestIcons(appUrl);
+      const htmlIcons = await tryHtmlIcons(appUrl);
+      discovered = [...discovered, ...htmlIcons];
 
-    const newChain = [...discovered, ...currentRemaining]
-      .filter((u, i, arr) => arr.indexOf(u) === i);
+      if (discovered.length === 0) return;
 
-    const first = newChain.shift();
-    img.src = first;
-    if (newChain.length > 0) {
-      img.setAttribute('data-fb', JSON.stringify(newChain));
-    } else {
-      img.removeAttribute('data-fb');
+      // Verificar nuevamente si la imagen ya cargó (podría haber cambiado)
+      if (img.complete && img.naturalWidth > 0) {
+        if (!String(img.src).startsWith(DEFAULT_ICON_SVG.slice(0, 50))) return;
+      }
+
+      let currentRemaining = [];
+      try {
+        const raw = img.getAttribute('data-fb');
+        if (raw) currentRemaining = JSON.parse(raw);
+      } catch {}
+
+      const newChain = [...discovered, ...currentRemaining]
+        .filter((u, i, arr) => arr.indexOf(u) === i)
+        .slice(0, 15); // Limitar cadena de fallback a 15 URLs máx
+
+      if (newChain.length > 0) {
+        const first = newChain.shift();
+        img.src = first;
+        if (newChain.length > 0) {
+          img.setAttribute('data-fb', JSON.stringify(newChain));
+        } else {
+          img.removeAttribute('data-fb');
+        }
+      }
+    } catch (error) {
+      console.warn('[TecDeA] Error en discoverIcons:', error.message);
+    } finally {
+      img.dataset.iconProcessing = 'false';
     }
   }
 
@@ -626,6 +761,28 @@
 
   // ── Pantalla configuración ────────────────────────────
   function renderConfig() {
+    // Resetear filtros al entrar en configuración
+    appsFilter = 'all';
+    cajonCategoryFilters = [];
+    
+    document.querySelectorAll('#appsFilterBar .filter-btn').forEach(btn => {
+      btn.style.display = '';
+      btn.classList.remove('active', 'expanded');
+    });
+    
+    const subfilters = document.getElementById('cajonSubfilters');
+    if (subfilters) {
+      subfilters.classList.add('hidden');
+      subfilters.style.display = 'none';
+    }
+    
+    document.querySelectorAll('#cajonSubfilters .filter-sub-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    
+    const cajonBtn = document.getElementById('cajonDeSastreBtn');
+    if (cajonBtn) cajonBtn.classList.remove('expanded');
+    
     buildConfigTable();
     buildAdminsTable();
     fillGroupPasswordInputs();
@@ -711,10 +868,49 @@
       </tr>`;
     }).join("");
 
+    // ═══ LIMPIAR EVENT LISTENERS ANTERIORES (evita memory leaks) ═══
+    tbody.querySelectorAll("input, select").forEach(el => {
+      el.replaceWith(el.cloneNode(true));
+    });
+
+    // Añadir event listeners frescos
     tbody.querySelectorAll("input").forEach(inp => {
       inp.addEventListener("change", () => collectTableData());
       inp.addEventListener("input",  () => collectTableData());
       inp.addEventListener("blur",    () => handleAppCellBlur(inp));
+      
+      // Validación de nombres duplicados/similares (solo campo nombre)
+      if (inp.dataset.field === 'name') {
+        // Validar al perder el focus (blur)
+        inp.addEventListener('blur', function() {
+          const tr = this.closest('tr');
+          if (!tr) return;
+          const i = parseInt(tr.dataset.i);
+          if (!isNaN(i)) {
+            validateAppName(this, i);
+          }
+        });
+        
+        // Validación con debounce mientras escribe (después de 3 caracteres)
+        let nameTimeout = null;
+        inp.addEventListener('input', function() {
+          clearTimeout(nameTimeout);
+          const val = this.value.trim();
+          if (val.length < 3) { // Solo validar con 3+ caracteres
+            this.style.borderColor = '';
+            this.style.boxShadow = '';
+            return;
+          }
+          nameTimeout = setTimeout(() => {
+            const tr = this.closest('tr');
+            if (!tr) return;
+            const i = parseInt(tr.dataset.i);
+            if (!isNaN(i)) {
+              validateAppName(this, i);
+            }
+          }, 800); // 800ms debounce para no molestar mientras escribe
+        });
+      }
     });
 
     // Añadir event listeners para selectores de categoría
@@ -734,18 +930,26 @@
     });
   }
 
+  // NOTA: setAppsFilter fue reemplazada por setAppsWithSubFilter (con toggle)
+  // Se mantiene como alias para compatibilidad, pero redirige a la nueva función
   function setAppsFilter(filter) {
-    appsFilter = filter;
-    document.querySelectorAll('#appsFilterBar .filter-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.filter === filter);
-    });
-    buildConfigTable();
+    setAppsWithSubFilter(filter);
   }
 
   function collectTableData() {
     document.querySelectorAll("#appsTable tbody tr").forEach(tr => {
       const i = parseInt(tr.dataset.i);
       if (isNaN(i)) return;
+      // Validar que el índice esté dentro del rango válido (previene bugs al eliminar filas)
+      if (i < 0 || i >= apps.length) {
+        console.warn(`[TecDeA] Índice fuera de rango en collectTableData: ${i} (longitud: ${apps.length})`);
+        return;
+      }
+      // Asegurar que el objeto existe
+      if (!apps[i]) {
+        console.warn(`[TecDeA] apps[${i}] es undefined, inicializando...`);
+        apps[i] = { name: "", desc: "", url: "https://tecdea.github.io/", tecnoApps: false, herramientasTecno: false, departamento: false, cajonDeSastre: false, category: "" };
+      }
       tr.querySelectorAll("[data-field]").forEach(el => {
         const f = el.dataset.field;
         apps[i][f] = el.type === "checkbox" ? el.checked : el.value.trim();
@@ -760,16 +964,35 @@
     if (isNaN(i)) return;
 
     collectTableData();
-    autoSaveApps();
+    debouncedAutoSaveApps();
   }
 
+  let _autoSaveTimeout = null;
   let _autoSaveToastTimer = null;
+  let _isSaving = false; // Protección contra race conditions
+  
+  // Debounce: esperar 800ms antes de guardar (evita excesivas escrituras Firebase)
+  function debouncedAutoSaveApps() {
+    clearTimeout(_autoSaveTimeout);
+    _autoSaveTimeout = setTimeout(() => {
+      autoSaveApps();
+    }, 800);
+  }
+  
   async function autoSaveApps() {
-    const ok = await saveApps();
-    if (ok) {
-      showToast("✓ Guardado", "ok", 1000);
-    } else {
-      showToast("Error al guardar en Firebase.", "err", 4000);
+    // Prevenir múltiples guardados simultáneos (race condition)
+    if (_isSaving) return;
+    _isSaving = true;
+    
+    try {
+      const ok = await saveApps();
+      if (ok) {
+        showToast("✓ Guardado", "ok", 1000);
+      } else {
+        showToast("Error al guardar en Firebase.", "err", 4000);
+      }
+    } finally {
+      _isSaving = false;
     }
   }
 
@@ -785,6 +1008,156 @@
     const fieldLabel = byField === 'name' ? 'nombre' : 'URL';
     const dirLabel = appsSort.direction === 'asc' ? 'ascendente' : 'descendente';
     showToast(`Aplicaciones ordenadas por ${fieldLabel} (${dirLabel}).`, "ok", 2500);
+  }
+
+  // ════════════════════════════════════════════════════════
+  //  DETECCIÓN DE NOMBRES DUPLICADOS/SIMILARES
+  // ════════════════════════════════════════════════════════
+  
+  /**
+   * Normaliza un texto para comparación (quita espacios, acentos, minúsculas)
+   */
+  function normalizeForComparison(text) {
+    if (!text) return '';
+    return text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Quita acentos
+      .replace(/[^a-z0-9\s]/g, '') // Solo letras, números y espacios
+      .replace(/\s+/g, ' ')       // Espacios simples
+      .trim();
+  }
+  
+  /**
+   * Calcula similitud entre dos strings (0 = idénticos, 1 = completamente diferentes)
+   * Usa distancia de Levenshtein normalizada
+   */
+  function levenshteinDistance(a, b) {
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) {
+      matrix[i] = [i];
+    }
+    for (let j = 0; j <= a.length; j++) {
+      matrix[0][j] = j;
+    }
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        if (b.charAt(i - 1) === a.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
+          );
+        }
+      }
+    }
+    return matrix[b.length][a.length];
+  }
+  
+  function calculateSimilarity(str1, str2) {
+    if (!str1 || !str2) return 0;
+    const norm1 = normalizeForComparison(str1);
+    const norm2 = normalizeForComparison(str2);
+    if (!norm1 || !norm2) return 0;
+    
+    // Coincidencia exacta después de normalizar
+    if (norm1 === norm2) return 1;
+    
+    // Uno contiene al otro (substring)
+    if (norm1.includes(norm2) || norm2.includes(norm1)) {
+      return Math.max(norm1.length, norm2.length) / Math.min(norm1.length, norm2.length);
+    }
+    
+    // Distancia de Levenshtein
+    const maxLen = Math.max(norm1.length, norm2.length);
+    const distance = levenshteinDistance(norm1, norm2);
+    return 1 - (distance / maxLen);
+  }
+  
+  /**
+   * Busca aplicaciones con nombres similares al proporcionado
+   * @param {string} name - Nombre a buscar
+   * @param {number} excludeIndex - Índice a excluir (la app actual)
+   * @param {number} threshold - Umbral de similitud (0-1, default 0.7)
+   * @returns {Array} - Lista de apps similares con su puntuación
+   */
+  function findSimilarApps(name, excludeIndex = -1, threshold = 0.7) {
+    if (!name || !name.trim()) return [];
+    
+    const similar = [];
+    const normalizedName = normalizeForComparison(name);
+    
+    apps.forEach((app, index) => {
+      if (index === excludeIndex) return;
+      if (!app.name || !app.name.trim()) return;
+      
+      const similarity = calculateSimilarity(name, app.name);
+      
+      if (similarity >= threshold) {
+        similar.push({
+          index,
+          name: app.name,
+          similarity: Math.round(similarity * 100),
+          isExact: normalizedName === normalizeForComparison(app.name)
+        });
+      }
+    });
+    
+    // Ordenar por similitud (más similar primero)
+    similar.sort((a, b) => b.similarity - a.similarity);
+    
+    return similar;
+  }
+  
+  /**
+   * Muestra alerta sobre aplicaciones similares encontradas
+   */
+  function showDuplicateWarning(similarApps, newName) {
+    if (!similarApps || similarApps.length === 0) return;
+    
+    const exactMatch = similarApps.find(app => app.isExact);
+    let message = '';
+    
+    if (exactMatch) {
+      message = `⚠️ Ya existe una aplicación con el nombre "${exactMatch.name}"`;
+    } else if (similarApps.length === 1) {
+      message = `⚠️ Nombre similar a "${similarApps[0].name}" (${similarApps[0].similarity}% parecido)`;
+    } else {
+      const names = similarApps.slice(0, 3).map(a => `"${a.name}"`).join(', ');
+      message = `⚠️ Nombre similar a: ${names}`;
+    }
+    
+    showToast(message + '. Verifica si es la misma aplicación.', 'err', 5000);
+    
+    // Resaltar visualmente las filas similares (opcional - por ahora solo toast)
+    console.warn('[TecDeA] Aplicaciones similares encontradas:', similarApps);
+  }
+  
+  /**
+   * Valida el nombre de una aplicación en tiempo real
+   */
+  function validateAppName(inputElement, appIndex) {
+    if (!inputElement) return;
+    
+    const newName = inputElement.value.trim();
+    if (!newName || newName.length < 2) return; // No validar nombres muy cortos
+    
+    const similarApps = findSimilarApps(newName, appIndex, 0.75);
+    
+    if (similarApps.length > 0) {
+      showDuplicateWarning(similarApps, newName);
+      
+      // Añadir indicador visual al input (borde amarillo/naranja)
+      inputElement.style.borderColor = '#E8943A';
+      inputElement.style.boxShadow = '0 0 0 3px rgba(232, 148, 58, 0.3)';
+      
+    } else {
+      // Restaurar estilo normal si no hay duplicados
+      inputElement.style.borderColor = '';
+      inputElement.style.boxShadow = '';
+    }
   }
 
   function addAppRow() {
@@ -813,11 +1186,30 @@
       }
     }
 
-    // Añadir nueva aplicación
+    // Añadir nueva aplicación con límite razonable (máx. 200 apps)
+    const MAX_APPS = 200;
+    if (apps.length >= MAX_APPS) {
+      showToast(`⚠️ Límite de aplicaciones alcanzado (${MAX_APPS}). Elimina algunas antes de añadir más.`, 'err', 5000);
+      return;
+    }
+    
+    const newIndex = apps.length;
     apps.push({ name: "", desc: "", url: "https://tecdea.github.io/", tecnoApps: false, herramientasTecno: false, departamento: false, cajonDeSastre: false, category: "" });
 
     // Reconstruir tabla (ahora mostrará todas las apps + la nueva)
     buildConfigTable();
+    
+    // Focus en el campo nombre de la nueva fila con pequeño delay para asegurar render
+    setTimeout(() => {
+      const newRow = document.querySelector(`#appsTable tbody tr[data-i="${newIndex}"]`);
+      if (newRow) {
+        const nameInput = newRow.querySelector('input[data-field="name"]');
+        if (nameInput) {
+          nameInput.focus();
+          nameInput.select();
+        }
+      }
+    }, 50);
   }
 
   window._delApp = function(i) {
@@ -853,7 +1245,7 @@
     tbody.innerHTML = admins.map((a, i) => `
       <tr data-i="${i}">
         <td data-label="Usuario"><input type="text" class="fi" value="${escHtml(a.user)}" placeholder="usuario" data-af="user" autocomplete="off"></td>
-        <td data-label="Contraseña"><input type="text" class="fi" value="${escHtml(a.pass)}" placeholder="contraseña" data-af="pass" autocomplete="new-password"></td>
+        <td data-label="Contraseña"><input type="password" class="fi" value="${escHtml(a.pass)}" placeholder="••••••" data-af="pass" autocomplete="new-password"></td>
         <td data-label="" class="chk"><button class="btn-del" onclick="window._delAdmin(${i})" title="Eliminar">✕</button></td>
       </tr>`).join("");
 
@@ -880,15 +1272,26 @@
     autoSaveAdmins();
   }
 
+  let _isSavingAdmins = false; // Protección contra race conditions para admins
+  
   async function autoSaveAdmins() {
-    const hasEmpty = admins.some(a => !a.user || !a.pass);
-    if (hasEmpty) return;
-    const users = admins.map(a => a.user);
-    const hasDup = new Set(users).size !== users.length;
-    if (hasDup) return;
-    const ok = await saveAdmins();
-    if (ok) showToast("✓ Guardado", "ok", 1000);
-    else showToast("Error al guardar administradores.", "err", 4000);
+    // Prevenir múltiples guardados simultáneos
+    if (_isSavingAdmins) return;
+    _isSavingAdmins = true;
+    
+    try {
+      const hasEmpty = admins.some(a => !a.user || !a.pass);
+      if (hasEmpty) return;
+      const users = admins.map(a => a.user);
+      const hasDup = new Set(users).size !== users.length;
+      if (hasDup) return;
+      
+      const ok = await saveAdmins();
+      if (ok) showToast("✓ Guardado", "ok", 1000);
+      else showToast("Error al guardar administradores.", "err", 4000);
+    } finally {
+      _isSavingAdmins = false;
+    }
   }
 
   function addAdminRow() {
@@ -975,16 +1378,22 @@
     showToast("Contraseñas de perfiles guardadas en base de datos Firebase.", "ok", 4500);
   }
 
+  let _groupPassSaveTimeout = null; // Debounce para contraseñas de grupo
+  
   async function autoSaveGroupPasswords() {
-    groupPasswords = {
-      tecnoApps:     document.getElementById("passTecnoApps").value,
-      herramientasTecno: document.getElementById("passHerramientasTecno").value,
-      departamento:   document.getElementById("passDepartamento").value,
-      cajonDeSastre:  document.getElementById("passCajonDeSastre").value
-    };
-    const ok = await saveGroupPasswords();
-    if (ok) showToast("✓ Guardado", "ok", 1000);
-    else showToast("Error al guardar contraseñas.", "err", 4000);
+    // Debounce: esperar 600ms antes de guardar (como con apps)
+    clearTimeout(_groupPassSaveTimeout);
+    _groupPassSaveTimeout = setTimeout(async () => {
+      groupPasswords = {
+        tecnoApps:     document.getElementById("passTecnoApps").value,
+        herramientasTecno: document.getElementById("passHerramientasTecno").value,
+        departamento:   document.getElementById("passDepartamento").value,
+        cajonDeSastre:  document.getElementById("passCajonDeSastre").value
+      };
+      const ok = await saveGroupPasswords();
+      if (ok) showToast("✓ Guardado", "ok", 1000);
+      else showToast("Error al guardar contraseñas.", "err", 4000);
+    }, 600);
   }
 
   // ════════════════════════════════════════════════════════
@@ -1004,9 +1413,19 @@
   }
 
   function collectExportData() {
-    const expApps = document.getElementById('expApps').checked;
-    const expAdmins = document.getElementById('expAdmins').checked;
-    const expPass = document.getElementById('expPass').checked;
+    // Validación de existencia de elementos DOM
+    const expAppsEl = document.getElementById('expApps');
+    const expAdminsEl = document.getElementById('expAdmins');
+    const expPassEl = document.getElementById('expPass');
+    
+    if (!expAppsEl || !expAdminsEl || !expPassEl) {
+      console.error('[TecDeA] Elementos de exportación no encontrados en DOM');
+      return { error: 'Error interno: faltan controles de exportación. Recarga la página.' };
+    }
+    
+    const expApps = expAppsEl.checked;
+    const expAdmins = expAdminsEl.checked;
+    const expPass = expPassEl.checked;
     const formatInput = document.querySelector('input[name="expFormat"]:checked');
     const format = formatInput ? formatInput.value : 'excel';
 
@@ -1024,12 +1443,14 @@
         return va.localeCompare(vb, 'es', { numeric: true, sensitivity: 'base' });
       });
       data.apps = list.map(a => ({
-        'Nombre':         a.name || '',
-        'Descripción':    a.desc || '',
-        'URL':            a.url || '',
-        'TecnoApps':      a.tecnoApps     ? 'Sí' : 'No',
-        'Departamento':   a.departamento   ? 'Sí' : 'No',
-        'Cajón de sastre': a.cajonDeSastre ? 'Sí' : 'No'
+        'Nombre':           a.name || '',
+        'Descripción':      a.desc || '',
+        'URL':              a.url || '',
+        'TecnoApps':       a.tecnoApps     ? 'Sí' : 'No',
+        'HerramientasTecno': a.herramientasTecno ? 'Sí' : 'No',
+        'Departamento':     a.departamento   ? 'Sí' : 'No',
+        'Cajón de sastre':  a.cajonDeSastre ? 'Sí' : 'No',
+        'Categoría':        a.category || '-'
       }));
     }
 
@@ -1042,9 +1463,10 @@
 
     if (expPass) {
       data.groupPasswords = [
-        { 'Perfil': 'TecnoApps',       'Contraseña': groupPasswords.tecnoApps     || '(vacío)' },
-        { 'Perfil': 'Departamento',    'Contraseña': groupPasswords.departamento   || '(vacío)' },
-        { 'Perfil': 'Cajón de sastre', 'Contraseña': groupPasswords.cajonDeSastre  || '(vacío)' }
+        { 'Perfil': 'TecnoApps',          'Contraseña': groupPasswords.tecnoApps       || '(vacío)' },
+        { 'Perfil': 'Herramientas Tecno', 'Contraseña': groupPasswords.herramientasTecno || '(vacío)' },
+        { 'Perfil': 'Departamento',       'Contraseña': groupPasswords.departamento     || '(vacío)' },
+        { 'Perfil': 'Cajón de sastre',    'Contraseña': groupPasswords.cajonDeSastre    || '(vacío)' }
       ];
     }
 
@@ -1078,24 +1500,31 @@
 
     const wb = X.utils.book_new();
 
-    if (data.apps) {
+    if (data.apps && data.apps.length > 0) {
       const ws = X.utils.json_to_sheet(data.apps);
       ws['!cols'] = [
-        { wch: 25 }, { wch: 45 }, { wch: 55 }, { wch: 12 }, { wch: 14 }, { wch: 16 }
+        { wch: 25 }, { wch: 40 }, { wch: 50 }, 
+        { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 16 }, { wch: 14 }
       ];
       X.utils.book_append_sheet(wb, ws, 'Aplicaciones');
     }
 
-    if (data.admins) {
+    if (data.admins && data.admins.length > 0) {
       const ws = X.utils.json_to_sheet(data.admins);
       ws['!cols'] = [{ wch: 25 }, { wch: 25 }];
       X.utils.book_append_sheet(wb, ws, 'Administradores');
     }
 
-    if (data.groupPasswords) {
+    if (data.groupPasswords && data.groupPasswords.length > 0) {
       const ws = X.utils.json_to_sheet(data.groupPasswords);
       ws['!cols'] = [{ wch: 20 }, { wch: 30 }];
       X.utils.book_append_sheet(wb, ws, 'Contraseñas perfiles');
+    }
+
+    // Verificar que al menos haya una hoja con datos
+    const sheetNames = wb.SheetNames || [];
+    if (sheetNames.length === 0) {
+      throw new Error('No hay datos para exportar. Selecciona al menos una sección.');
     }
 
     const date = new Date().toISOString().slice(0, 10);
@@ -1138,7 +1567,7 @@
       y += 6;
     }
 
-    if (data.apps) {
+    if (data.apps && data.apps.length > 0) {
       addSectionTitle(`Aplicaciones (${data.apps.length})`);
       doc.autoTable({
         startY: y,
@@ -1155,7 +1584,7 @@
       y = doc.lastAutoTable.finalY + 8;
     }
 
-    if (data.admins) {
+    if (data.admins && data.admins.length > 0) {
       addSectionTitle(`Administradores (${data.admins.length})`);
       doc.autoTable({
         startY: y,
@@ -1170,7 +1599,7 @@
       y = doc.lastAutoTable.finalY + 8;
     }
 
-    if (data.groupPasswords) {
+    if (data.groupPasswords && data.groupPasswords.length > 0) {
       addSectionTitle('Contraseñas por perfil');
       doc.autoTable({
         startY: y,
@@ -1193,6 +1622,14 @@
       doc.text('Portal TecDeA', 14, pageH - 8);
     }
 
+    // Verificar que se generó contenido
+    const pageCount = doc.internal.getNumberOfPages();
+    if (pageCount <= 1 && !data.apps?.length && !data.admins?.length && !data.groupPasswords?.length) {
+      // Solo tiene la página de encabezado, sin datos reales
+      showToast('No hay datos para exportar en PDF.', 'err', 4000);
+      return;
+    }
+
     const date = new Date().toISOString().slice(0, 10);
     doc.save(`tecdea-config-${date}.pdf`);
     showToast('PDF exportado correctamente.', 'ok', 2500);
@@ -1202,19 +1639,44 @@
   function setView(id) {
     ["home","group","cajon-menu","config"].forEach(v =>
       document.getElementById("view-" + v).classList.toggle("hidden", v !== id));
+    
+    // Limpiar modal de descripción al cambiar de vista (evita que quede flotando)
+    const descModal = document.getElementById("descModal");
+    if (descModal && !descModal.classList.contains("hidden")) {
+      descModal.classList.add("hidden");
+    }
   }
 
   function escHtml(s) {
     return (s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
   }
 
+  // Contador para evitar solapamiento de toasts
+  let _toastCounter = 0;
+  
   function showToast(msg, variant = "", duration = 3000) {
     const t = document.getElementById("toast");
+    if (!t) {
+      console.warn('[TecDeA] Elemento toast no encontrado');
+      alert(msg); // Fallback si no hay toast
+      return;
+    }
+    
+    // Incrementar contador y usar ID único para este toast
+    const toastId = ++_toastCounter;
+    t._currentToastId = toastId;
+    
     t.textContent = msg;
     t.className = "toast" + (variant ? " " + variant : "");
     t.classList.remove("hidden");
     clearTimeout(t._timer);
-    t._timer = setTimeout(() => t.classList.add("hidden"), duration);
+    
+    t._timer = setTimeout(() => {
+      // Solo ocultar si es el mismo toast (no uno más reciente)
+      if (t._currentToastId === toastId) {
+        t.classList.add("hidden");
+      }
+    }, duration);
   }
 
   // ── Modal de descripción (hover / tap) ────────────────
@@ -1322,8 +1784,11 @@
   let cajonCategoryFilters = [];
 
   // Toggle para mostrar/ocultar subfiltros de Cajón de sastre
+  // NOTA: Esta función ya NO se usa desde el HTML (los subfiltros están fuera del botón)
+  // Se mantiene por compatibilidad, pero usa getElementById en lugar de querySelector
   function toggleCajonSubfilters(btn) {
-    const subfilters = btn.querySelector('#cajonSubfilters');
+    // Los subfiltros ahora son hermanos del botón, no hijos
+    const subfilters = document.getElementById('cajonSubfilters');
     if (!subfilters) return;
 
     // Si los subfiltros están ocultos, mostrarlos y activar el filtro principal
@@ -1343,12 +1808,14 @@
 
       // Mostrar subfiltros con animación
       subfilters.classList.remove('hidden');
+      subfilters.style.display = 'inline-flex';
 
       // Añadir indicador visual de que está expandido
       btn.classList.add('expanded');
     } else {
       // Ocultar subfiltros si ya estaban visibles (toggle)
       subfilters.classList.add('hidden');
+      subfilters.style.display = 'none';
       btn.classList.remove('expanded');
     }
 
@@ -1375,23 +1842,62 @@
     buildConfigTable();
   }
 
-  // Modificar setAppsFilter para manejar subfiltros de Cajón de sastre
+  // Modificar setAppsFilter para manejar subfiltros de Cajón de sastre con TOGGLE
   function setAppsWithSubFilter(filter) {
-    appsFilter = filter;
-    cajonCategoryFilters = []; // Resetear categorías al cambiar de filtro principal
-
-    document.querySelectorAll('#appsFilterBar .filter-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.filter === filter);
-    });
-
-    // Ocultar siempre los subfiltros de Cajón de sastre (solo se muestran con toggle)
     const subfilters = document.getElementById('cajonSubfilters');
-    if (subfilters) {
-      subfilters.classList.add('hidden');
-      // Quitar clase expanded del botón padre
-      const parentBtn = subfilters.closest('.filter-btn');
-      if (parentBtn) {
-        parentBtn.classList.remove('expanded');
+    const cajonBtn = document.getElementById('cajonDeSastreBtn');
+    const allFilterBtns = Array.from(document.querySelectorAll('#appsFilterBar .filter-btn'));
+    
+    if (appsFilter === filter) {
+      // ═══ TOGGLE OFF: desactivar, mostrar todo ═══
+      appsFilter = 'all';
+      cajonCategoryFilters = [];
+      
+      allFilterBtns.forEach(btn => {
+        btn.style.display = '';
+        btn.classList.remove('active', 'expanded');
+      });
+      
+      // Ocultar subfiltros
+      if (subfilters) {
+        subfilters.classList.add('hidden');
+        subfilters.style.display = 'none';
+      }
+      if (cajonBtn) {
+        cajonBtn.classList.remove('expanded');
+      }
+    } else {
+      // ═══ TOGGLE ON: activar filtro ═══
+      appsFilter = filter;
+      cajonCategoryFilters = [];
+      
+      allFilterBtns.forEach(btn => {
+        if (btn.dataset.filter === filter) {
+          btn.style.display = '';
+          btn.classList.add('active');
+        } else {
+          btn.style.display = 'none';
+          btn.classList.remove('active', 'expanded');
+        }
+      });
+      
+      // Mostrar subfiltros solo si es Cajón de sastre
+      if (filter === 'cajonDeSastre') {
+        if (subfilters) {
+          subfilters.classList.remove('hidden');
+          subfilters.style.display = 'inline-flex';
+        }
+        if (cajonBtn) {
+          cajonBtn.classList.add('expanded');
+        }
+      } else {
+        if (subfilters) {
+          subfilters.classList.add('hidden');
+          subfilters.style.display = 'none';
+        }
+        if (cajonBtn) {
+          cajonBtn.classList.remove('expanded');
+        }
       }
     }
 
@@ -1411,13 +1917,16 @@
     toggleAccordion,
     setAppsFilter: setAppsWithSubFilter,
     toggleCajonCategory,
-    toggleCajonSubfilters
+    // Detección de duplicados
+    findSimilarApps,
+    validateAppName
+    // toggleCajonSubfilters eliminada de API pública (obsoleta - usar setAppsFilter)
   };
 
   // ── Arranque ──────────────────────────────────────────
   loadData();
 
-  ['passTecnoApps', 'passDepartamento', 'passCajonDeSastre'].forEach(id => {
+  ['passTecnoApps', 'passHerramientasTecno', 'passDepartamento', 'passCajonDeSastre'].forEach(id => {
     const inp = document.getElementById(id);
     if (inp) {
       inp.addEventListener('change', () => autoSaveGroupPasswords());
@@ -2039,6 +2548,25 @@
   }
 
   /* Subfiltros de Cajón de sastre */
+  #cajonSubfilters {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    gap: .3rem;
+    margin-left: .5rem;
+    padding-left: .5rem;
+    border-left: 1.5px solid #d1d5db;
+    vertical-align: middle;
+  }
+  
+  #cajonSubfilters:not(.hidden) {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  
   .subfilters {
     display: inline-flex;
     gap: .3rem;
@@ -2172,10 +2700,10 @@
   .btn-gold    { background: var(--gold); color: var(--navy); }
   .btn-ghost   { background: #e5e7eb; color: var(--text); }
 
-  /* grids de credenciales */
+  /* grids de credenciales - 4 columnas para los 4 perfiles (incluido Herramientas Tecno) */
   .cred-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(4, 1fr);
     gap: .8rem;
     margin-bottom: 1rem;
   }
@@ -2475,7 +3003,7 @@
 
   /* ── Móvil/tablet (600–767px) ────────────────────── */
   @media (min-width: 600px) and (max-width: 767px) {
-    .cred-grid { grid-template-columns: 1fr 1fr 1fr; }
+    .cred-grid { grid-template-columns: 1fr 1fr; } /* 2x2 para 4 items */
   }
 
   /* ── Móvil: credenciales en 1 columna ────────────── */
@@ -2725,18 +3253,18 @@
         </div>
         <div class="filter-bar" id="appsFilterBar">
           <span class="filter-label">🔎 Filtrar por perfil:</span>
-          <button class="filter-btn active" data-filter="all" onclick="tecdea.setAppsFilter('all')">Todas</button>
-          <button class="filter-btn" data-filter="tecnoApps" onclick="tecdea.setAppsFilter('tecnoApps')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="4" y="1" width="16" height="22" rx="3" fill="#1E7A3D" stroke="#E8943A" stroke-width="1"/><rect x="6" y="4" width="12" height="13" rx="1" fill="#F5E6A3" opacity="0.9"/><circle cx="12" cy="20" r="1" fill="#E8943A"/></svg>TecnoApps</button>
-          <button class="filter-btn" data-filter="herramientasTecno" onclick="tecdea.setAppsFilter('herramientasTecno')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="2" y="2" width="20" height="20" rx="4" fill="#9B59B6" stroke="#E8943A" stroke-width="1"/><path d="M7,8 L11,8 L9,14 Z" fill="#F5E6A3"/><circle cx="15" cy="10" r="4" fill="#F5E6A3" stroke="#1A3A8E" stroke-width="1"/><path d="M13,10 L14,11 L17,8" stroke="#1E7A3D" stroke-width="1.5" fill="none"/></svg>Herramientas Tecno</button>
-          <button class="filter-btn" data-filter="departamento" onclick="tecdea.setAppsFilter('departamento')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="2" y="9" width="20" height="13" rx="1" fill="#1A3A8E" stroke="#E8943A" stroke-width="1"/><polygon points="12,2 20,9 4,9" fill="#E8943A" stroke="#1E7A3D" stroke-width="0.5"/><rect x="10" y="13" width="4" height="7" rx="0.5" fill="#F5E6A3"/></svg>Departamento</button>
-          <button class="filter-btn" data-filter="cajonDeSastre" onclick="tecdea.toggleCajonSubfilters(this)">
+          <button class="filter-btn" data-filter="tecnoApps" onclick="tecdea.setAppsFilter('tecnoApps')" aria-label="Filtrar TecnoApps"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px" aria-hidden="true"><rect x="4" y="1" width="16" height="22" rx="3" fill="#1E7A3D" stroke="#E8943A" stroke-width="1"/><rect x="6" y="4" width="12" height="13" rx="1" fill="#F5E6A3" opacity="0.9"/><circle cx="12" cy="20" r="1" fill="#E8943A"/></svg>TecnoApps</button>
+          <button class="filter-btn" data-filter="herramientasTecno" onclick="tecdea.setAppsFilter('herramientasTecno')" aria-label="Filtrar Herramientas Tecno"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="4" fill="#9B59B6" stroke="#E8943A" stroke-width="1"/><path d="M7,8 L11,8 L9,14 Z" fill="#F5E6A3"/><circle cx="15" cy="10" r="4" fill="#F5E6A3" stroke="#1A3A8E" stroke-width="1"/><path d="M13,10 L14,11 L17,8" stroke="#1E7A3D" stroke-width="1.5" fill="none"/></svg>Herramientas Tecno</button>
+          <button class="filter-btn" data-filter="departamento" onclick="tecdea.setAppsFilter('departamento')" aria-label="Filtrar Departamento"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px" aria-hidden="true"><rect x="2" y="9" width="20" height="13" rx="1" fill="#1A3A8E" stroke="#E8943A" stroke-width="1"/><polygon points="12,2 20,9 4,9" fill="#E8943A" stroke="#1E7A3D" stroke-width="0.5"/><rect x="10" y="13" width="4" height="7" rx="0.5" fill="#F5E6A3"/></svg>Departamento</button>
+          <button class="filter-btn" data-filter="cajonDeSastre" id="cajonDeSastreBtn" onclick="tecdea.setAppsFilter('cajonDeSastre')" aria-label="Filtrar Cajón de sastre">
             <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="2" y="6" width="20" height="15" rx="2" fill="#E8943A" stroke="#1A3A8E" stroke-width="1"/><rect x="4" y="8" width="16" height="11" rx="1" fill="#1A3A8E" opacity="0.9"/></svg>Cajón de sastre
-            <span id="cajonSubfilters" class="subfilters hidden">
-              <button class="filter-sub-btn" data-category="matematicas" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('matematicas')">📐 Matemáticas</button>
-              <button class="filter-sub-btn" data-category="fisica" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('fisica')">⚛️ Física</button>
-              <button class="filter-sub-btn" data-category="quimica" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('quimica')">🧪 Química</button>
-            </span>
           </button>
+          <!-- SUBFILTROS FUERA DEL BOTÓN (hermanos, no hijos) -->
+          <span id="cajonSubfilters" class="subfilters hidden">
+            <button class="filter-sub-btn" data-category="matematicas" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('matematicas')">📐 Matemáticas</button>
+            <button class="filter-sub-btn" data-category="fisica" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('fisica')">⚛️ Física</button>
+            <button class="filter-sub-btn" data-category="quimica" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('quimica')">🧪 Química</button>
+          </span>
         </div>
         <div class="tbl-wrap">
           <table id="appsTable">
