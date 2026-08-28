@@ -642,9 +642,9 @@
       // Filtro principal por perfil
       let matches = appsFilter === 'all' || a[appsFilter];
 
-      // Si es Cajón de sastre con subfiltro de categoría, filtrar también
-      if (matches && appsFilter === 'cajonDeSastre' && cajonCategoryFilter) {
-        matches = (a.category || '') === cajonCategoryFilter;
+      // Si es Cajón de sastre con subfiltros de categoría, filtrar también
+      if (matches && appsFilter === 'cajonDeSastre' && cajonCategoryFilters.length > 0) {
+        matches = cajonCategoryFilters.includes(a.category || '');
       }
 
       if (matches) rowsData.push({ app: a, idx: i });
@@ -792,7 +792,7 @@
 
     // Resetear filtros para mostrar todas las apps (incluida la nueva)
     appsFilter = 'all';
-    cajonCategoryFilter = null;
+    cajonCategoryFilters = []; // Resetear array de categorías
 
     // Actualizar visualmente botones de filtro principal
     document.querySelectorAll('#appsFilterBar .filter-btn').forEach(btn => {
@@ -806,6 +806,11 @@
       subfilters.querySelectorAll('.filter-sub-btn').forEach(btn => {
         btn.classList.remove('active');
       });
+      // Quitar clase expanded del botón padre
+      const parentBtn = subfilters.closest('.filter-btn');
+      if (parentBtn) {
+        parentBtn.classList.remove('expanded');
+      }
     }
 
     // Añadir nueva aplicación
@@ -1313,8 +1318,8 @@
     }
   }
 
-  // Variable para filtro de categoría en Cajón de sastre
-  let cajonCategoryFilter = null;
+  // Variable para filtros de categoría en Cajón de sastre (ahora es un array para multi-selección)
+  let cajonCategoryFilters = [];
 
   // Toggle para mostrar/ocultar subfiltros de Cajón de sastre
   function toggleCajonSubfilters(btn) {
@@ -1323,10 +1328,17 @@
 
     // Si los subfiltros están ocultos, mostrarlos y activar el filtro principal
     if (subfilters.classList.contains('hidden')) {
-      // Activar el filtro principal cajonDeSastre
+      // Activar el filtro principal cajonDeSastre (sin subfiltros = todas)
       appsFilter = 'cajonDeSastre';
+      cajonCategoryFilters = []; // Resetear subfiltros al abrir
+
       document.querySelectorAll('#appsFilterBar .filter-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.filter === 'cajonDeSastre' || b === btn);
+      });
+
+      // Resetear estado visual de subfiltros
+      subfilters.querySelectorAll('.filter-sub-btn').forEach(b => {
+        b.classList.remove('active');
       });
 
       // Mostrar subfiltros con animación
@@ -1343,19 +1355,30 @@
     buildConfigTable();
   }
 
-  // Establecer filtro de categoría para Cajón de sastre
-  function setCajonCategory(category) {
-    cajonCategoryFilter = category;
+  // Toggle para añadir/quitar categoría del filtro (multi-selección)
+  function toggleCajonCategory(category) {
+    const idx = cajonCategoryFilters.indexOf(category);
+
+    if (idx > -1) {
+      // Ya está seleccionado: quitarlo
+      cajonCategoryFilters.splice(idx, 1);
+    } else {
+      // No está seleccionado: añadirlo
+      cajonCategoryFilters.push(category);
+    }
+
+    // Actualizar estado visual de los botones
     document.querySelectorAll('#cajonSubfilters .filter-sub-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.category === category);
+      btn.classList.toggle('active', cajonCategoryFilters.includes(btn.dataset.category));
     });
+
     buildConfigTable();
   }
 
   // Modificar setAppsFilter para manejar subfiltros de Cajón de sastre
   function setAppsWithSubFilter(filter) {
     appsFilter = filter;
-    cajonCategoryFilter = null; // Resetear categoría al cambiar de filtro principal
+    cajonCategoryFilters = []; // Resetear categorías al cambiar de filtro principal
 
     document.querySelectorAll('#appsFilterBar .filter-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.filter === filter);
@@ -1387,7 +1410,7 @@
     exportData,
     toggleAccordion,
     setAppsFilter: setAppsWithSubFilter,
-    setCajonCategory,
+    toggleCajonCategory,
     toggleCajonSubfilters
   };
 
@@ -2709,10 +2732,9 @@
           <button class="filter-btn" data-filter="cajonDeSastre" onclick="tecdea.toggleCajonSubfilters(this)">
             <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="2" y="6" width="20" height="15" rx="2" fill="#E8943A" stroke="#1A3A8E" stroke-width="1"/><rect x="4" y="8" width="16" height="11" rx="1" fill="#1A3A8E" opacity="0.9"/></svg>Cajón de sastre
             <span id="cajonSubfilters" class="subfilters hidden">
-              <button class="filter-sub-btn" data-category="" onclick="event.stopPropagation(); tecdea.setCajonCategory('')">📋 Todas</button>
-              <button class="filter-sub-btn" data-category="matematicas" onclick="event.stopPropagation(); tecdea.setCajonCategory('matematicas')">📐 Matemáticas</button>
-              <button class="filter-sub-btn" data-category="fisica" onclick="event.stopPropagation(); tecdea.setCajonCategory('fisica')">⚛️ Física</button>
-              <button class="filter-sub-btn" data-category="quimica" onclick="event.stopPropagation(); tecdea.setCajonCategory('quimica')">🧪 Química</button>
+              <button class="filter-sub-btn" data-category="matematicas" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('matematicas')">📐 Matemáticas</button>
+              <button class="filter-sub-btn" data-category="fisica" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('fisica')">⚛️ Física</button>
+              <button class="filter-sub-btn" data-category="quimica" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('quimica')">🧪 Química</button>
             </span>
           </button>
         </div>
