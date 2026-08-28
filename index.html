@@ -251,6 +251,8 @@
 
   function renderHome() {
     setView("home");
+    // Mostrar botón de configuración al volver al home
+    document.querySelector('.btn-config')?.classList.remove('hidden');
   }
 
   // ── Botones principales: piden contraseña antes de mostrar el grupo ──
@@ -307,6 +309,8 @@
   // Mostrar menú intermedio de Cajón de sastre
   function showCajonDeSastreMenu() {
     setView("cajon-menu");
+    // Mostrar botón de configuración al entrar a esta pantalla
+    document.querySelector('.btn-config')?.classList.remove('hidden');
   }
 
   function showGroup(group, category = null) {
@@ -336,6 +340,8 @@
       ? filtered.map(a => appCard(a)).join("")
       : "<p class='empty'>No hay aplicaciones configuradas para este perfil.</p>";
     setView("group");
+    // Mostrar botón de configuración al entrar a esta pantalla
+    document.querySelector('.btn-config')?.classList.remove('hidden');
 
     if (filtered.length) {
       grid.querySelectorAll("img[data-app-url]").forEach(img => {
@@ -624,6 +630,8 @@
     buildAdminsTable();
     fillGroupPasswordInputs();
     setView("config");
+    // Ocultar botón de configuración mientras estamos en esta pantalla
+    document.querySelector('.btn-config')?.classList.add('hidden');
   }
 
   // ── Tabla de aplicaciones ─────────────────────────────
