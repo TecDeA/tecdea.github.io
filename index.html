@@ -1316,6 +1316,33 @@
   // Variable para filtro de categoría en Cajón de sastre
   let cajonCategoryFilter = null;
 
+  // Toggle para mostrar/ocultar subfiltros de Cajón de sastre
+  function toggleCajonSubfilters(btn) {
+    const subfilters = btn.querySelector('#cajonSubfilters');
+    if (!subfilters) return;
+
+    // Si los subfiltros están ocultos, mostrarlos y activar el filtro principal
+    if (subfilters.classList.contains('hidden')) {
+      // Activar el filtro principal cajonDeSastre
+      appsFilter = 'cajonDeSastre';
+      document.querySelectorAll('#appsFilterBar .filter-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.filter === 'cajonDeSastre' || b === btn);
+      });
+
+      // Mostrar subfiltros con animación
+      subfilters.classList.remove('hidden');
+
+      // Añadir indicador visual de que está expandido
+      btn.classList.add('expanded');
+    } else {
+      // Ocultar subfiltros si ya estaban visibles (toggle)
+      subfilters.classList.add('hidden');
+      btn.classList.remove('expanded');
+    }
+
+    buildConfigTable();
+  }
+
   // Establecer filtro de categoría para Cajón de sastre
   function setCajonCategory(category) {
     cajonCategoryFilter = category;
@@ -1334,17 +1361,14 @@
       btn.classList.toggle('active', btn.dataset.filter === filter);
     });
 
-    // Mostrar/ocultar subfiltros de Cajón de sastre
+    // Ocultar siempre los subfiltros de Cajón de sastre (solo se muestran con toggle)
     const subfilters = document.getElementById('cajonSubfilters');
     if (subfilters) {
-      if (filter === 'cajonDeSastre') {
-        subfilters.classList.remove('hidden');
-        // Resetear botones de subfiltro
-        subfilters.querySelectorAll('.filter-sub-btn').forEach(btn => {
-          btn.classList.remove('active');
-        });
-      } else {
-        subfilters.classList.add('hidden');
+      subfilters.classList.add('hidden');
+      // Quitar clase expanded del botón padre
+      const parentBtn = subfilters.closest('.filter-btn');
+      if (parentBtn) {
+        parentBtn.classList.remove('expanded');
       }
     }
 
@@ -1363,7 +1387,8 @@
     exportData,
     toggleAccordion,
     setAppsFilter: setAppsWithSubFilter,
-    setCajonCategory
+    setCajonCategory,
+    toggleCajonSubfilters
   };
 
   // ── Arranque ──────────────────────────────────────────
@@ -2023,6 +2048,21 @@
     border-color: var(--navy);
   }
 
+  /* Botón de filtro expandido (con subfiltros visibles) */
+  .filter-btn.expanded {
+    background: var(--navy);
+    color: var(--white);
+    border-color: var(--navy);
+    box-shadow: 0 3px 12px rgba(11,37,69,.25);
+    position: relative;
+  }
+  .filter-btn.expanded::after {
+    content: '▲';
+    font-size: .6rem;
+    margin-left: .3rem;
+    opacity: .8;
+  }
+
   /* Selector de categoría en tabla */
   .cajon-cell {
     position: relative;
@@ -2666,12 +2706,13 @@
           <button class="filter-btn" data-filter="tecnoApps" onclick="tecdea.setAppsFilter('tecnoApps')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="4" y="1" width="16" height="22" rx="3" fill="#1E7A3D" stroke="#E8943A" stroke-width="1"/><rect x="6" y="4" width="12" height="13" rx="1" fill="#F5E6A3" opacity="0.9"/><circle cx="12" cy="20" r="1" fill="#E8943A"/></svg>TecnoApps</button>
           <button class="filter-btn" data-filter="herramientasTecno" onclick="tecdea.setAppsFilter('herramientasTecno')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="2" y="2" width="20" height="20" rx="4" fill="#9B59B6" stroke="#E8943A" stroke-width="1"/><path d="M7,8 L11,8 L9,14 Z" fill="#F5E6A3"/><circle cx="15" cy="10" r="4" fill="#F5E6A3" stroke="#1A3A8E" stroke-width="1"/><path d="M13,10 L14,11 L17,8" stroke="#1E7A3D" stroke-width="1.5" fill="none"/></svg>Herramientas Tecno</button>
           <button class="filter-btn" data-filter="departamento" onclick="tecdea.setAppsFilter('departamento')"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="2" y="9" width="20" height="13" rx="1" fill="#1A3A8E" stroke="#E8943A" stroke-width="1"/><polygon points="12,2 20,9 4,9" fill="#E8943A" stroke="#1E7A3D" stroke-width="0.5"/><rect x="10" y="13" width="4" height="7" rx="0.5" fill="#F5E6A3"/></svg>Departamento</button>
-          <button class="filter-btn" data-filter="cajonDeSastre" onclick="tecdea.setAppsFilter('cajonDeSastre')">
+          <button class="filter-btn" data-filter="cajonDeSastre" onclick="tecdea.toggleCajonSubfilters(this)">
             <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="2" y="6" width="20" height="15" rx="2" fill="#E8943A" stroke="#1A3A8E" stroke-width="1"/><rect x="4" y="8" width="16" height="11" rx="1" fill="#1A3A8E" opacity="0.9"/></svg>Cajón de sastre
             <span id="cajonSubfilters" class="subfilters hidden">
-              <button class="filter-sub-btn" data-category="matematicas" onclick="tecdea.setCajonCategory('matematicas')">📐 Matemáticas</button>
-              <button class="filter-sub-btn" data-category="fisica" onclick="tecdea.setCajonCategory('fisica')">⚛️ Física</button>
-              <button class="filter-sub-btn" data-category="quimica" onclick="tecdea.setCajonCategory('quimica')">🧪 Química</button>
+              <button class="filter-sub-btn" data-category="" onclick="event.stopPropagation(); tecdea.setCajonCategory('')">📋 Todas</button>
+              <button class="filter-sub-btn" data-category="matematicas" onclick="event.stopPropagation(); tecdea.setCajonCategory('matematicas')">📐 Matemáticas</button>
+              <button class="filter-sub-btn" data-category="fisica" onclick="event.stopPropagation(); tecdea.setCajonCategory('fisica')">⚛️ Física</button>
+              <button class="filter-sub-btn" data-category="quimica" onclick="event.stopPropagation(); tecdea.setCajonCategory('quimica')">🧪 Química</button>
             </span>
           </button>
         </div>
