@@ -933,6 +933,7 @@
   // NOTA: setAppsFilter fue reemplazada por setAppsWithSubFilter (con toggle)
   // Se mantiene como alias para compatibilidad, pero redirige a la nueva función
   function setAppsFilter(filter) {
+    console.log('[TecDeA] setAppsFilter llamado con:', filter);
     setAppsWithSubFilter(filter);
   }
 
@@ -1176,15 +1177,23 @@
     const subfilters = document.getElementById('cajonSubfilters');
     if (subfilters) {
       subfilters.classList.add('hidden');
+      subfilters.style.display = 'none';
       subfilters.querySelectorAll('.filter-sub-btn').forEach(btn => {
         btn.classList.remove('active');
       });
-      // Quitar clase expanded del botón padre
-      const parentBtn = subfilters.closest('.filter-btn');
-      if (parentBtn) {
-        parentBtn.classList.remove('expanded');
-      }
     }
+    
+    // Quitar clase expanded del botón Cajón de sastre (usar ID porque subfiltros son hermanos, no hijos)
+    const cajonBtn = document.getElementById('cajonDeSastreBtn');
+    if (cajonBtn) {
+      cajonBtn.classList.remove('expanded');
+    }
+    
+    // Restaurar visibilidad de todos los botones de filtro
+    document.querySelectorAll('#appsFilterBar .filter-btn').forEach(btn => {
+      btn.style.display = '';
+      btn.classList.remove('active', 'expanded');
+    });
 
     // Añadir nueva aplicación con límite razonable (máx. 200 apps)
     const MAX_APPS = 200;
@@ -1622,9 +1631,9 @@
       doc.text('Portal TecDeA', 14, pageH - 8);
     }
 
-    // Verificar que se generó contenido
-    const pageCount = doc.internal.getNumberOfPages();
-    if (pageCount <= 1 && !data.apps?.length && !data.admins?.length && !data.groupPasswords?.length) {
+    // Verificar que se generó contenido (reutilizar pageCount declarado arriba)
+    const finalPageCount = doc.internal.getNumberOfPages();
+    if (finalPageCount <= 1 && !data.apps?.length && !data.admins?.length && !data.groupPasswords?.length) {
       // Solo tiene la página de encabezado, sin datos reales
       showToast('No hay datos para exportar en PDF.', 'err', 4000);
       return;
@@ -1844,53 +1853,27 @@
 
   // Modificar setAppsFilter para manejar subfiltros de Cajón de sastre con TOGGLE
   function setAppsWithSubFilter(filter) {
-    const subfilters = document.getElementById('cajonSubfilters');
-    const cajonBtn = document.getElementById('cajonDeSastreBtn');
-    const allFilterBtns = Array.from(document.querySelectorAll('#appsFilterBar .filter-btn'));
+    try {
+      console.log('[TecDeA] setAppsWithSubFilter llamado con:', filter);
+      
+      const subfilters = document.getElementById('cajonSubfilters');
+      const cajonBtn = document.getElementById('cajonDeSastreBtn');
+      const allFilterBtns = Array.from(document.querySelectorAll('#appsFilterBar .filter-btn'));
+      
+      console.log('[TecDeA] Botones encontrados:', allFilterBtns.length);
+      console.log('[TecDeA] appsFilter actual:', appsFilter);
     
-    if (appsFilter === filter) {
-      // ═══ TOGGLE OFF: desactivar, mostrar todo ═══
-      appsFilter = 'all';
-      cajonCategoryFilters = [];
-      
-      allFilterBtns.forEach(btn => {
-        btn.style.display = '';
-        btn.classList.remove('active', 'expanded');
-      });
-      
-      // Ocultar subfiltros
-      if (subfilters) {
-        subfilters.classList.add('hidden');
-        subfilters.style.display = 'none';
-      }
-      if (cajonBtn) {
-        cajonBtn.classList.remove('expanded');
-      }
-    } else {
-      // ═══ TOGGLE ON: activar filtro ═══
-      appsFilter = filter;
-      cajonCategoryFilters = [];
-      
-      allFilterBtns.forEach(btn => {
-        if (btn.dataset.filter === filter) {
+      if (appsFilter === filter) {
+        // ═══ TOGGLE OFF: desactivar, mostrar todo ═══
+        appsFilter = 'all';
+        cajonCategoryFilters = [];
+        
+        allFilterBtns.forEach(btn => {
           btn.style.display = '';
-          btn.classList.add('active');
-        } else {
-          btn.style.display = 'none';
           btn.classList.remove('active', 'expanded');
-        }
-      });
-      
-      // Mostrar subfiltros solo si es Cajón de sastre
-      if (filter === 'cajonDeSastre') {
-        if (subfilters) {
-          subfilters.classList.remove('hidden');
-          subfilters.style.display = 'inline-flex';
-        }
-        if (cajonBtn) {
-          cajonBtn.classList.add('expanded');
-        }
-      } else {
+        });
+        
+        // Ocultar subfiltros
         if (subfilters) {
           subfilters.classList.add('hidden');
           subfilters.style.display = 'none';
@@ -1898,10 +1881,48 @@
         if (cajonBtn) {
           cajonBtn.classList.remove('expanded');
         }
+        console.log('[TecDeA] Toggle OFF ejecutado');
+      } else {
+        // ═══ TOGGLE ON: activar filtro ═══
+        appsFilter = filter;
+        cajonCategoryFilters = [];
+        
+        allFilterBtns.forEach(btn => {
+          if (btn.dataset.filter === filter) {
+            btn.style.display = '';
+            btn.classList.add('active');
+          } else {
+            btn.style.display = 'none';
+            btn.classList.remove('active', 'expanded');
+          }
+        });
+        
+        // Mostrar subfiltros solo si es Cajón de sastre
+        if (filter === 'cajonDeSastre') {
+          if (subfilters) {
+            subfilters.classList.remove('hidden');
+            subfilters.style.display = 'inline-flex';
+          }
+          if (cajonBtn) {
+            cajonBtn.classList.add('expanded');
+          }
+        } else {
+          if (subfilters) {
+            subfilters.classList.add('hidden');
+            subfilters.style.display = 'none';
+          }
+          if (cajonBtn) {
+            cajonBtn.classList.remove('expanded');
+          }
+        }
+        console.log('[TecDeA] Toggle ON ejecutado para:', filter);
       }
-    }
 
-    buildConfigTable();
+      buildConfigTable();
+    } catch (error) {
+      console.error('[TecDeA] Error en setAppsWithSubFilter:', error);
+      showToast('Error al aplicar filtro: ' + error.message, 'err', 4000);
+    }
   }
 
   // ── Exponemos al HTML ──────────────────────────────────
@@ -3326,6 +3347,9 @@
       </button>
       <div class="accordion-content">
         <p class="hint">Gestiona los usuarios con permiso para acceder a esta pantalla de Configuración. Debe existir al menos uno; no se permiten usuarios duplicados.</p>
+        <p class="hint hint-warning" style="background:#fff8e6;border-left:4px solid #f59e0b;padding:.7rem .9rem;margin:.8rem 0;border-radius:8px;font-size:.82rem;">
+          🔒 <strong>Nota importante:</strong> Las contraseñas de los administradores se incluirán en la exportación a Excel/PDF. Asegúrate de proteger el archivo exportado.
+        </p>
         <div class="tbl-wrap">
           <table id="adminsTable">
             <thead>
@@ -3353,6 +3377,9 @@
       </button>
       <div class="accordion-content">
         <p class="hint">Exporta todo o parte de la configuración a PDF o Excel (.xlsx). Las librerías se cargan bajo demanda al pulsar el botón (no afectan al rendimiento inicial).</p>
+        <p class="hint hint-warning" style="background:#fef3c7;border-left:4px solid #f59e0b;padding:.6rem .8rem;margin:.7rem 0;border-radius:8px;font-size:.8rem;">
+          ⚠️ <strong>Seguridad:</strong> Al exportar "Administradores", sus contraseñas serán visibles en el archivo. Protege el archivo exportado.
+        </p>
         <div class="export-grid">
           <div>
             <div class="fi-label">¿Qué exportar?</div>
