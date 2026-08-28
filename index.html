@@ -589,6 +589,12 @@
 
   // ── Login pantalla configuración (multi-admin) ───────
   function showLoginModal() {
+    // Si ya estamos en la pantalla de configuración, no hacer nada
+    const configView = document.getElementById("view-config");
+    if (configView && !configView.classList.contains("hidden")) {
+      return; // Ya estamos en configuración, no mostrar modal
+    }
+
     document.getElementById("loginError").textContent = "";
     document.getElementById("loginUser").value = "";
     document.getElementById("loginPass").value = "";
