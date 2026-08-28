@@ -933,6 +933,7 @@
   // NOTA: setAppsFilter fue reemplazada por setAppsWithSubFilter (con toggle)
   // Se mantiene como alias para compatibilidad, pero redirige a la nueva función
   function setAppsFilter(filter) {
+    console.log('[TecDeA] setAppsFilter llamado con:', filter);
     setAppsWithSubFilter(filter);
   }
 
@@ -1630,9 +1631,9 @@
       doc.text('Portal TecDeA', 14, pageH - 8);
     }
 
-    // Verificar que se generó contenido
-    const pageCount = doc.internal.getNumberOfPages();
-    if (pageCount <= 1 && !data.apps?.length && !data.admins?.length && !data.groupPasswords?.length) {
+    // Verificar que se generó contenido (reutilizar pageCount declarado arriba)
+    const finalPageCount = doc.internal.getNumberOfPages();
+    if (finalPageCount <= 1 && !data.apps?.length && !data.admins?.length && !data.groupPasswords?.length) {
       // Solo tiene la página de encabezado, sin datos reales
       showToast('No hay datos para exportar en PDF.', 'err', 4000);
       return;
@@ -1852,53 +1853,27 @@
 
   // Modificar setAppsFilter para manejar subfiltros de Cajón de sastre con TOGGLE
   function setAppsWithSubFilter(filter) {
-    const subfilters = document.getElementById('cajonSubfilters');
-    const cajonBtn = document.getElementById('cajonDeSastreBtn');
-    const allFilterBtns = Array.from(document.querySelectorAll('#appsFilterBar .filter-btn'));
+    try {
+      console.log('[TecDeA] setAppsWithSubFilter llamado con:', filter);
+      
+      const subfilters = document.getElementById('cajonSubfilters');
+      const cajonBtn = document.getElementById('cajonDeSastreBtn');
+      const allFilterBtns = Array.from(document.querySelectorAll('#appsFilterBar .filter-btn'));
+      
+      console.log('[TecDeA] Botones encontrados:', allFilterBtns.length);
+      console.log('[TecDeA] appsFilter actual:', appsFilter);
     
-    if (appsFilter === filter) {
-      // ═══ TOGGLE OFF: desactivar, mostrar todo ═══
-      appsFilter = 'all';
-      cajonCategoryFilters = [];
-      
-      allFilterBtns.forEach(btn => {
-        btn.style.display = '';
-        btn.classList.remove('active', 'expanded');
-      });
-      
-      // Ocultar subfiltros
-      if (subfilters) {
-        subfilters.classList.add('hidden');
-        subfilters.style.display = 'none';
-      }
-      if (cajonBtn) {
-        cajonBtn.classList.remove('expanded');
-      }
-    } else {
-      // ═══ TOGGLE ON: activar filtro ═══
-      appsFilter = filter;
-      cajonCategoryFilters = [];
-      
-      allFilterBtns.forEach(btn => {
-        if (btn.dataset.filter === filter) {
+      if (appsFilter === filter) {
+        // ═══ TOGGLE OFF: desactivar, mostrar todo ═══
+        appsFilter = 'all';
+        cajonCategoryFilters = [];
+        
+        allFilterBtns.forEach(btn => {
           btn.style.display = '';
-          btn.classList.add('active');
-        } else {
-          btn.style.display = 'none';
           btn.classList.remove('active', 'expanded');
-        }
-      });
-      
-      // Mostrar subfiltros solo si es Cajón de sastre
-      if (filter === 'cajonDeSastre') {
-        if (subfilters) {
-          subfilters.classList.remove('hidden');
-          subfilters.style.display = 'inline-flex';
-        }
-        if (cajonBtn) {
-          cajonBtn.classList.add('expanded');
-        }
-      } else {
+        });
+        
+        // Ocultar subfiltros
         if (subfilters) {
           subfilters.classList.add('hidden');
           subfilters.style.display = 'none';
@@ -1906,10 +1881,48 @@
         if (cajonBtn) {
           cajonBtn.classList.remove('expanded');
         }
+        console.log('[TecDeA] Toggle OFF ejecutado');
+      } else {
+        // ═══ TOGGLE ON: activar filtro ═══
+        appsFilter = filter;
+        cajonCategoryFilters = [];
+        
+        allFilterBtns.forEach(btn => {
+          if (btn.dataset.filter === filter) {
+            btn.style.display = '';
+            btn.classList.add('active');
+          } else {
+            btn.style.display = 'none';
+            btn.classList.remove('active', 'expanded');
+          }
+        });
+        
+        // Mostrar subfiltros solo si es Cajón de sastre
+        if (filter === 'cajonDeSastre') {
+          if (subfilters) {
+            subfilters.classList.remove('hidden');
+            subfilters.style.display = 'inline-flex';
+          }
+          if (cajonBtn) {
+            cajonBtn.classList.add('expanded');
+          }
+        } else {
+          if (subfilters) {
+            subfilters.classList.add('hidden');
+            subfilters.style.display = 'none';
+          }
+          if (cajonBtn) {
+            cajonBtn.classList.remove('expanded');
+          }
+        }
+        console.log('[TecDeA] Toggle ON ejecutado para:', filter);
       }
-    }
 
-    buildConfigTable();
+      buildConfigTable();
+    } catch (error) {
+      console.error('[TecDeA] Error en setAppsWithSubFilter:', error);
+      showToast('Error al aplicar filtro: ' + error.message, 'err', 4000);
+    }
   }
 
   // ── Exponemos al HTML ──────────────────────────────────
