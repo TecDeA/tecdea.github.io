@@ -320,8 +320,8 @@
   // Mostrar menú intermedio de Cajón de sastre
   function showCajonDeSastreMenu() {
     setView("cajon-menu");
-    // Mostrar botón de configuración al entrar a esta pantalla
-    document.querySelector('.btn-config')?.classList.remove('hidden');
+    // Ocultar botón de configuración para evitar solapamiento con botón Volver flotante
+    document.querySelector('.btn-config')?.classList.add('hidden');
   }
 
   function showGroup(group, category = null) {
@@ -351,8 +351,8 @@
       ? filtered.map(a => appCard(a)).join("")
       : "<p class='empty'>No hay aplicaciones configuradas para este perfil.</p>";
     setView("group");
-    // Mostrar botón de configuración al entrar a esta pantalla
-    document.querySelector('.btn-config')?.classList.remove('hidden');
+    // Ocultar botón de configuración para evitar solapamiento con botón Volver flotante
+    document.querySelector('.btn-config')?.classList.add('hidden');
 
     if (filtered.length) {
       grid.querySelectorAll("img[data-app-url]").forEach(img => {
@@ -2227,45 +2227,178 @@
   /* ══ Group view ═════════════════════════════════════ */
   #view-group {}
 
+  /* ══ Botón Volver - Diseño Responsive ═════════════ */
+  
+  /* Estilos base comunes */
   .back-btn {
     display: inline-flex; align-items: center; gap: .5rem;
     background: var(--navy);
     color: var(--white);
     border: none; cursor: pointer;
-    font-size: .92rem; font-weight: 600;
-    padding: .7rem 1.3rem .7rem 1rem;
-    border-radius: 30px;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 4px 14px rgba(11,37,69,.28);
-    transition: transform .18s, box-shadow .18s, background .18s, color .18s;
+    font-size: .88rem; font-weight: 600;
+    padding: .6rem 1.1rem .6rem .9rem;
+    border-radius: 25px;
+    box-shadow: 0 4px 16px rgba(11,37,69,.35), 0 2px 6px rgba(0,0,0,.15);
+    transition: transform .18s, box-shadow .18s, background .18s, color .18s, opacity .2s;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-    min-height: 44px;
+    min-height: 42px;
     letter-spacing: .02em;
     text-decoration: none;
     user-select: none;
     -webkit-user-select: none;
+    
+    /* Asegurar visibilidad */
+    background: linear-gradient(135deg, #0b2545 0%, #1a3a5c 100%);
+    border: 1.5px solid rgba(200,168,75,.4);
+    
+    opacity: 0.95;
   }
-  .back-btn::before {
-    content: "←";
-    font-size: 1.15rem;
-    font-weight: 800;
-    line-height: 1;
-    transition: transform .2s;
-    margin-right: .15rem;
+  
+  /* Cuando el botón Volver está activo/visible, asegurar máxima visibilidad */
+  .back-btn:hover,
+  .back-btn:focus {
+    opacity: 1;
   }
-  .back-btn:hover {
-    background: var(--gold);
-    color: var(--navy);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 22px rgba(200,168,75,.45);
+  
+  /* ═══ Pantallas GRANDES (≥768px): Botón FLOTANTE CENTRADO ═══ */
+  @media (min-width: 768px) {
+    .back-btn {
+      /* Posición fija centrada verticalmente en el lado derecho */
+      position: fixed;
+      top: 50%;
+      right: 1rem;
+      transform: translateY(-50%);
+      z-index: 1000;
+      
+      /* Orientación vertical para mejor uso del espacio */
+      writing-mode: horizontal-tb;
+      
+      /* Sombra más pronunciada para destacar sobre contenido */
+      box-shadow: 
+        0 6px 24px rgba(11,37,69,.45), 
+        0 3px 12px rgba(0,0,0,.2),
+        inset 0 1px 0 rgba(255,255,255,.1);
+        
+      /* Efecto de borde brillante sutil */
+      box-shadow: 
+        0 0 0 1px rgba(200,168,75,.3),
+        0 6px 24px rgba(11,37,69,.45),
+        0 3px 12px rgba(0,0,0,.2);
+    }
+    
+    .back-btn:hover {
+      transform: translateY(-50%) scale(1.05);
+      box-shadow: 
+        0 0 0 1px rgba(200,168,75,.6),
+        0 8px 32px rgba(200,168,75,.4),
+        0 4px 16px rgba(0,0,0,.25);
+    }
+    
+    .back-btn::before {
+      content: "↺"; /* Arco antihorario (hacia home) */
+      font-size: 1.2rem;
+      display: block;
+      margin: 0 0 .15rem 0;
+      transition: transform .3s ease-in-out;
+    }
+    
+    .back-btn:hover::before {
+      transform: rotate(-180deg); /* Gira al hacer hover */
+    }
+    
+    /* Animación de entrada desde la derecha */
+    @keyframes backBtnSlideIn {
+      from { 
+        opacity: 0; 
+        transform: translateY(-50%) translateX(20px); 
+      }
+      to { 
+        opacity: 0.95; 
+        transform: translateY(-50%) translateX(0); 
+      }
+    }
+    
+    .back-btn {
+      animation: backBtnSlideIn .3s ease-out;
+    }
+    
+    /* Ocultar los contenedores originales en pantallas grandes */
+    .back-row,
+    .config-header {
+      padding-top: 0 !important;
+    }
   }
-  .back-btn:hover::before {
-    transform: translateX(-4px);
-  }
-  .back-btn:active {
-    transform: translateY(0) scale(.97);
-    box-shadow: 0 2px 10px rgba(11,37,69,.25);
+  
+  /* ═══ Pantallas PEQUEÑAS (<768px): Botón ESTÁTICO AL FINAL ═══ */
+  @media (max-width: 767px) {
+    .back-btn {
+      /* Posición normal en el flujo del documento */
+      position: static;
+      transform: none;
+      margin-top: 1.5rem;
+      margin-bottom: 1rem;
+      width: 100%;
+      max-width: 280px;
+      justify-content: center;
+      
+      /* Restaurar flecha normal */
+      border-radius: 30px;
+      padding: .7rem 1.5rem;
+    }
+    
+    .back-btn::before {
+      content: "←";
+      margin-right: .2rem;
+      margin-bottom: 0;
+    }
+    
+    .back-btn:hover {
+      transform: translateY(-2px) scale(1.02);
+    }
+    
+    /* Contenedores para mostrar el botón al final */
+    .back-row {
+      display: flex;
+      justify-content: center;
+      padding: 1.5rem 0 1rem;
+      margin-top: auto;
+      border-top: 1px solid rgba(11,37,69,.08);
+    }
+    
+    .config-header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 1rem;
+      padding: 1rem 0 .5rem;
+    }
+    
+    .config-header .back-btn {
+      order: 10; /* Al final */
+      width: 100%;
+      max-width: none;
+    }
+    
+    .config-title {
+      text-align: center;
+      order: 1;
+    }
+    
+    /* Animación de entrada suave */
+    @keyframes backBtnFadeInMobile {
+      from { 
+        opacity: 0; 
+        transform: translateY(10px); 
+      }
+      to { 
+        opacity: 0.95; 
+        transform: translateY(0); 
+      }
+    }
+    
+    .back-btn {
+      animation: backBtnFadeInMobile .25s ease-out;
+    }
   }
 
   .group-heading {
@@ -2336,7 +2469,7 @@
   .config-header {
     display: flex; align-items: center;
     justify-content: space-between;
-    gap: .75rem; margin-bottom: 1.5rem;
+    gap: .75rem; margin-bottom: 1rem;
   }
   .config-header .back-btn { margin-bottom: 0; }
   .config-title { font-size: 1.3rem; font-weight: 700; color: var(--navy); }
@@ -2344,7 +2477,7 @@
   .back-row {
     display: flex;
     justify-content: flex-end;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
   }
   .back-row .back-btn { margin-bottom: 0; }
 
@@ -2880,6 +3013,14 @@
 
   /* ── Móvil pequeño (< 400px) ─────────────────────── */
   @media (max-width: 400px) {
+    /* Ajustes del botón Volver estático para pantallas muy pequeñas */
+    .back-btn {
+      font-size: .78rem;
+      padding: .6rem 1.2rem;
+      max-width: 100%;
+      border-radius: 25px;
+    }
+    
     .main-btn {
       min-width: 100px;
       flex: 1 1 100px;
