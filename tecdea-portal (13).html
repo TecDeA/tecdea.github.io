@@ -1,0 +1,3743 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<!-- ═══════ VIEWPORT MULTIPLATAFORMA ═══════ -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0, user-scalable=yes">
+<!-- ═══════ TEMA Y COLORES ═══════ -->
+<meta name="theme-color" content="#0b2545" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b2545" media="(prefers-color-scheme: dark)">
+<meta name="msapplication-navbutton-color" content="#0b2545">
+<!-- ═══════ iOS / Safari PWA ═══════ -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TecDeA Portal">
+<link rel="mask-icon" href="img/icon-512x512-maskable.svg" color="#0b2545">
+<!-- ═══════ Android / Chrome PWA ═══════ -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<meta name="format-detection" content="email=no">
+<meta name="format-detection" content="address=no">
+<meta name="x-ua-compatible" content="IE=edge">
+<!-- ═══════ OPEN GRAPH / SOCIAL ═══════ -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="TecDeA - Portal de Aplicaciones de Tecnología">
+<meta property="og:description" content="Portal de aplicaciones del Departamento de Tecnología del IES Virgen de Villadiego">
+<meta property="og:image" content="img/logo.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="TecDeA Portal">
+<meta name="description" content="Portal de aplicaciones del Departamento de Tecnología del IES Virgen de Villadiego. Acceso rápido a las aplicaciones creadas por angelmicelti para TecnoApps, Departamento y Cajón de sastre.">
+<!-- ═══════ SEGURIDAD ═══════ -->
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+
+<!-- ═══════ PWA: manifest, iconos y favicon ═══════ -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="512x512" href="img/icon-512x512.png">
+<link rel="icon" type="image/png" sizes="192x192" href="img/icon-192x192.png">
+<link rel="icon" type="image/x-icon" href="img/favicon.ico">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<meta name="msapplication-TileColor" content="#0b2545">
+<meta name="msapplication-TileImage" content="img/icon-144x144.png">
+
+<title>TecDeA - Portal de Aplicaciones de Tecnología</title>
+
+<!-- Firebase SDK -->
+<script type="module">
+  // Import the functions you need from the SDKs you need
+  // Firebase SDK v10.12.0 (ES6 modules - NOT compat version)
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  // ════════════════════════════════════════════════════════
+  //  CONFIGURACIÓN FIREBASE - TECDEA
+  // ════════════════════════════════════════════════════════
+  const firebaseConfig = {
+    apiKey: "AIzaSyAsJ3PnUTp7SOizYQgoKbnMBJoaRKNIbMM",
+    authDomain: "tecdea.firebaseapp.com",
+    databaseURL: "https://tecdea-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "tecdea",
+    storageBucket: "tecdea.firebasestorage.app",
+    messagingSenderId: "53877853663",
+    appId: "1:53877853663:web:52b8986f56d8474d13886a"
+  };
+
+  // ── Mapeo palabras-clave → emoji para iconos auto-generados ──
+  const DESCRIPTION_EMOJIS = [
+    { kw: ['calendario','agenda','horario','schedule'], em: '📅' },
+    { kw: ['biblioteca','library','libro','libros','book'], em: '📚' },
+    { kw: ['alumno','alumn','estudiante','student'], em: '👨‍🎓' },
+    { kw: ['profesor','docente','teacher'], em: '👨‍🏫' },
+    { kw: ['correo','mail','email','buzón'], em: '📧' },
+    { kw: ['chat','mensaje','comunic','whatsapp','telegram'], em: '💬' },
+    { kw: ['nota','apunte','note'], em: '📝' },
+    { kw: ['mapa','map'], em: '🗺️' },
+    { kw: ['foto','photo','image','galería'], em: '📷' },
+    { kw: ['video','vídeo','multimedia'], em: '🎬' },
+    { kw: ['música','music','audio'], em: '🎵' },
+    { kw: ['mate','math','matemátic'], em: '➗' },
+    { kw: ['ciencia','science','física','química','biología'], em: '🔬' },
+    { kw: ['arte','art','dibujo'], em: '🎨' },
+    { kw: ['deporte','sport','fútbol','baloncesto'], em: '⚽' },
+    { kw: ['comida','comedor','food','menú','almuerzo'], em: '🍽️' },
+    { kw: ['dinero','money','pago','caja','tesorería'], em: '💰' },
+    { kw: ['hora','tiempo','reloj','time'], em: '⏰' },
+    { kw: ['clima','weather','meteorolog'], em: '☀️' },
+    { kw: ['noticia','news','periodico'], em: '📰' },
+    { kw: ['nube','cloud','drive'], em: '☁️' },
+    { kw: ['documento','doc','pdf','word'], em: '📄' },
+    { kw: ['carpeta','folder'], em: '📁' },
+    { kw: ['enlace','link','acceso directo'], em: '🔗' },
+    { kw: ['seguridad','password','contraseña','lock','acceso'], em: '🔐' },
+    { kw: ['llave','key'], em: '🗝️' },
+    { kw: ['inicio','home','portada'], em: '🏠' },
+    { kw: ['escuela','instituto','school','centro'], em: '🏫' },
+    { kw: ['ordenador','portatil','computer','pc','laptop'], em: '💻' },
+    { kw: ['teléfono','phone','movil','móvil'], em: '📱' },
+    { kw: ['imprimir','print','impresora'], em: '🖨️' },
+    { kw: ['servicio','service','mantenimiento'], em: '🛠️' },
+    { kw: ['registro','register','listado','lista'], em: '📋' },
+    { kw: ['gráfico','graph','chart','estadístic'], em: '📊' },
+    { kw: ['tecnología','tech','digital','app','software'], em: '💻' },
+    { kw: ['programación','code','codigo','developer'], em: '⚙️' },
+    { kw: ['juego','game','play'], em: '🎮' },
+    { kw: ['herramienta','tool','utilidad'], em: '🔧' },
+  ];
+
+  function descriptionToEmoji(text) {
+    if (!text) return null;
+    const lower = text.toLowerCase();
+    for (const item of DESCRIPTION_EMOJIS) {
+      for (const k of item.kw) {
+        if (lower.includes(k)) return item.em;
+      }
+    }
+    return null;
+  }
+
+  function generateAutoIcon(app) {
+    const name = (app.name || "").trim();
+    const desc = (app.desc || "").trim();
+    const emoji = descriptionToEmoji(desc) || descriptionToEmoji(name);
+
+    const sourceText = name || desc || "?";
+    let hash = 0;
+    for (let i = 0; i < sourceText.length; i++) {
+      hash = ((hash << 5) - hash + sourceText.charCodeAt(i)) | 0;
+    }
+    const hue = Math.abs(hash) % 360;
+    const bgColor = `hsl(${hue}, 65%, 45%)`;
+
+    if (emoji) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">`
+        + `<rect width="64" height="64" rx="14" fill="${bgColor}"/>`
+        + `<text x="32" y="46" font-size="38" text-anchor="middle">${emoji}</text>`
+        + `</svg>`;
+      return "data:image/svg+xml," + encodeURIComponent(svg);
+    }
+
+    const letter = (sourceText.charAt(0) || "?").toUpperCase();
+    // Sanitizar letra para prevenir XSS en SVG
+    const safeLetter = letter.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\-\s]/g, '?').substring(0, 2);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">`
+      + `<rect width="64" height="64" rx="14" fill="${bgColor}"/>`
+      + `<text x="32" y="46" font-size="36" font-family="Arial, Helvetica, sans-serif" font-weight="bold" text-anchor="middle" fill="white">${safeLetter}</text>`
+      + `</svg>`;
+    return "data:image/svg+xml," + encodeURIComponent(svg);
+  }
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // ── Estado global ──────────────────────────────────────
+  let apps = [];
+  let admins = [{ user: "admin", pass: "admin" }];
+  let groupPasswords = { tecnoApps: "", herramientasTecno: "", departamento: "", cajonDeSastre: "" };
+  let pendingGroup = null;
+  let appsFilter = 'all';
+  let appsSort = { field: 'name', direction: 'asc' };
+
+  const ROOT = "portal-tecdea";
+  const appsRef = ref(db, `${ROOT}/apps`);
+  const adminsRef = ref(db, `${ROOT}/admins`);
+  const groupPassRef = ref(db, `${ROOT}/groupPasswords`);
+  const legacyAdminRef = ref(db, `${ROOT}/admin`);
+
+  // ── Normalización de datos desde Firebase ─────────────
+  function normalizeList(v) {
+    if (Array.isArray(v)) return v;
+    if (v && typeof v === 'object') return Object.values(v);
+    return [];
+  }
+
+  // ── Carga inicial ──────────────────────────────────────
+  async function loadData() {
+    const results = await Promise.allSettled([
+      get(appsRef),
+      get(adminsRef),
+      get(groupPassRef),
+      get(legacyAdminRef)
+    ]);
+
+    if (results[0].status === "fulfilled") {
+      const snap = results[0].value;
+      if (snap.exists()) {
+        apps = normalizeList(snap.val());
+        apps = apps.filter(a => a && typeof a === 'object');
+      }
+    }
+
+    if (results[1].status === "fulfilled") {
+      const snap = results[1].value;
+      const v = snap.exists() ? snap.val() : null;
+      const list = normalizeList(v).filter(a => a && a.user && a.pass);
+      if (list.length > 0) admins = list;
+    }
+
+    if (admins.length === 0 && results[3].status === "fulfilled") {
+      const snap = results[3].value;
+      if (snap.exists()) {
+        const a = snap.val();
+        admins = [{ user: a.user || "admin", pass: a.pass || "admin" }];
+      }
+    }
+    if (admins.length === 0) admins = [{ user: "admin", pass: "admin" }];
+
+    if (results[2].status === "fulfilled") {
+      const snap = results[2].value;
+      if (snap.exists()) {
+        const gp = snap.val() || {};
+        groupPasswords = {
+          tecnoApps: gp.tecnoApps || "",
+          herramientasTecno: gp.herramientasTecno || "",
+          departamento: gp.departamento || "",
+          cajonDeSastre: gp.cajonDeSastre || ""
+        };
+      }
+    }
+
+    const configView = document.getElementById("view-config");
+    if (configView && !configView.classList.contains("hidden")) {
+      buildConfigTable();
+      buildAdminsTable();
+      fillGroupPasswordInputs();
+    } else {
+      renderHome();
+    }
+
+    const errs = results.filter(r => r.status === "rejected");
+    if (errs.length > 0) {
+      showToast(`Aviso: ${errs.length} ruta(s) de Firebase no se pudieron leer.`, "err", 7000);
+    }
+  }
+
+  // ── Persistencia ──────────────────────────────────────
+  async function saveApps() {
+    try { await set(appsRef, apps); return true; }
+    catch(e) { console.error("Error guardando apps:", e); return false; }
+  }
+  async function saveAdmins() {
+    try { await set(adminsRef, admins); return true; }
+    catch(e) { console.error("Error guardando admins:", e); return false; }
+  }
+  async function saveGroupPasswords() {
+    try { await set(groupPassRef, groupPasswords); return true; }
+    catch(e) { console.error("Error guardando groupPasswords:", e); return false; }
+  }
+
+  // ══════════════════════════════════════════════════════
+  //  LÓGICA DE PANTALLAS
+  // ══════════════════════════════════════════════════════
+
+  function renderHome() {
+    setView("home");
+    // Mostrar botón de configuración al volver al home
+    document.querySelector('.btn-config')?.classList.remove('hidden');
+  }
+
+  // ── Botones principales: piden contraseña antes de mostrar el grupo ──
+  // Variable para almacenar la categoría seleccionada en Cajón de sastre
+  let pendingCategory = null;
+
+  function requestGroupAccess(group, category = null) {
+    // Si es Cajón de sastre sin categoría, mostrar menú intermedio
+    if (group === 'cajonDeSastre' && !category) {
+      showCajonDeSastreMenu();
+      return;
+    }
+
+    const expected = groupPasswords[group];
+    if (!expected) {
+      showGroup(group, category);
+      return;
+    }
+    pendingGroup = group;
+    pendingCategory = category;
+    const label = category ? `${groupLabel(group)} - ${categoryLabel(category)}` : groupLabel(group);
+    document.getElementById("groupPassTitle").textContent = "Acceso a " + label;
+    document.getElementById("groupPassError").textContent = "";
+    document.getElementById("groupPassInput").value = "";
+    document.getElementById("groupPassModal").classList.remove("hidden");
+    setTimeout(() => document.getElementById("groupPassInput").focus(), 50);
+  }
+
+  function closeGroupPassModal() {
+    document.getElementById("groupPassModal").classList.add("hidden");
+    pendingGroup = null;
+    pendingCategory = null;
+  }
+
+  function doGroupLogin() {
+    // Validación de seguridad: verificar que hay un grupo pendiente
+    if (!pendingGroup) {
+      console.error('[TecDeA] doGroupLogin llamado sin pendingGroup');
+      closeGroupPassModal();
+      return;
+    }
+    
+    const input = document.getElementById("groupPassInput").value;
+    const expected = groupPasswords[pendingGroup];
+    const g = pendingGroup;
+    const cat = pendingCategory;
+    
+    // Si no hay contraseña configurada, permitir acceso libre
+    if (!expected || expected.trim() === '') {
+      closeGroupPassModal();
+      showGroup(g, cat);
+    } else if (input === expected) {
+      closeGroupPassModal();
+      showGroup(g, cat);
+    } else {
+      document.getElementById("groupPassError").textContent = "Contraseña incorrecta.";
+      const inp = document.getElementById("groupPassInput");
+      inp.value = "";
+      inp.focus();
+    }
+  }
+
+  // Mostrar menú intermedio de Cajón de sastre
+  function showCajonDeSastreMenu() {
+    setView("cajon-menu");
+    // Ocultar botón de configuración para evitar solapamiento con botón Volver flotante
+    document.querySelector('.btn-config')?.classList.add('hidden');
+  }
+
+  function showGroup(group, category = null) {
+    let filtered = apps.filter(a => a[group]);
+
+    // Si es Cajón de sastre con categoría, filtrar también por categoría
+    if (group === 'cajonDeSastre' && category) {
+      filtered = filtered.filter(a => (a.category || '') === category);
+    }
+
+    filtered.sort((a, b) => {
+      const va = (a.name || "").toString().toLowerCase().trim();
+      const vb = (b.name || "").toString().toLowerCase().trim();
+      return va.localeCompare(vb, 'es', { numeric: true, sensitivity: 'base' });
+    });
+
+    const grid = document.getElementById("appGrid");
+
+    // Título con categoría si aplica
+    let title = groupLabel(group);
+    if (category) {
+      title += ` - ${categoryLabel(category)}`;
+    }
+    document.getElementById("groupTitle").textContent = title;
+
+    grid.innerHTML = filtered.length
+      ? filtered.map(a => appCard(a)).join("")
+      : "<p class='empty'>No hay aplicaciones configuradas para este perfil.</p>";
+    setView("group");
+    // Ocultar botón de configuración para evitar solapamiento con botón Volver flotante
+    document.querySelector('.btn-config')?.classList.add('hidden');
+
+    if (filtered.length) {
+      grid.querySelectorAll("img[data-app-url]").forEach(img => {
+        const url = img.getAttribute("data-app-url");
+        if (url) {
+          discoverIcons(img, url).catch(err =>
+            console.warn("discoverIcons error:", err)
+          );
+        }
+      });
+    }
+  }
+
+  function groupLabel(g) {
+    return {
+      tecnoApps: "TecnoApps",
+      herramientasTecno: "Herramientas Tecno",
+      departamento: "Departamento",
+      cajonDeSastre: "Cajón de sastre"
+    }[g] || g;
+  }
+
+  // Etiquetas para subcategorías de Cajón de sastre
+  function categoryLabel(cat) {
+    return {
+      matematicas: "Matemáticas",
+      fisica: "Física",
+      quimica: "Química",
+      ia: "IA"
+    }[cat] || cat;
+  }
+
+  function groupIcon(g) {
+    return {
+      tecnoApps: "📱",
+      herramientasTecno: "🔧",
+      departamento: "🏫",
+      cajonDeSastre: "🧰"
+    }[g] || "📁";
+  }
+
+  // ── Iconos: cadena de fallback desde la propia URL de la app ──
+  function iconSources(url) {
+    const sources = [];
+    let appUrl, origin, hostname;
+    
+    // Validación de URL antes de procesar
+    if (!url || typeof url !== 'string' || url === '#') {
+      return sources; // Devolver array vacío si la URL no es válida
+    }
+    
+    try {
+      const u = new URL(url);
+      
+      // Seguridad: no procesar URLs con protocolos peligrosos
+      if (!['http:', 'https:'].includes(u.protocol)) {
+        console.warn('[TecDeA] Protocolo no permitido para iconos:', u.protocol);
+        return sources;
+      }
+      
+      origin = u.origin;
+      hostname = u.hostname;
+      appUrl = url.replace(/\/+$/, '');
+    } catch (e) {
+      console.warn('[TecDeA] URL inválida para iconos:', url, e);
+      return sources;
+    }
+
+    const fileNames = [
+      'icon-512x512.png', 'icon-512.png', 'icon-384x384.png', 'icon-310x310.png',
+      'icon-256x256.png', 'icon-256.png', 'icon-192x192.png', 'icon-192.png',
+      'icon-180x180.png', 'icon-167x167.png', 'icon-152x152.png', 'icon-150x150.png',
+      'icon-144x144.png', 'apple-touch-icon.png', 'apple-touch-icon-precomposed.png',
+      'apple-touch-icon-180x180.png', 'apple-touch-icon-167x167.png', 'apple-touch-icon-152x152.png',
+      'apple-touch-icon-144x144.png', 'icon.png', 'favicon.png', 'favicon.ico',
+    ];
+
+    const subFolders = ['', 'icons', 'img', 'images', 'assets', 'static'];
+
+    for (const sub of subFolders) {
+      const base = sub ? `${appUrl}/${sub}` : appUrl;
+      for (const f of fileNames) {
+        sources.push(`${base}/${f}`);
+      }
+    }
+
+    if (origin && origin !== "null") {
+      sources.push(`${origin}/apple-touch-icon.png`);
+      sources.push(`${origin}/icon-512x512.png`);
+      sources.push(`${origin}/icon-192x192.png`);
+      sources.push(`${origin}/favicon.png`);
+      sources.push(`${origin}/favicon.ico`);
+    }
+
+    if (hostname) {
+      sources.push(`https://www.google.com/s2/favicons?sz=128&domain=${hostname}`);
+      sources.push(`https://icons.duckduckgo.com/ip3/${hostname}.ico`);
+    }
+
+    return sources;
+  }
+
+  const DEFAULT_ICON_SVG = "data:image/svg+xml," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><text y="18" font-size="20">🔗</text></svg>'
+  );
+
+  function appCard(a) {
+    // Sanitización XSS: escapar nombre y validar URL
+    const safeName = escHtml(a.name || 'Sin nombre');
+    const safeUrl = sanitizeUrl(a.url);
+    
+    const sources = iconSources(safeUrl);
+    sources.push(generateAutoIcon(a));
+    const first = sources[0] || DEFAULT_ICON_SVG;
+    const rest = sources.slice(1);
+    const fbAttr = rest.length
+      ? ` data-fb="${escHtml(JSON.stringify(rest))}"`
+      : "";
+    return `
+      <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="app-card">
+        <div class="app-card-icon-wrap">
+          <img src="${first}" alt="" loading="lazy"${fbAttr}
+               data-app-url="${safeUrl}"
+               onerror="window.tecdea.iconFallback(this)">
+        </div>
+        <span class="app-card-name">${safeName}</span>
+      </a>`;
+  }
+
+  // ══════════════════════════════════════════════════════
+  //  SANITIZACIÓN DE URLs (Seguridad)
+  // ══════════════════════════════════════════════════════
+  function sanitizeUrl(url) {
+    if (typeof url !== 'string') return '#';
+    url = url.trim();
+    
+    // Solo permitir http/https/mailto/tel
+    const allowedProtocols = /^https?:\/\//i;
+    if (!allowedProtocols.test(url)) {
+      // Si no tiene protocolo, asumir https para validación
+      if (url.includes('://') || url.includes('javascript:') || url.includes('data:')) {
+        return '#'; // Protocolo peligroso
+      }
+      // URL relativa o sin protocolo - intentar arreglar
+      if (url && !url.startsWith('#')) {
+        url = 'https://' + url;
+      } else {
+        return '#';
+      }
+    }
+    
+    // Limitar longitud máxima para evitar DoS
+    if (url.length > 2000) return '#';
+    
+    // Eliminar caracteres de control y null bytes
+    url = url.replace(/[\x00-\x1f\x7f]/g, '');
+    
+    return url;
+  }
+
+  function iconFallback(img) {
+    const raw = img.getAttribute("data-fb");
+    if (!raw) {
+      // Último recurso: usar SVG por defecto y remover onerror para evitar bucle
+      img.src = DEFAULT_ICON_SVG;
+      img.onerror = null; // Prevenir más llamadas
+      img.removeAttribute("onerror");
+      return;
+    }
+    try {
+      const list = JSON.parse(raw);
+      if (!Array.isArray(list) || list.length === 0) throw new Error("empty");
+      const next = list.shift();
+      img.src = next;
+      if (list.length) img.setAttribute("data-fb", JSON.stringify(list));
+      else {
+        img.removeAttribute("data-fb");
+        // Si este último también falla, onerror se llamará una vez más
+        // y entrará en el primer if (raw vacío)
+      }
+    } catch {
+      img.src = DEFAULT_ICON_SVG;
+      img.onerror = null; // Prevenir bucle infinito
+      img.removeAttribute("onerror");
+    }
+  }
+
+  // ── Descubrimiento asíncrono de iconos vía manifest PWA ──
+  
+  // Timeout global para fetch de iconos (5 segundos)
+  const ICON_FETCH_TIMEOUT = 5000;
+  
+  async function fetchWithTimeout(url, options = {}, timeout = ICON_FETCH_TIMEOUT) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        console.warn(`[TecDeA] Timeout cargando: ${url}`);
+      }
+      throw error;
+    }
+  }
+  
+  async function tryManifestIcons(baseUrl) {
+    let appUrl, origin;
+    try {
+      const u = new URL(baseUrl);
+      origin = u.origin;
+      appUrl = baseUrl.replace(/\/+$/, '');
+    } catch { return []; }
+
+    const manifestCandidates = [
+      `${appUrl}/manifest.webmanifest`,
+      `${appUrl}/manifest.json`,
+      `${appUrl}/site.webmanifest`,
+      `${appUrl}/static/manifest.json`,
+      `${origin}/manifest.webmanifest`,
+      `${origin}/manifest.json`,
+    ];
+
+    const discovered = [];
+    for (const mUrl of manifestCandidates) {
+      try {
+        const resp = await fetchWithTimeout(mUrl, { mode: 'cors', redirect: 'follow' });
+        if (!resp.ok) continue;
+        
+        // Validar content-type antes de parsear JSON
+        const contentType = resp.headers.get('content-type') || '';
+        if (!contentType.includes('json') && !contentType.includes('text/plain')) {
+          continue;
+        }
+        
+        const manifest = await resp.json();
+        if (manifest && Array.isArray(manifest.icons)) {
+          const iconList = manifest.icons
+            .filter(ic => ic && ic.src)
+            .map(ic => {
+              try {
+                const abs = new URL(ic.src, mUrl).href;
+                // Validar que sea URL segura (http/https)
+                if (!abs.startsWith('http://') && !abs.startsWith('https://')) {
+                  return null;
+                }
+                let size = 0;
+                if (ic.sizes) {
+                  const sizes = String(ic.sizes).split(/\s+/);
+                  for (const s of sizes) {
+                    const m = s.match(/(\d+)x(\d+)/i);
+                    if (m) {
+                      const area = parseInt(m[1]) * parseInt(m[2]);
+                      if (area > size) size = area;
+                    }
+                  }
+                }
+                const isMaskable = ic.purpose === 'maskable';
+                return { url: abs, size, isMaskable };
+              } catch { return null; }
+            })
+            .filter(ic => ic !== null);
+
+          iconList.sort((a, b) => {
+            if (a.isMaskable !== b.isMaskable) return a.isMaskable ? 1 : -1;
+            return b.size - a.size;
+          });
+
+          for (const ic of iconList) {
+            discovered.push(ic.url);
+          }
+          if (discovered.length > 0) break; // Usar solo el primer manifesto válido
+        }
+      } catch {
+        continue; // Ignorar errores individuales y continuar con siguiente candidato
+      }
+    }
+    return discovered;
+  }
+
+  async function tryHtmlIcons(baseUrl) {
+    try {
+      const resp = await fetchWithTimeout(baseUrl, { mode: 'cors', redirect: 'follow' });
+      if (!resp.ok) return [];
+      
+      // Validar content-type (debe ser HTML)
+      const contentType = resp.headers.get('content-type') || '';
+      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+        return [];
+      }
+      
+      const html = await resp.text();
+      
+      // Limitar tamaño para prevenir DoS por memoria
+      if (html.length > 500000) { // 500KB max
+        console.warn('[TecDeA] HTML demasiado grande para parsear iconos');
+        return [];
+      }
+      
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const icons = [];
+      const selectors = [
+        'link[rel="icon"]',
+        'link[rel="shortcut icon"]',
+        'link[rel="apple-touch-icon"]',
+        'link[rel="apple-touch-icon-precomposed"]',
+      ];
+      for (const sel of selectors) {
+        doc.querySelectorAll(sel).forEach(link => {
+          const href = link.getAttribute('href');
+          if (href) {
+            try { 
+              const url = new URL(href, baseUrl).href;
+              // Solo aceptar URLs seguras
+              if (url.startsWith('http://') || url.startsWith('https://')) {
+                icons.push(url);
+              }
+            } catch {}
+          }
+        });
+      }
+      return icons.slice(0, 10); // Limitar a 10 iconos máximos
+    } catch {
+      return [];
+    }
+  }
+
+  async function discoverIcons(img, appUrl) {
+    if (img.complete && img.naturalWidth > 0) return;
+
+    // Marcar como procesando para evitar llamadas duplicadas
+    if (img.dataset.iconProcessing === 'true') return;
+    img.dataset.iconProcessing = 'true';
+
+    try {
+      let discovered = await tryManifestIcons(appUrl);
+      const htmlIcons = await tryHtmlIcons(appUrl);
+      discovered = [...discovered, ...htmlIcons];
+
+      if (discovered.length === 0) return;
+
+      // Verificar nuevamente si la imagen ya cargó (podría haber cambiado)
+      if (img.complete && img.naturalWidth > 0) {
+        if (!String(img.src).startsWith(DEFAULT_ICON_SVG.slice(0, 50))) return;
+      }
+
+      let currentRemaining = [];
+      try {
+        const raw = img.getAttribute('data-fb');
+        if (raw) currentRemaining = JSON.parse(raw);
+      } catch {}
+
+      const newChain = [...discovered, ...currentRemaining]
+        .filter((u, i, arr) => arr.indexOf(u) === i)
+        .slice(0, 15); // Limitar cadena de fallback a 15 URLs máx
+
+      if (newChain.length > 0) {
+        const first = newChain.shift();
+        img.src = first;
+        if (newChain.length > 0) {
+          img.setAttribute('data-fb', JSON.stringify(newChain));
+        } else {
+          img.removeAttribute('data-fb');
+        }
+      }
+    } catch (error) {
+      console.warn('[TecDeA] Error en discoverIcons:', error.message);
+    } finally {
+      img.dataset.iconProcessing = 'false';
+    }
+  }
+
+  // ── Login pantalla configuración (multi-admin) ───────
+  function showLoginModal() {
+    // Si ya estamos en la pantalla de configuración, no hacer nada
+    const configView = document.getElementById("view-config");
+    if (configView && !configView.classList.contains("hidden")) {
+      return; // Ya estamos en configuración, no mostrar modal
+    }
+
+    document.getElementById("loginError").textContent = "";
+    document.getElementById("loginUser").value = "";
+    document.getElementById("loginPass").value = "";
+    document.getElementById("loginModal").classList.remove("hidden");
+    setTimeout(() => document.getElementById("loginUser").focus(), 50);
+  }
+
+  function closeLoginModal() {
+    document.getElementById("loginModal").classList.add("hidden");
+  }
+
+  function doLogin() {
+    const u = document.getElementById("loginUser").value.trim();
+    const p = document.getElementById("loginPass").value;
+    const found = admins.find(a => a.user === u && a.pass === p);
+    if (found) {
+      closeLoginModal();
+      renderConfig();
+    } else {
+      document.getElementById("loginError").textContent = "Usuario o contraseña incorrectos.";
+    }
+  }
+
+  // ── Pantalla configuración ────────────────────────────
+  function renderConfig() {
+    // Resetear filtros al entrar en configuración
+    appsFilter = 'all';
+    cajonCategoryFilters = [];
+    
+    document.querySelectorAll('#appsFilterBar .filter-btn').forEach(btn => {
+      btn.style.display = '';
+      btn.classList.remove('active', 'expanded');
+    });
+    
+    const subfilters = document.getElementById('cajonSubfilters');
+    if (subfilters) {
+      subfilters.classList.add('hidden');
+      subfilters.style.display = 'none';
+    }
+    
+    document.querySelectorAll('#cajonSubfilters .filter-sub-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    
+    const cajonBtn = document.getElementById('cajonDeSastreBtn');
+    if (cajonBtn) cajonBtn.classList.remove('expanded');
+    
+    buildConfigTable();
+    buildAdminsTable();
+    fillGroupPasswordInputs();
+    setView("config");
+    // Ocultar botón de configuración mientras estamos en esta pantalla
+    document.querySelector('.btn-config')?.classList.add('hidden');
+  }
+
+  // ── Tabla de aplicaciones ─────────────────────────────
+  function buildConfigTable() {
+    const tbody = document.querySelector("#appsTable tbody");
+    const rowsData = [];
+    apps.forEach((a, i) => {
+      // Filtro principal por perfil
+      let matches = appsFilter === 'all' || a[appsFilter];
+
+      // Si es Cajón de sastre con subfiltros de categoría, filtrar también
+      if (matches && appsFilter === 'cajonDeSastre' && cajonCategoryFilters.length > 0) {
+        matches = cajonCategoryFilters.includes(a.category || '');
+      }
+
+      if (matches) rowsData.push({ app: a, idx: i });
+    });
+
+    rowsData.sort((x, y) => {
+      const va = (x.app[appsSort.field] || "").toString().toLowerCase().trim();
+      const vb = (y.app[appsSort.field] || "").toString().toLowerCase().trim();
+      const cmp = va.localeCompare(vb, 'es', { numeric: true, sensitivity: 'base' });
+      return appsSort.direction === 'asc' ? cmp : -cmp;
+    });
+
+    const emptyRow = rowsData.length === 0
+      ? `<tr class="no-apps-row"><td colspan="8" style="text-align:center;color:var(--muted);padding:1.5rem;font-style:italic;">No hay aplicaciones que coincidan con el filtro seleccionado.</td></tr>`
+      : "";
+
+    // Opciones de categoría para Cajón de sastre (siempre disponibles)
+    const categoryOptions = [
+      { value: '', label: 'Seleccionar categoría...' },
+      { value: 'matematicas', label: '📐 Matemáticas' },
+      { value: 'fisica', label: '⚛️ Física' },
+      { value: 'quimica', label: '🧪 Química' },
+      { value: 'ia', label: '🤖 IA' }
+    ];
+
+    tbody.innerHTML = emptyRow + rowsData.map(({ app: a, idx: i }, visualIndex) => {
+      const isCajon = a.cajonDeSastre;
+
+      // SIEMPRE generar elselector (para que esté disponible al marcar checkbox)
+      const categorySelect = `<select class="fi category-select" data-field="category" style="max-width:150px;width:100%" ${!isCajon ? 'disabled' : ''}>
+             ${categoryOptions.map(opt => `<option value="${opt.value}" ${(a.category || '') === opt.value ? 'selected' : ''}>${opt.label}</option>`).join('')}
+           </select>`;
+
+      // Usar visualIndex (índice en el array filtrado/ordenado) para alternancia correcta
+      const rowClass = visualIndex % 2 === 0 ? 'row-even' : 'row-odd';
+      return `
+      <tr data-i="${i}" class="${rowClass}">
+        <td data-label="Nombre"><input type="text" class="fi" value="${escHtml(a.name)}" placeholder="Nombre" data-field="name"></td>
+        <td data-label="Descripción" class="desc-cell">
+          <input type="text" class="fi desc-fi" value="${escHtml(a.desc || '')}" placeholder="Descripción" data-field="desc">
+        </td>
+        <td data-label="URL" class="url-cell">
+          <input type="url" class="fi url-fi" value="${escHtml(a.url)}" placeholder="https://tecdea.github.io/…" data-field="url">
+        </td>
+        <td data-label="Tec." class="chk"><input type="checkbox" ${a.tecnoApps     ? "checked" : ""} data-field="tecnoApps"></td>
+        <td data-label="HerrTec" class="chk"><input type="checkbox" ${a.herramientasTecno ? "checked" : ""} data-field="herramientasTecno"></td>
+        <td data-label="Dep." class="chk"><input type="checkbox" ${a.departamento   ? "checked" : ""} data-field="departamento"></td>
+        <td data-label="Caj." class="chk cajon-cell">
+          <input type="checkbox" id="cajonChk_${i}" ${a.cajonDeSastre ? "checked" : ""} data-field="cajonDeSastre"
+                 onchange="
+                   const wrapper = this.closest('td').querySelector('.category-wrapper');
+                   const sel = this.closest('td').querySelector('.category-select');
+                   if(this.checked){
+                     wrapper.classList.remove('hidden');
+                     sel.disabled = false;
+                     sel.focus();
+                   }else{
+                     wrapper.classList.add('hidden');
+                     sel.disabled = true;
+                   }">
+          <div class="category-wrapper ${isCajon ? '' : 'hidden'}" style="margin-top:6px;padding:6px;background:#f8f9fa;border-radius:6px;border:1px dashed #d1d5db">
+            <small style="color:var(--navy);font-weight:600;display:block;margin-bottom:4px">📂 Subperfil:</small>
+            ${categorySelect}
+          </div>
+        </td>
+        <td data-label="" class="chk"><button class="btn-del" onclick="window._delApp(${i})" title="Eliminar">✕</button></td>
+      </tr>`;
+    }).join("");
+
+    // ═══ LIMPIAR EVENT LISTENERS ANTERIORES (evita memory leaks) ═══
+    tbody.querySelectorAll("input, select").forEach(el => {
+      el.replaceWith(el.cloneNode(true));
+    });
+
+    // Añadir event listeners frescos
+    tbody.querySelectorAll("input").forEach(inp => {
+      inp.addEventListener("change", () => collectTableData());
+      inp.addEventListener("input",  () => collectTableData());
+      inp.addEventListener("blur",    () => handleAppCellBlur(inp));
+      
+      // Validación de nombres duplicados/similares (solo campo nombre)
+      if (inp.dataset.field === 'name') {
+        // Validar al perder el focus (blur)
+        inp.addEventListener('blur', function() {
+          const tr = this.closest('tr');
+          if (!tr) return;
+          const i = parseInt(tr.dataset.i);
+          if (!isNaN(i)) {
+            validateAppName(this, i);
+          }
+        });
+        
+        // Validación con debounce mientras escribe (después de 3 caracteres)
+        let nameTimeout = null;
+        inp.addEventListener('input', function() {
+          clearTimeout(nameTimeout);
+          const val = this.value.trim();
+          if (val.length < 3) { // Solo validar con 3+ caracteres
+            this.style.borderColor = '';
+            this.style.boxShadow = '';
+            return;
+          }
+          nameTimeout = setTimeout(() => {
+            const tr = this.closest('tr');
+            if (!tr) return;
+            const i = parseInt(tr.dataset.i);
+            if (!isNaN(i)) {
+              validateAppName(this, i);
+            }
+          }, 800); // 800ms debounce para no molestar mientras escribe
+        });
+      }
+    });
+
+    // Añadir event listeners para selectores de categoría
+    tbody.querySelectorAll("select.category-select").forEach(sel => {
+      sel.addEventListener("change", () => collectTableData());
+      sel.addEventListener("change", () => handleAppCellBlur(sel));
+    });
+
+    tbody.querySelectorAll(".desc-fi").forEach(inp => {
+      inp.addEventListener("mouseenter", () => {
+        if (!window.matchMedia('(hover: hover)').matches) return;
+        if (document.activeElement === inp) return;
+        showDescModal(inp.value);
+      });
+      inp.addEventListener("mouseleave", hideDescModal);
+      inp.addEventListener("focus", () => hideDescModal(true));
+    });
+  }
+
+  // NOTA: setAppsFilter fue reemplazada por setAppsWithSubFilter (con toggle)
+  // Se mantiene como alias para compatibilidad, pero redirige a la nueva función
+  function setAppsFilter(filter) {
+    console.log('[TecDeA] setAppsFilter llamado con:', filter);
+    setAppsWithSubFilter(filter);
+  }
+
+  function collectTableData() {
+    document.querySelectorAll("#appsTable tbody tr").forEach(tr => {
+      const i = parseInt(tr.dataset.i);
+      if (isNaN(i)) return;
+      // Validar que el índice esté dentro del rango válido (previene bugs al eliminar filas)
+      if (i < 0 || i >= apps.length) {
+        console.warn(`[TecDeA] Índice fuera de rango en collectTableData: ${i} (longitud: ${apps.length})`);
+        return;
+      }
+      // Asegurar que el objeto existe
+      if (!apps[i]) {
+        console.warn(`[TecDeA] apps[${i}] es undefined, inicializando...`);
+        apps[i] = { name: "", desc: "", url: "https://tecdea.github.io/", tecnoApps: false, herramientasTecno: false, departamento: false, cajonDeSastre: false, category: "" };
+      }
+      tr.querySelectorAll("[data-field]").forEach(el => {
+        const f = el.dataset.field;
+        apps[i][f] = el.type === "checkbox" ? el.checked : el.value.trim();
+      });
+    });
+  }
+
+  function handleAppCellBlur(input) {
+    const tr = input.closest("tr");
+    if (!tr) return;
+    const i = parseInt(tr.dataset.i);
+    if (isNaN(i)) return;
+
+    collectTableData();
+    debouncedAutoSaveApps();
+  }
+
+  let _autoSaveTimeout = null;
+  let _autoSaveToastTimer = null;
+  let _isSaving = false; // Protección contra race conditions
+  
+  // Debounce: esperar 800ms antes de guardar (evita excesivas escrituras Firebase)
+  function debouncedAutoSaveApps() {
+    clearTimeout(_autoSaveTimeout);
+    _autoSaveTimeout = setTimeout(() => {
+      autoSaveApps();
+    }, 800);
+  }
+  
+  async function autoSaveApps() {
+    // Prevenir múltiples guardados simultáneos (race condition)
+    if (_isSaving) return;
+    _isSaving = true;
+    
+    try {
+      const ok = await saveApps();
+      if (ok) {
+        showToast("✓ Guardado", "ok", 1000);
+      } else {
+        showToast("Error al guardar en Firebase.", "err", 4000);
+      }
+    } finally {
+      _isSaving = false;
+    }
+  }
+
+  function sortApps(byField) {
+    collectTableData();
+    if (appsSort.field === byField) {
+      appsSort.direction = appsSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      appsSort.field = byField;
+      appsSort.direction = 'asc';
+    }
+    buildConfigTable();
+    const fieldLabel = byField === 'name' ? 'nombre' : 'URL';
+    const dirLabel = appsSort.direction === 'asc' ? 'ascendente' : 'descendente';
+    showToast(`Aplicaciones ordenadas por ${fieldLabel} (${dirLabel}).`, "ok", 2500);
+  }
+
+  // ════════════════════════════════════════════════════════
+  //  DETECCIÓN DE NOMBRES DUPLICADOS/SIMILARES
+  // ════════════════════════════════════════════════════════
+  
+  /**
+   * Normaliza un texto para comparación (quita espacios, acentos, minúsculas)
+   */
+  function normalizeForComparison(text) {
+    if (!text) return '';
+    return text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Quita acentos
+      .replace(/[^a-z0-9\s]/g, '') // Solo letras, números y espacios
+      .replace(/\s+/g, ' ')       // Espacios simples
+      .trim();
+  }
+  
+  /**
+   * Calcula similitud entre dos strings (0 = idénticos, 1 = completamente diferentes)
+   * Usa distancia de Levenshtein normalizada
+   */
+  function levenshteinDistance(a, b) {
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) {
+      matrix[i] = [i];
+    }
+    for (let j = 0; j <= a.length; j++) {
+      matrix[0][j] = j;
+    }
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        if (b.charAt(i - 1) === a.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
+          );
+        }
+      }
+    }
+    return matrix[b.length][a.length];
+  }
+  
+  function calculateSimilarity(str1, str2) {
+    if (!str1 || !str2) return 0;
+    const norm1 = normalizeForComparison(str1);
+    const norm2 = normalizeForComparison(str2);
+    if (!norm1 || !norm2) return 0;
+    
+    // Coincidencia exacta después de normalizar
+    if (norm1 === norm2) return 1;
+    
+    // Uno contiene al otro (substring)
+    if (norm1.includes(norm2) || norm2.includes(norm1)) {
+      return Math.max(norm1.length, norm2.length) / Math.min(norm1.length, norm2.length);
+    }
+    
+    // Distancia de Levenshtein
+    const maxLen = Math.max(norm1.length, norm2.length);
+    const distance = levenshteinDistance(norm1, norm2);
+    return 1 - (distance / maxLen);
+  }
+  
+  /**
+   * Busca aplicaciones con nombres similares al proporcionado
+   * @param {string} name - Nombre a buscar
+   * @param {number} excludeIndex - Índice a excluir (la app actual)
+   * @param {number} threshold - Umbral de similitud (0-1, default 0.7)
+   * @returns {Array} - Lista de apps similares con su puntuación
+   */
+  function findSimilarApps(name, excludeIndex = -1, threshold = 0.7) {
+    if (!name || !name.trim()) return [];
+    
+    const similar = [];
+    const normalizedName = normalizeForComparison(name);
+    
+    apps.forEach((app, index) => {
+      if (index === excludeIndex) return;
+      if (!app.name || !app.name.trim()) return;
+      
+      const similarity = calculateSimilarity(name, app.name);
+      
+      if (similarity >= threshold) {
+        similar.push({
+          index,
+          name: app.name,
+          similarity: Math.round(similarity * 100),
+          isExact: normalizedName === normalizeForComparison(app.name)
+        });
+      }
+    });
+    
+    // Ordenar por similitud (más similar primero)
+    similar.sort((a, b) => b.similarity - a.similarity);
+    
+    return similar;
+  }
+  
+  /**
+   * Muestra alerta sobre aplicaciones similares encontradas
+   */
+  function showDuplicateWarning(similarApps, newName) {
+    if (!similarApps || similarApps.length === 0) return;
+    
+    const exactMatch = similarApps.find(app => app.isExact);
+    let message = '';
+    
+    if (exactMatch) {
+      message = `⚠️ Ya existe una aplicación con el nombre "${exactMatch.name}"`;
+    } else if (similarApps.length === 1) {
+      message = `⚠️ Nombre similar a "${similarApps[0].name}" (${similarApps[0].similarity}% parecido)`;
+    } else {
+      const names = similarApps.slice(0, 3).map(a => `"${a.name}"`).join(', ');
+      message = `⚠️ Nombre similar a: ${names}`;
+    }
+    
+    showToast(message + '. Verifica si es la misma aplicación.', 'err', 5000);
+    
+    // Resaltar visualmente las filas similares (opcional - por ahora solo toast)
+    console.warn('[TecDeA] Aplicaciones similares encontradas:', similarApps);
+  }
+  
+  /**
+   * Valida el nombre de una aplicación en tiempo real
+   */
+  function validateAppName(inputElement, appIndex) {
+    if (!inputElement) return;
+    
+    const newName = inputElement.value.trim();
+    if (!newName || newName.length < 2) return; // No validar nombres muy cortos
+    
+    const similarApps = findSimilarApps(newName, appIndex, 0.75);
+    
+    if (similarApps.length > 0) {
+      showDuplicateWarning(similarApps, newName);
+      
+      // Añadir indicador visual al input (borde amarillo/naranja)
+      inputElement.style.borderColor = '#E8943A';
+      inputElement.style.boxShadow = '0 0 0 3px rgba(232, 148, 58, 0.3)';
+      
+    } else {
+      // Restaurar estilo normal si no hay duplicados
+      inputElement.style.borderColor = '';
+      inputElement.style.boxShadow = '';
+    }
+  }
+
+  function addAppRow() {
+    collectTableData();
+
+    // Resetear filtros para mostrar todas las apps (incluida la nueva)
+    appsFilter = 'all';
+    cajonCategoryFilters = []; // Resetear array de categorías
+
+    // Actualizar visualmente botones de filtro principal
+    document.querySelectorAll('#appsFilterBar .filter-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.filter === 'all');
+    });
+
+    // Ocultar subfiltros de Cajón de sastre
+    const subfilters = document.getElementById('cajonSubfilters');
+    if (subfilters) {
+      subfilters.classList.add('hidden');
+      subfilters.style.display = 'none';
+      subfilters.querySelectorAll('.filter-sub-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+    }
+    
+    // Quitar clase expanded del botón Cajón de sastre (usar ID porque subfiltros son hermanos, no hijos)
+    const cajonBtn = document.getElementById('cajonDeSastreBtn');
+    if (cajonBtn) {
+      cajonBtn.classList.remove('expanded');
+    }
+    
+    // Restaurar visibilidad de todos los botones de filtro
+    document.querySelectorAll('#appsFilterBar .filter-btn').forEach(btn => {
+      btn.style.display = '';
+      btn.classList.remove('active', 'expanded');
+    });
+
+    // Añadir nueva aplicación con límite razonable (máx. 200 apps)
+    const MAX_APPS = 200;
+    if (apps.length >= MAX_APPS) {
+      showToast(`⚠️ Límite de aplicaciones alcanzado (${MAX_APPS}). Elimina algunas antes de añadir más.`, 'err', 5000);
+      return;
+    }
+    
+    const newIndex = apps.length;
+    apps.push({ name: "", desc: "", url: "https://tecdea.github.io/", tecnoApps: false, herramientasTecno: false, departamento: false, cajonDeSastre: false, category: "" });
+
+    // Reconstruir tabla (ahora mostrará todas las apps + la nueva)
+    buildConfigTable();
+    
+    // Focus en el campo nombre de la nueva fila con pequeño delay para asegurar render
+    setTimeout(() => {
+      const newRow = document.querySelector(`#appsTable tbody tr[data-i="${newIndex}"]`);
+      if (newRow) {
+        const nameInput = newRow.querySelector('input[data-field="name"]');
+        if (nameInput) {
+          nameInput.focus();
+          nameInput.select();
+        }
+      }
+    }, 50);
+  }
+
+  window._delApp = function(i) {
+    collectTableData();
+    apps.splice(i, 1);
+    buildConfigTable();
+  };
+
+  async function saveConfig() {
+    collectTableData();
+    apps = apps.filter(a => a.name || a.url);
+    const ok = await saveApps();
+    if (!ok) {
+      showToast("Error al guardar aplicaciones en Firebase.", "err", 7000);
+      return;
+    }
+    let verifiedCount = apps.length;
+    try {
+      const snap = await get(appsRef);
+      const v = snap.exists() ? normalizeList(snap.val()) : [];
+      apps = v.filter(a => a && typeof a === 'object');
+      verifiedCount = apps.length;
+    } catch (e) {
+      console.warn("No se pudo verificar la lectura tras guardar apps:", e);
+    }
+    showToast(`Aplicaciones guardadas en base de datos Firebase (${verifiedCount}).`, "ok", 4500);
+    renderConfig();
+  }
+
+  // ── Gestión de administradores (CRUD multi-admin) ─────
+  function buildAdminsTable() {
+    const tbody = document.querySelector("#adminsTable tbody");
+    tbody.innerHTML = admins.map((a, i) => `
+      <tr data-i="${i}">
+        <td data-label="Usuario"><input type="text" class="fi" value="${escHtml(a.user)}" placeholder="usuario" data-af="user" autocomplete="off"></td>
+        <td data-label="Contraseña"><input type="password" class="fi" value="${escHtml(a.pass)}" placeholder="••••••" data-af="pass" autocomplete="new-password"></td>
+        <td data-label="" class="chk"><button class="btn-del" onclick="window._delAdmin(${i})" title="Eliminar">✕</button></td>
+      </tr>`).join("");
+
+    tbody.querySelectorAll("input").forEach(inp => {
+      inp.addEventListener("input",  () => collectAdminsData());
+      inp.addEventListener("change", () => collectAdminsData());
+      inp.addEventListener("blur",    () => handleAdminCellBlur(inp));
+    });
+  }
+
+  function collectAdminsData() {
+    document.querySelectorAll("#adminsTable tbody tr").forEach(tr => {
+      const i = parseInt(tr.dataset.i);
+      if (isNaN(i)) return;
+      tr.querySelectorAll("[data-af]").forEach(el => {
+        const f = el.dataset.af;
+        admins[i][f] = el.value.trim();
+      });
+    });
+  }
+
+  function handleAdminCellBlur(input) {
+    collectAdminsData();
+    autoSaveAdmins();
+  }
+
+  let _isSavingAdmins = false; // Protección contra race conditions para admins
+  
+  async function autoSaveAdmins() {
+    // Prevenir múltiples guardados simultáneos
+    if (_isSavingAdmins) return;
+    _isSavingAdmins = true;
+    
+    try {
+      const hasEmpty = admins.some(a => !a.user || !a.pass);
+      if (hasEmpty) return;
+      const users = admins.map(a => a.user);
+      const hasDup = new Set(users).size !== users.length;
+      if (hasDup) return;
+      
+      const ok = await saveAdmins();
+      if (ok) showToast("✓ Guardado", "ok", 1000);
+      else showToast("Error al guardar administradores.", "err", 4000);
+    } finally {
+      _isSavingAdmins = false;
+    }
+  }
+
+  function addAdminRow() {
+    collectAdminsData();
+    admins.push({ user: "", pass: "" });
+    buildAdminsTable();
+  }
+
+  window._delAdmin = function(i) {
+    if (admins.length <= 1) {
+      showToast("Debe existir al menos un administrador.", "err", 5000);
+      return;
+    }
+    collectAdminsData();
+    admins.splice(i, 1);
+    buildAdminsTable();
+  };
+
+  async function saveAdminsConfig() {
+    collectAdminsData();
+    const cleaned = admins.filter(a => a.user && a.pass);
+    if (cleaned.length === 0) {
+      showToast("Debe existir al menos un administrador con usuario y contraseña.", "err", 5000);
+      return;
+    }
+    const users = cleaned.map(a => a.user);
+    if (new Set(users).size !== users.length) {
+      showToast("No puede haber usuarios duplicados.", "err", 5000);
+      return;
+    }
+    admins = cleaned;
+    const ok = await saveAdmins();
+    if (!ok) {
+      showToast("Error al guardar administradores en Firebase.", "err", 7000);
+      return;
+    }
+    try {
+      const snap = await get(adminsRef);
+      const v = snap.exists() ? snap.val() : null;
+      const list = normalizeList(v).filter(a => a && a.user && a.pass);
+      if (list.length > 0) admins = list;
+    } catch (e) {
+      console.warn("No se pudo verificar la lectura tras guardar admins:", e);
+    }
+    showToast(`Administradores guardados en base de datos Firebase (${admins.length}).`, "ok", 4500);
+    buildAdminsTable();
+  }
+
+  // ── Contraseñas de grupos ─────────────────────────────
+  function fillGroupPasswordInputs() {
+    document.getElementById("passTecnoApps").value     = groupPasswords.tecnoApps     || "";
+    document.getElementById("passHerramientasTecno").value = groupPasswords.herramientasTecno || "";
+    document.getElementById("passDepartamento").value   = groupPasswords.departamento   || "";
+    document.getElementById("passCajonDeSastre").value  = groupPasswords.cajonDeSastre  || "";
+  }
+
+  async function saveGroupPasswordsConfig() {
+    groupPasswords = {
+      tecnoApps:     document.getElementById("passTecnoApps").value,
+      herramientasTecno: document.getElementById("passHerramientasTecno").value,
+      departamento:   document.getElementById("passDepartamento").value,
+      cajonDeSastre:  document.getElementById("passCajonDeSastre").value
+    };
+    const ok = await saveGroupPasswords();
+    if (!ok) {
+      showToast("Error al guardar contraseñas en Firebase.", "err", 7000);
+      return;
+    }
+    try {
+      const snap = await get(groupPassRef);
+      if (snap.exists()) {
+        const gp = snap.val() || {};
+        groupPasswords = {
+          tecnoApps:     gp.tecnoApps     || "",
+          herramientasTecno: gp.herramientasTecno || "",
+          departamento:   gp.departamento   || "",
+          cajonDeSastre:  gp.cajonDeSastre  || ""
+        };
+        fillGroupPasswordInputs();
+      }
+    } catch (e) {
+      console.warn("No se pudo verificar la lectura tras guardar groupPasswords:", e);
+    }
+    showToast("Contraseñas de perfiles guardadas en base de datos Firebase.", "ok", 4500);
+  }
+
+  let _groupPassSaveTimeout = null; // Debounce para contraseñas de grupo
+  
+  async function autoSaveGroupPasswords() {
+    // Debounce: esperar 600ms antes de guardar (como con apps)
+    clearTimeout(_groupPassSaveTimeout);
+    _groupPassSaveTimeout = setTimeout(async () => {
+      groupPasswords = {
+        tecnoApps:     document.getElementById("passTecnoApps").value,
+        herramientasTecno: document.getElementById("passHerramientasTecno").value,
+        departamento:   document.getElementById("passDepartamento").value,
+        cajonDeSastre:  document.getElementById("passCajonDeSastre").value
+      };
+      const ok = await saveGroupPasswords();
+      if (ok) showToast("✓ Guardado", "ok", 1000);
+      else showToast("Error al guardar contraseñas.", "err", 4000);
+    }, 600);
+  }
+
+  // ════════════════════════════════════════════════════════
+  //  EXPORTACIÓN A PDF / EXCEL
+  // ════════════════════════════════════════════════════════
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const existing = document.querySelector(`script[src="${src}"]`);
+      if (existing) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('No se pudo cargar ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  function collectExportData() {
+    // Validación de existencia de elementos DOM
+    const expAppsEl = document.getElementById('expApps');
+    const expAdminsEl = document.getElementById('expAdmins');
+    const expPassEl = document.getElementById('expPass');
+    
+    if (!expAppsEl || !expAdminsEl || !expPassEl) {
+      console.error('[TecDeA] Elementos de exportación no encontrados en DOM');
+      return { error: 'Error interno: faltan controles de exportación. Recarga la página.' };
+    }
+    
+    const expApps = expAppsEl.checked;
+    const expAdmins = expAdminsEl.checked;
+    const expPass = expPassEl.checked;
+    const formatInput = document.querySelector('input[name="expFormat"]:checked');
+    const format = formatInput ? formatInput.value : 'excel';
+
+    if (!expApps && !expAdmins && !expPass) {
+      return { error: 'Selecciona al menos una sección para exportar.' };
+    }
+
+    const data = { format };
+
+    if (expApps) {
+      let list = apps.slice();
+      list.sort((a, b) => {
+        const va = (a.name || '').toString().toLowerCase().trim();
+        const vb = (b.name || '').toString().toLowerCase().trim();
+        return va.localeCompare(vb, 'es', { numeric: true, sensitivity: 'base' });
+      });
+      data.apps = list.map(a => ({
+        'Nombre':           a.name || '',
+        'Descripción':      a.desc || '',
+        'URL':              a.url || '',
+        'TecnoApps':       a.tecnoApps     ? 'Sí' : 'No',
+        'HerramientasTecno': a.herramientasTecno ? 'Sí' : 'No',
+        'Departamento':     a.departamento   ? 'Sí' : 'No',
+        'Cajón de sastre':  a.cajonDeSastre ? 'Sí' : 'No',
+        'Categoría':        categoryLabel(a.category) || '-'
+      }));
+    }
+
+    if (expAdmins) {
+      data.admins = admins.map(a => ({
+        'Usuario':     a.user || '',
+        'Contraseña':  a.pass || ''
+      }));
+    }
+
+    if (expPass) {
+      data.groupPasswords = [
+        { 'Perfil': 'TecnoApps',          'Contraseña': groupPasswords.tecnoApps       || '(vacío)' },
+        { 'Perfil': 'Herramientas Tecno', 'Contraseña': groupPasswords.herramientasTecno || '(vacío)' },
+        { 'Perfil': 'Departamento',       'Contraseña': groupPasswords.departamento     || '(vacío)' },
+        { 'Perfil': 'Cajón de sastre',    'Contraseña': groupPasswords.cajonDeSastre    || '(vacío)' }
+      ];
+    }
+
+    return data;
+  }
+
+  async function exportData() {
+    const data = collectExportData();
+    if (data.error) {
+      showToast(data.error, 'err', 4000);
+      return;
+    }
+    try {
+      const formatInput = document.querySelector('input[name="expFormat"]:checked');
+      if (formatInput && formatInput.value === 'pdf') {
+        await exportToPDF(data);
+      } else {
+        await exportToExcel(data);
+      }
+    } catch (e) {
+      console.error('Error al exportar:', e);
+      showToast('Error al generar el archivo: ' + e.message, 'err', 5000);
+    }
+  }
+
+  async function exportToExcel(data) {
+    showToast('Generando Excel…', 'ok', 1500);
+    await loadScript('https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js');
+    const X = window.XLSX;
+    if (!X) throw new Error('SheetJS no disponible');
+
+    const wb = X.utils.book_new();
+
+    if (data.apps && data.apps.length > 0) {
+      const ws = X.utils.json_to_sheet(data.apps);
+      ws['!cols'] = [
+        { wch: 25 }, { wch: 40 }, { wch: 50 }, 
+        { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 16 }, { wch: 14 }
+      ];
+      X.utils.book_append_sheet(wb, ws, 'Aplicaciones');
+    }
+
+    if (data.admins && data.admins.length > 0) {
+      const ws = X.utils.json_to_sheet(data.admins);
+      ws['!cols'] = [{ wch: 25 }, { wch: 25 }];
+      X.utils.book_append_sheet(wb, ws, 'Administradores');
+    }
+
+    if (data.groupPasswords && data.groupPasswords.length > 0) {
+      const ws = X.utils.json_to_sheet(data.groupPasswords);
+      ws['!cols'] = [{ wch: 20 }, { wch: 30 }];
+      X.utils.book_append_sheet(wb, ws, 'Contraseñas perfiles');
+    }
+
+    // Verificar que al menos haya una hoja con datos
+    const sheetNames = wb.SheetNames || [];
+    if (sheetNames.length === 0) {
+      throw new Error('No hay datos para exportar. Selecciona al menos una sección.');
+    }
+
+    const date = new Date().toISOString().slice(0, 10);
+    X.writeFile(wb, `tecdea-config-${date}.xlsx`);
+    showToast('Excel exportado correctamente.', 'ok', 2500);
+  }
+
+  async function exportToPDF(data) {
+    showToast('Generando PDF…', 'ok', 1500);
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const NAVY = [11, 37, 69];
+    const GOLD = [200, 168, 75];
+    const pageW = doc.internal.pageSize.width;
+    const pageH = doc.internal.pageSize.height;
+
+    doc.setFillColor(...NAVY);
+    doc.rect(0, 0, pageW, 22, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(15);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Portal TecDeA — Configuración', 14, 14);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Exportado el ${new Date().toLocaleString('es-ES')}`, 14, 19);
+
+    let y = 30;
+
+    function addSectionTitle(title) {
+      if (y > pageH - 30) { doc.addPage(); y = 20; }
+      doc.setTextColor(...NAVY);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setFillColor(...GOLD);
+      doc.rect(14, y - 4, 2, 7, 'F');
+      doc.text(title, 20, y + 2);
+      y += 6;
+    }
+
+    if (data.apps && data.apps.length > 0) {
+      addSectionTitle(`Aplicaciones (${data.apps.length})`);
+      doc.autoTable({
+        startY: y,
+        head: [Object.keys(data.apps[0])],
+        body: data.apps.map(a => Object.values(a)),
+        theme: 'striped',
+        headStyles: { fillColor: NAVY, textColor: 255, fontSize: 9, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 8, cellPadding: 1.5 },
+        alternateRowStyles: { fillColor: [247, 244, 239] },
+        columnStyles: { 2: { cellWidth: 70 } },
+        margin: { left: 14, right: 14 },
+        didDrawPage: () => { y = doc.lastAutoTable.finalY + 8; }
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    if (data.admins && data.admins.length > 0) {
+      addSectionTitle(`Administradores (${data.admins.length})`);
+      doc.autoTable({
+        startY: y,
+        head: [Object.keys(data.admins[0])],
+        body: data.admins.map(a => Object.values(a)),
+        theme: 'striped',
+        headStyles: { fillColor: NAVY, textColor: 255, fontSize: 9, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 9, cellPadding: 2 },
+        alternateRowStyles: { fillColor: [247, 244, 239] },
+        margin: { left: 14, right: 14 }
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    if (data.groupPasswords && data.groupPasswords.length > 0) {
+      addSectionTitle('Contraseñas por perfil');
+      doc.autoTable({
+        startY: y,
+        head: [Object.keys(data.groupPasswords[0])],
+        body: data.groupPasswords.map(g => Object.values(g)),
+        theme: 'striped',
+        headStyles: { fillColor: NAVY, textColor: 255, fontSize: 9, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 9, cellPadding: 2 },
+        alternateRowStyles: { fillColor: [247, 244, 239] },
+        margin: { left: 14, right: 14 }
+      });
+    }
+
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(120);
+      doc.text(`Página ${i} de ${pageCount}`, pageW - 30, pageH - 8);
+      doc.text('Portal TecDeA', 14, pageH - 8);
+    }
+
+    // Verificar que se generó contenido (reutilizar pageCount declarado arriba)
+    const finalPageCount = doc.internal.getNumberOfPages();
+    if (finalPageCount <= 1 && !data.apps?.length && !data.admins?.length && !data.groupPasswords?.length) {
+      // Solo tiene la página de encabezado, sin datos reales
+      showToast('No hay datos para exportar en PDF.', 'err', 4000);
+      return;
+    }
+
+    const date = new Date().toISOString().slice(0, 10);
+    doc.save(`tecdea-config-${date}.pdf`);
+    showToast('PDF exportado correctamente.', 'ok', 2500);
+  }
+
+  // ── Utilidades ────────────────────────────────────────
+  function setView(id) {
+    ["home","group","cajon-menu","config"].forEach(v =>
+      document.getElementById("view-" + v).classList.toggle("hidden", v !== id));
+    
+    // Limpiar modal de descripción al cambiar de vista (evita que quede flotando)
+    const descModal = document.getElementById("descModal");
+    if (descModal && !descModal.classList.contains("hidden")) {
+      descModal.classList.add("hidden");
+    }
+  }
+
+  function escHtml(s) {
+    return (s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  // Contador para evitar solapamiento de toasts
+  let _toastCounter = 0;
+  
+  function showToast(msg, variant = "", duration = 3000) {
+    const t = document.getElementById("toast");
+    if (!t) {
+      console.warn('[TecDeA] Elemento toast no encontrado');
+      alert(msg); // Fallback si no hay toast
+      return;
+    }
+    
+    // Incrementar contador y usar ID único para este toast
+    const toastId = ++_toastCounter;
+    t._currentToastId = toastId;
+    
+    t.textContent = msg;
+    t.className = "toast" + (variant ? " " + variant : "");
+    t.classList.remove("hidden");
+    clearTimeout(t._timer);
+    
+    t._timer = setTimeout(() => {
+      // Solo ocultar si es el mismo toast (no uno más reciente)
+      if (t._currentToastId === toastId) {
+        t.classList.add("hidden");
+      }
+    }, duration);
+  }
+
+  // ── Modal de descripción (hover / tap) ────────────────
+  let descHideTimer = null;
+
+  const _mousePos = { x: 0, y: 0 };
+  document.addEventListener('mousemove', (e) => {
+    _mousePos.x = e.clientX;
+    _mousePos.y = e.clientY;
+    const modal = document.getElementById('descModal');
+    if (modal && !modal.classList.contains("hidden") && window.matchMedia('(hover: hover)').matches && window.innerWidth >= 768) {
+      updateDescModalPosition();
+    }
+  });
+
+  function showDescModal(text) {
+    clearTimeout(descHideTimer);
+    if (!text || !text.trim()) return;
+    const modal = document.getElementById("descModal");
+    document.getElementById("descModalText").textContent = text;
+    modal.classList.remove("hidden");
+    updateDescModalPosition();
+  }
+
+  function updateDescModalPosition() {
+    const modal = document.getElementById('descModal');
+    if (!modal || modal.classList.contains("hidden")) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    if (vw < 768) {
+      modal.style.top  = "50%";
+      modal.style.left = "50%";
+      modal.style.transform = "translate(-50%, -50%)";
+      modal.style.maxWidth = "85vw";
+      modal.style.width = "auto";
+    } else {
+      const modalW = 320;
+      const estH = 160;
+      let top  = _mousePos.y + 20;
+      let left = _mousePos.x + 20;
+      if (left + modalW > vw - 8) left = _mousePos.x - modalW - 20;
+      if (top + estH > vh - 8) top = _mousePos.y - estH - 20;
+      if (top < 8) top = 8;
+      if (left < 8) left = 8;
+      modal.style.transform = "none";
+      modal.style.maxWidth = modalW + "px";
+      modal.style.width = "auto";
+      modal.style.top  = top + "px";
+      modal.style.left = left + "px";
+    }
+  }
+
+  function hideDescModal(immediate = false) {
+    if (immediate) {
+      clearTimeout(descHideTimer);
+      document.getElementById("descModal").classList.add("hidden");
+      return;
+    }
+    descHideTimer = setTimeout(() => {
+      document.getElementById("descModal").classList.add("hidden");
+    }, 180);
+  }
+
+  document.addEventListener("click", (e) => {
+    if (window.innerWidth < 768 && !e.target.closest(".desc-modal-box") && !e.target.closest(".desc-fi")) {
+      const dm = document.getElementById("descModal");
+      if (dm) dm.classList.add("hidden");
+    }
+    if (e.target.classList && e.target.classList.contains("modal-bg")) {
+      e.target.classList.add("hidden");
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      document.querySelectorAll(".modal-bg:not(.hidden)").forEach(m => m.classList.add("hidden"));
+      const dm = document.getElementById("descModal");
+      if (dm) dm.classList.add("hidden");
+    }
+  });
+
+  // ── Función para controlar acordeones (solo uno abierto a la vez) ──
+  function toggleAccordion(headerBtn) {
+    const item = headerBtn.parentElement;
+    const content = item.querySelector('.accordion-content');
+    const isOpen = content.classList.contains('open');
+
+    // Cerrar todos los acordeones
+    document.querySelectorAll('.accordion-item').forEach(acc => {
+      acc.querySelector('.accordion-header').classList.remove('active');
+      acc.querySelector('.accordion-header').setAttribute('aria-expanded', 'false');
+      acc.querySelector('.accordion-content').classList.remove('open');
+    });
+
+    // Abrir el clickeado si estaba cerrado
+    if (!isOpen) {
+      headerBtn.classList.add('active');
+      headerBtn.setAttribute('aria-expanded', 'true');
+      content.classList.add('open');
+    }
+  }
+
+  // Variable para filtros de categoría en Cajón de sastre (ahora es un array para multi-selección)
+  let cajonCategoryFilters = [];
+
+  // Toggle para mostrar/ocultar subfiltros de Cajón de sastre
+  // NOTA: Esta función ya NO se usa desde el HTML (los subfiltros están fuera del botón)
+  // Se mantiene por compatibilidad, pero usa getElementById en lugar de querySelector
+  function toggleCajonSubfilters(btn) {
+    // Los subfiltros ahora son hermanos del botón, no hijos
+    const subfilters = document.getElementById('cajonSubfilters');
+    if (!subfilters) return;
+
+    // Si los subfiltros están ocultos, mostrarlos y activar el filtro principal
+    if (subfilters.classList.contains('hidden')) {
+      // Activar el filtro principal cajonDeSastre (sin subfiltros = todas)
+      appsFilter = 'cajonDeSastre';
+      cajonCategoryFilters = []; // Resetear subfiltros al abrir
+
+      document.querySelectorAll('#appsFilterBar .filter-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.filter === 'cajonDeSastre' || b === btn);
+      });
+
+      // Resetear estado visual de subfiltros
+      subfilters.querySelectorAll('.filter-sub-btn').forEach(b => {
+        b.classList.remove('active');
+      });
+
+      // Mostrar subfiltros con animación
+      subfilters.classList.remove('hidden');
+      subfilters.style.display = 'inline-flex';
+
+      // Añadir indicador visual de que está expandido
+      btn.classList.add('expanded');
+    } else {
+      // Ocultar subfiltros si ya estaban visibles (toggle)
+      subfilters.classList.add('hidden');
+      subfilters.style.display = 'none';
+      btn.classList.remove('expanded');
+    }
+
+    buildConfigTable();
+  }
+
+  // Toggle para añadir/quitar categoría del filtro (multi-selección)
+  function toggleCajonCategory(category) {
+    const idx = cajonCategoryFilters.indexOf(category);
+
+    if (idx > -1) {
+      // Ya está seleccionado: quitarlo
+      cajonCategoryFilters.splice(idx, 1);
+    } else {
+      // No está seleccionado: añadirlo
+      cajonCategoryFilters.push(category);
+    }
+
+    // Actualizar estado visual de los botones
+    document.querySelectorAll('#cajonSubfilters .filter-sub-btn').forEach(btn => {
+      btn.classList.toggle('active', cajonCategoryFilters.includes(btn.dataset.category));
+    });
+
+    buildConfigTable();
+  }
+
+  // Modificar setAppsFilter para manejar subfiltros de Cajón de sastre con TOGGLE
+  function setAppsWithSubFilter(filter) {
+    try {
+      console.log('[TecDeA] setAppsWithSubFilter llamado con:', filter);
+      
+      const subfilters = document.getElementById('cajonSubfilters');
+      const cajonBtn = document.getElementById('cajonDeSastreBtn');
+      const allFilterBtns = Array.from(document.querySelectorAll('#appsFilterBar .filter-btn'));
+      
+      console.log('[TecDeA] Botones encontrados:', allFilterBtns.length);
+      console.log('[TecDeA] appsFilter actual:', appsFilter);
+    
+      if (appsFilter === filter) {
+        // ═══ TOGGLE OFF: desactivar, mostrar todo ═══
+        appsFilter = 'all';
+        cajonCategoryFilters = [];
+        
+        allFilterBtns.forEach(btn => {
+          btn.style.display = '';
+          btn.classList.remove('active', 'expanded');
+        });
+        
+        // Ocultar subfiltros
+        if (subfilters) {
+          subfilters.classList.add('hidden');
+          subfilters.style.display = 'none';
+        }
+        if (cajonBtn) {
+          cajonBtn.classList.remove('expanded');
+        }
+        console.log('[TecDeA] Toggle OFF ejecutado');
+      } else {
+        // ═══ TOGGLE ON: activar filtro ═══
+        appsFilter = filter;
+        cajonCategoryFilters = [];
+        
+        allFilterBtns.forEach(btn => {
+          if (btn.dataset.filter === filter) {
+            btn.style.display = '';
+            btn.classList.add('active');
+          } else {
+            btn.style.display = 'none';
+            btn.classList.remove('active', 'expanded');
+          }
+        });
+        
+        // Mostrar subfiltros solo si es Cajón de sastre
+        if (filter === 'cajonDeSastre') {
+          if (subfilters) {
+            subfilters.classList.remove('hidden');
+            subfilters.style.display = 'inline-flex';
+          }
+          if (cajonBtn) {
+            cajonBtn.classList.add('expanded');
+          }
+        } else {
+          if (subfilters) {
+            subfilters.classList.add('hidden');
+            subfilters.style.display = 'none';
+          }
+          if (cajonBtn) {
+            cajonBtn.classList.remove('expanded');
+          }
+        }
+        console.log('[TecDeA] Toggle ON ejecutado para:', filter);
+      }
+
+      buildConfigTable();
+    } catch (error) {
+      console.error('[TecDeA] Error en setAppsWithSubFilter:', error);
+      showToast('Error al aplicar filtro: ' + error.message, 'err', 4000);
+    }
+  }
+
+  // ── Exponemos al HTML ──────────────────────────────────
+  window.tecdea = {
+    requestGroupAccess, closeGroupPassModal, doGroupLogin,
+    showGroup, showCajonDeSastreMenu, showLoginModal, closeLoginModal, doLogin,
+    renderHome, renderConfig, addAppRow, saveConfig,
+    addAdminRow, saveAdminsConfig,
+    saveGroupPasswordsConfig,
+    hideDescModal, iconFallback,
+    sortApps,
+    exportData,
+    toggleAccordion,
+    setAppsFilter: setAppsWithSubFilter,
+    toggleCajonCategory,
+    // Detección de duplicados
+    findSimilarApps,
+    validateAppName
+    // toggleCajonSubfilters eliminada de API pública (obsoleta - usar setAppsFilter)
+  };
+
+  // ── Arranque ──────────────────────────────────────────
+  loadData();
+
+  ['passTecnoApps', 'passHerramientasTecno', 'passDepartamento', 'passCajonDeSastre'].forEach(id => {
+    const inp = document.getElementById(id);
+    if (inp) {
+      inp.addEventListener('change', () => autoSaveGroupPasswords());
+      inp.addEventListener('blur',   () => autoSaveGroupPasswords());
+    }
+  });
+</script>
+
+<style>
+  /* ══ Reset & variables ══════════════════════════════ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy:   #0b2545;
+    --gold:   #c8a84b;
+    --gold2:  #e8c96a;
+    --cream:  #f7f4ef;
+    --white:  #ffffff;
+    --text:   #1a1a2e;
+    --muted:  #6b7280;
+    --danger: #c0392b;
+    --radius: 14px;
+    --shadow: 0 4px 24px rgba(11,37,69,.15);
+    --safe-top:    env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left:   env(safe-area-inset-left, 0px);
+    --safe-right:  env(safe-area-inset-right, 0px);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+    -webkit-scroll-behavior: smooth;
+    /* Soporte para dynamic viewport units */
+    --dvh: dvh;
+    --dvw: dvw;
+  }
+
+  @supports not (height: 100dvh) {
+    :root { --dvh: 100vh; --dvw: 100vw; }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    background: var(--cream);
+    color: var(--text);
+    min-height: 100vh;
+    min-height: var(--dvh, 100vh);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    /* Prevención de pull-to-refresh en móviles */
+    overscroll-behavior-x: none;
+    /* Soporte para modo oscuro futuro */
+    color-scheme: light;
+    /* Touch action global */
+    touch-action: pan-x pan-y;
+    -webkit-touch-callout: none;
+    /* Selección de texto */
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Permitir selección en inputs y textos editables */
+  input, textarea, [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  .hidden { display: none !important; }
+
+  /* ══ Utilidades accesibilidad ═══════════════════ */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* Focus visible para navegación por teclado */
+  :focus-visible {
+    outline: 3px solid var(--gold);
+    outline-offset: 2px;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Reducir animaciones si el usuario lo prefiere */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Modo alto contraste */
+  @media (prefers-contrast: high) {
+    :root {
+      --navy: #000000;
+      --gold: #FFD700;
+      --gold2: #FFEA80;
+      --shadow: 0 4px 24px rgba(0,0,0,.4);
+    }
+  }
+
+  /* ══ Topbar ═════════════════════════════════════════ */
+  header {
+    background: var(--navy);
+    color: var(--white);
+    padding: .75rem 1rem;
+    padding-top: calc(.75rem + var(--safe-top));
+    padding-left: calc(1rem + var(--safe-left));
+    padding-right: calc(1rem + var(--safe-right));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 12px rgba(0,0,0,.3);
+    position: sticky; top: 0; z-index: 100;
+    gap: .75rem;
+  }
+  header h1 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: .03em;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  header .subtitle {
+    font-size: .72rem;
+    color: var(--gold2);
+    margin-top: 1px;
+  }
+
+  .btn-config {
+    background: transparent;
+    border: 1.5px solid var(--gold);
+    color: var(--gold2);
+    padding: .45rem .85rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: .78rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    transition: background .2s, color .2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    min-height: 40px;
+    display: inline-flex; align-items: center;
+  }
+  .btn-config:hover { background: var(--gold); color: var(--navy); }
+  .btn-config:active { background: var(--gold); color: var(--navy); transform: scale(.96); }
+
+  /* ══ Main wrapper ═══════════════════════════════════ */
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+    padding-bottom: calc(3rem + var(--safe-bottom));
+    width: 100%;
+  }
+
+  /* ══ Home ═══════════════════════════════════════════ */
+  #view-home { text-align: center; }
+
+  /* ── ESCUDO/LOGO (v2024-08-22) ── */
+  .shield-wrap {
+    margin: 1.5rem auto 1.8rem !important;
+    width: 280px !important;
+    height: 280px !important;
+    background: transparent !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    flex-shrink: 0 !important;
+    box-shadow: 0 0 0 6px #f7f4ef, 0 4px 20px rgba(11,37,69,0.15) !important;
+    border: none !important;
+    outline: none !important;
+    padding: 0 !important;
+  }
+  .shield-wrap img {
+    width: 102% !important;
+    height: 102% !important;
+    object-fit: cover !important;
+    display: block !important;
+    border-radius: 50% !important;
+    margin: -1% auto !important;
+  }
+
+  .home-title {
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: .25rem;
+  }
+  .home-sub {
+    font-size: .9rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+    padding: 0 .5rem;
+    line-height: 1.5;
+  }
+
+  .main-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 0 .25rem;
+  }
+
+  .main-btn {
+    background: var(--navy);
+    color: var(--white);
+    border: none;
+    border-radius: var(--radius);
+    padding: 1.3rem 1.6rem;
+    cursor: pointer;
+    font-size: .95rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    min-width: 140px;
+    flex: 1 1 140px;
+    max-width: 200px;
+    position: relative;
+    overflow: hidden;
+    transition: transform .18s, box-shadow .18s;
+    box-shadow: var(--shadow);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    font-family: inherit;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .main-btn::before {
+    content: "";
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 4px;
+    background: var(--gold);
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .main-btn .btn-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: .4rem;
+  }
+  .main-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 32px rgba(11,37,69,.25);
+  }
+  .main-btn:active { transform: translateY(0) scale(.97); }
+
+  /* ══ Group view ═════════════════════════════════════ */
+  #view-group {}
+
+  /* ══ Botón Volver - Diseño Responsive ═════════════ */
+  
+  /* Estilos base comunes */
+  .back-btn {
+    display: inline-flex; align-items: center; gap: .5rem;
+    background: var(--navy);
+    color: var(--white);
+    border: none; cursor: pointer;
+    font-size: .88rem; font-weight: 600;
+    padding: .6rem 1.1rem .6rem .9rem;
+    border-radius: 25px;
+    box-shadow: 0 4px 16px rgba(11,37,69,.35), 0 2px 6px rgba(0,0,0,.15);
+    transition: transform .18s, box-shadow .18s, background .18s, color .18s, opacity .2s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    min-height: 42px;
+    letter-spacing: .02em;
+    text-decoration: none;
+    user-select: none;
+    -webkit-user-select: none;
+    
+    /* Asegurar visibilidad */
+    background: linear-gradient(135deg, #0b2545 0%, #1a3a5c 100%);
+    border: 1.5px solid rgba(200,168,75,.4);
+    
+    opacity: 0.95;
+  }
+  
+  /* Cuando el botón Volver está activo/visible, asegurar máxima visibilidad */
+  .back-btn:hover,
+  .back-btn:focus {
+    opacity: 1;
+  }
+  
+  /* ═══ Pantallas GRANDES (≥768px): Botón FLOTANTE CENTRADO ═══ */
+  @media (min-width: 768px) {
+    .back-btn {
+      /* Posición fija centrada verticalmente en el lado derecho */
+      position: fixed;
+      top: 50%;
+      right: 1rem;
+      transform: translateY(-50%);
+      z-index: 1000;
+      
+      /* Orientación vertical para mejor uso del espacio */
+      writing-mode: horizontal-tb;
+      
+      /* Sombra más pronunciada para destacar sobre contenido */
+      box-shadow: 
+        0 6px 24px rgba(11,37,69,.45), 
+        0 3px 12px rgba(0,0,0,.2),
+        inset 0 1px 0 rgba(255,255,255,.1);
+        
+      /* Efecto de borde brillante sutil */
+      box-shadow: 
+        0 0 0 1px rgba(200,168,75,.3),
+        0 6px 24px rgba(11,37,69,.45),
+        0 3px 12px rgba(0,0,0,.2);
+    }
+    
+    .back-btn:hover {
+      transform: translateY(-50%) scale(1.05);
+      box-shadow: 
+        0 0 0 1px rgba(200,168,75,.6),
+        0 8px 32px rgba(200,168,75,.4),
+        0 4px 16px rgba(0,0,0,.25);
+    }
+    
+    .back-btn::before {
+      content: "↺"; /* Arco antihorario (hacia home) */
+      font-size: 1.2rem;
+      display: block;
+      margin: 0 0 .15rem 0;
+      transition: transform .3s ease-in-out;
+    }
+    
+    .back-btn:hover::before {
+      transform: rotate(-180deg); /* Gira al hacer hover */
+    }
+    
+    /* Animación de entrada desde la derecha */
+    @keyframes backBtnSlideIn {
+      from { 
+        opacity: 0; 
+        transform: translateY(-50%) translateX(20px); 
+      }
+      to { 
+        opacity: 0.95; 
+        transform: translateY(-50%) translateX(0); 
+      }
+    }
+    
+    .back-btn {
+      animation: backBtnSlideIn .3s ease-out;
+    }
+    
+    /* Ocultar los contenedores originales en pantallas grandes */
+    .back-row,
+    .config-header {
+      padding-top: 0 !important;
+    }
+  }
+  
+  /* ═══ Pantallas PEQUEÑAS (<768px): Botón ESTÁTICO AL FINAL ═══ */
+  @media (max-width: 767px) {
+    .back-btn {
+      /* Posición normal en el flujo del documento */
+      position: static;
+      transform: none;
+      margin-top: 1.5rem;
+      margin-bottom: 1rem;
+      width: 100%;
+      max-width: 280px;
+      justify-content: center;
+      
+      /* Restaurar flecha normal */
+      border-radius: 30px;
+      padding: .7rem 1.5rem;
+    }
+    
+    .back-btn::before {
+      content: "↺"; /* Arco antihorario (consistente con pantalla grande) */
+      font-size: 1rem;
+      margin-right: .3rem;
+      margin-bottom: 0;
+    }
+    
+    .back-btn:hover::before {
+      transform: rotate(-180deg); /* Gira al hacer hover */
+      transition: transform .3s ease-in-out;
+    }
+    
+    .back-btn:hover {
+      transform: translateY(-2px) scale(1.02);
+    }
+    
+    /* Contenedores para mostrar el botón al final */
+    .back-row {
+      display: flex;
+      justify-content: center;
+      padding: 1.5rem 0 1rem;
+      margin-top: auto;
+      border-top: 1px solid rgba(11,37,69,.08);
+    }
+    
+    .config-header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 1rem;
+      padding: 1rem 0 .5rem;
+    }
+    
+    .config-title {
+      text-align: center;
+    }
+    
+    /* ═══ CUADRÍCULA 2x2 PARA BOTONES EN PANTALLAS PEQUEÑAS ═══ */
+    .main-buttons {
+      display: grid !important;
+      grid-template-columns: repeat(2, 1fr);
+      gap: .7rem;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    
+    .main-btn {
+      padding: .75rem .6rem !important;
+      min-width: unset !important;
+      max-width: none !important;
+      flex-direction: column;
+      gap: .3rem;
+      font-size: .82rem !important;
+    }
+    .main-btn .btn-icon { font-size: 1.6rem; margin-bottom: 0; }
+    
+    /* Animación de entrada suave */
+    @keyframes backBtnFadeInMobile {
+      from { 
+        opacity: 0; 
+        transform: translateY(10px); 
+      }
+      to { 
+        opacity: 0.95; 
+        transform: translateY(0); 
+      }
+    }
+    
+    .back-btn {
+      animation: backBtnFadeInMobile .25s ease-out;
+    }
+  }
+
+  .group-heading {
+    font-size: 1.3rem; font-weight: 700;
+    color: var(--navy);
+    border-left: 4px solid var(--gold);
+    padding-left: .75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .app-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 1rem;
+  }
+
+  .app-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.1rem .6rem .9rem;
+    display: flex; flex-direction: column;
+    align-items: center; gap: .55rem;
+    text-decoration: none; color: var(--text);
+    text-align: center;
+    transition: transform .18s, box-shadow .18s;
+    border: 1.5px solid transparent;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    min-height: 0;
+  }
+  .app-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 28px rgba(11,37,69,.18);
+    border-color: var(--gold);
+  }
+  .app-card:active { transform: scale(.96); }
+
+  .app-card-icon-wrap {
+    width: 72px; height: 72px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .app-card-icon-wrap img {
+    width: 72px; height: 72px;
+    object-fit: contain;
+    border-radius: 12px;
+  }
+
+  .app-card-name {
+    font-size: .78rem;
+    font-weight: 600;
+    line-height: 1.3;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .empty {
+    color: var(--muted); font-size: .9rem; padding: 1.5rem 0;
+    grid-column: 1 / -1;
+    text-align: center;
+  }
+
+  /* ══ Config view ════════════════════════════════════ */
+  .config-header {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    gap: .75rem; margin-bottom: 1rem;
+  }
+  .config-header .back-btn { margin-bottom: 0; }
+  .config-title { font-size: 1.3rem; font-weight: 700; color: var(--navy); }
+
+  .back-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1rem;
+  }
+  .back-row .back-btn { margin-bottom: 0; }
+
+  /* ══ Acordeones de configuración ═════════════════════ */
+  .accordion-item {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+  }
+  .accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s ease;
+    border: none;
+    width: 100%;
+    text-align: left;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--navy);
+    background: transparent;
+  }
+  .accordion-header:hover {
+    background: rgba(11,37,69,0.04);
+  }
+  .accordion-header.active {
+    background: rgba(200,168,75,0.08);
+    border-bottom: 2px solid var(--gold);
+  }
+  .accordion-icon {
+    font-size: 1.2rem;
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+    margin-left: 0.75rem;
+    color: var(--gold);
+  }
+  .accordion-header.active .accordion-icon {
+    transform: rotate(180deg);
+  }
+  .accordion-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease, padding 0.35s ease;
+    padding: 0 1.25rem;
+  }
+  .accordion-content.open {
+    max-height: 3000px;
+    padding: 1rem 1.25rem 1.25rem;
+  }
+  .accordion-content > p.hint:first-child {
+    margin-top: 0;
+  }
+
+  /* Estilo legacy para section-box */
+  .section-box {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .section-box h3 {
+    font-size: 1rem; font-weight: 700; color: var(--navy);
+    margin-bottom: 1rem;
+    padding-bottom: .5rem;
+    border-bottom: 2px solid var(--gold);
+  }
+
+  /* ══ Tablas (desktop) → Tarjetas (móvil) ══════════ */
+  .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  table#appsTable,
+  table#adminsTable {
+    width: 100%; border-collapse: collapse; font-size: .85rem;
+    table-layout: auto;
+  }
+  table#appsTable th,
+  table#adminsTable th {
+    background: var(--navy); color: var(--white);
+    padding: .55rem .6rem; text-align: center; font-weight: 600;
+    white-space: nowrap;
+  }
+  table#appsTable th:first-child,
+  table#adminsTable th:first-child { text-align: left; border-radius: var(--radius) 0 0 0; }
+  table#appsTable th:last-child,
+  table#adminsTable th:last-child  { border-radius: 0 var(--radius) 0 0; }
+
+  table#appsTable td,
+  table#adminsTable td {
+    padding: .45rem .5rem;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: middle;
+  }
+  table#appsTable tr:hover td,
+  table#adminsTable tr:hover td { background: #f0f4ff; }
+
+  /* ══ Filas alternadas (zebra striping) para mejor legibilidad ═══ */
+  table#appsTable tbody tr.row-even td {
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  
+  table#appsTable tbody tr.row-odd td {
+    background: linear-gradient(to right, #e2e8f0 0%, #cbd5e1 50%, #e2e8f0 100%);
+    border-bottom: 1px solid #94a3b8;
+  }
+  
+  /* Efecto hover que funciona sobre las filas alternadas */
+  table#appsTable tbody tr.row-even:hover td,
+  table#appsTable tbody tr.row-odd:hover td {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border-bottom-color: #93c5fd;
+  }
+
+  .chk { text-align: center; }
+  .fi {
+    width: 100%; border: 1.5px solid #d1d5db;
+    border-radius: 7px; padding: .4rem .55rem;
+    font-size: .85rem;
+    transition: border-color .15s;
+    min-height: 40px;
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+  }
+  .fi:focus { outline: none; border-color: var(--navy); box-shadow: 0 0 0 2px rgba(11,37,69,.15); }
+  .url-fi { min-width: 180px; }
+
+  .btn-del {
+    background: none; border: none; cursor: pointer;
+    color: var(--danger); font-size: 1.1rem; font-weight: 700;
+    transition: transform .15s;
+    min-width: 40px; min-height: 40px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-del:hover { transform: scale(1.3); background: rgba(192,57,43,.08); }
+  .btn-del:active { transform: scale(1.1); }
+
+  .desc-cell { min-width: 160px; }
+  .desc-fi    { cursor: help; }
+
+  .desc-modal-box {
+    background: var(--white);
+    color: var(--text);
+    border: 1px solid rgba(11,37,69,.12);
+    border-left: 4px solid var(--gold);
+    border-radius: 12px;
+    padding: 0 1.1rem .85rem;
+    max-width: 320px;
+    max-height: 60vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 36px rgba(0,0,0,.20);
+    font-size: .88rem;
+    line-height: 1.55;
+    pointer-events: auto;
+    animation: descFadeIn .15s ease-out;
+  }
+  .desc-modal-box::before {
+    content: "📝 Descripción";
+    display: block;
+    font-size: .7rem;
+    font-weight: 800;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    padding: .55rem 0 .4rem;
+    margin-bottom: .45rem;
+    border-bottom: 1px solid rgba(11,37,69,.08);
+  }
+  @keyframes descFadeIn {
+    from { opacity: 0; transform: translateY(-4px) scale(.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .actions {
+    display: flex; gap: .7rem; flex-wrap: wrap; margin-top: 1rem;
+  }
+
+  /* ══ Barra de filtros por perfil ════════════════════ */
+  .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    margin: .9rem 0 1.1rem;
+    padding: .65rem .8rem;
+    background: linear-gradient(to right, #f5f7fb, #eef2f8);
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+  }
+  .filter-label {
+    font-size: .82rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-right: .2rem;
+    letter-spacing: .02em;
+    flex-shrink: 0;
+  }
+  .filter-btn {
+    background: #fff;
+    border: 1.5px solid #d1d5db;
+    color: var(--text);
+    padding: .4rem .9rem;
+    border-radius: 22px;
+    cursor: pointer;
+    font-size: .82rem;
+    font-weight: 600;
+    transition: all .18s ease;
+    min-height: 36px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+  }
+  .filter-btn:hover {
+    border-color: var(--navy);
+    background: #f0f4ff;
+    transform: translateY(-1px);
+  }
+  .filter-btn.active {
+    background: var(--navy);
+    color: var(--white);
+    border-color: var(--navy);
+    box-shadow: 0 3px 12px rgba(11,37,69,.25);
+  }
+  .filter-btn.active:hover {
+    background: var(--gold);
+    color: var(--navy);
+    border-color: var(--gold);
+    box-shadow: 0 4px 14px rgba(200,168,75,.4);
+  }
+
+  /* Subfiltros de Cajón de sastre */
+  #cajonSubfilters {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    gap: .3rem;
+    margin-left: .5rem;
+    padding-left: .5rem;
+    border-left: 1.5px solid #d1d5db;
+    vertical-align: middle;
+  }
+  
+  #cajonSubfilters:not(.hidden) {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  
+  .subfilters {
+    display: inline-flex;
+    gap: .3rem;
+    margin-left: .5rem;
+    padding-left: .5rem;
+    border-left: 1.5px solid #d1d5db;
+    vertical-align: middle;
+  }
+  .filter-sub-btn {
+    background: #f8f9fa;
+    border: 1px solid #e5e7eb;
+    color: var(--text);
+    padding: .25rem .6rem;
+    border-radius: 16px;
+    cursor: pointer;
+    font-size: .75rem;
+    font-weight: 600;
+    transition: all .18s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: .2rem;
+  }
+  .filter-sub-btn:hover {
+    border-color: var(--navy);
+    background: #f0f4ff;
+  }
+  .filter-sub-btn.active {
+    background: var(--navy);
+    color: var(--white);
+    border-color: var(--navy);
+  }
+
+  /* Botón de filtro expandido (con subfiltros visibles) */
+  .filter-btn.expanded {
+    background: var(--navy);
+    color: var(--white);
+    border-color: var(--navy);
+    box-shadow: 0 3px 12px rgba(11,37,69,.25);
+    position: relative;
+  }
+  .filter-btn.expanded::after {
+    content: '▲';
+    font-size: .6rem;
+    margin-left: .3rem;
+    opacity: .8;
+  }
+
+  /* Selector de categoría en tabla */
+  .cajon-cell {
+    position: relative;
+  }
+  .category-wrapper {
+    font-size: .75rem;
+  }
+  .category-select {
+    font-size: .72rem !important;
+    padding: .2rem .4rem !important;
+    border-radius: 6px !important;
+  }
+
+  /* ══ Sección Exportar ═════════════════════════════════ */
+  .export-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+    margin: .5rem 0 1rem;
+    padding: 1rem;
+    background: #f5f7fb;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+  }
+  @media (max-width: 599px) {
+    .export-grid { grid-template-columns: 1fr; }
+  }
+  .export-checkboxes, .export-radios {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    margin-top: .3rem;
+  }
+  .exp-label {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: .9rem;
+    color: var(--text);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    font-weight: 500;
+  }
+  .exp-label input[type="checkbox"],
+  .exp-label input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--navy);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .exp-label input[type="radio"] { width: 18px; height: 18px; }
+  .exp-select {
+    margin-top: .3rem;
+    max-width: 100%;
+    font-size: .82rem;
+  }
+  .export-checkboxes .exp-label:hover,
+  .export-radios .exp-label:hover {
+    color: var(--navy);
+  }
+  .exp-label input[type="checkbox"]:checked + span,
+  .exp-label input[type="radio"]:checked + span {
+    color: var(--navy);
+    font-weight: 700;
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: .4rem;
+    border: none; border-radius: 9px;
+    padding: .6rem 1.1rem; cursor: pointer;
+    font-size: .88rem; font-weight: 600;
+    transition: filter .18s, transform .15s;
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: var(--navy); color: var(--white); }
+  .btn-gold    { background: var(--gold); color: var(--navy); }
+  .btn-ghost   { background: #e5e7eb; color: var(--text); }
+
+  /* grids de credenciales - 4 columnas para los 4 perfiles (incluido Herramientas Tecno) */
+  .cred-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: .8rem;
+    margin-bottom: 1rem;
+  }
+  .fi-label {
+    font-size: .78rem; color: var(--muted);
+    margin-bottom: .25rem; font-weight: 600;
+  }
+  .hint {
+    font-size: .75rem;
+    color: var(--muted);
+    margin-top: .5rem;
+    margin-bottom: .5rem;
+    line-height: 1.4;
+    font-style: italic;
+  }
+
+  /* ══ Modales (login + grupo) ═══════════════════════ */
+  .modal-bg {
+    position: fixed; inset: 0;
+    background: rgba(11,37,69,.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 999;
+    padding: 1rem;
+  }
+  .modal {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 48px rgba(0,0,0,.25);
+    padding: 1.75rem 1.5rem 1.5rem;
+    width: min(420px, 100%);
+    max-height: 90vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal h2 {
+    font-size: 1.15rem; font-weight: 700; color: var(--navy);
+    margin-bottom: 1.1rem; text-align: center;
+  }
+  .modal .fi { margin-bottom: .7rem; }
+  .modal-error { color: var(--danger); font-size: .82rem; min-height: 1.2rem; margin-bottom: .5rem; }
+  .modal-actions { display: flex; gap: .7rem; justify-content: flex-end; margin-top: .5rem; }
+
+  /* ══ Toast ══════════════════════════════════════════ */
+  .toast {
+    position: fixed;
+    bottom: calc(1.5rem + var(--safe-bottom));
+    left: 50%; transform: translateX(-50%);
+    background: var(--navy); color: var(--white);
+    padding: .85rem 1.6rem .85rem 2.8rem; border-radius: 30px;
+    font-size: .92rem; font-weight: 600;
+    box-shadow: 0 4px 20px rgba(0,0,0,.25);
+    z-index: 9999;
+    animation: fadeIn .25s;
+    max-width: calc(100vw - 2rem);
+    text-align: center;
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: fixed;
+  }
+  .toast::before {
+    content: "";
+    position: absolute;
+    left: .85rem; top: 50%; transform: translate(0, -50%);
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.25);
+  }
+  .toast.err {
+    background: var(--danger);
+    padding-left: 2.8rem;
+  }
+  .toast.err::before {
+    content: "✕";
+    background: rgba(255,255,255,.25);
+    color: #fff;
+    font-size: .8rem; font-weight: 900;
+    line-height: 20px; text-align: center;
+    display: inline-block;
+  }
+  .toast.ok {
+    background: #1a7f37;
+    padding-left: 2.8rem;
+  }
+  .toast.ok::before {
+    content: "✓";
+    background: rgba(255,255,255,.25);
+    color: #fff;
+    font-size: .85rem; font-weight: 900;
+    line-height: 20px; text-align: center;
+    display: inline-block;
+  }
+  @keyframes fadeIn { from { opacity:0; bottom: calc(1rem + var(--safe-bottom)); } to { opacity:1; bottom: calc(1.5rem + var(--safe-bottom)); } }
+
+  /* ════════════════════════════════════════════════════════
+     RESPONSIVE — Mobile First & Multiplataforma
+     ════════════════════════════════════════════════════════ */
+
+  /* ── Landscape en móvil ────────────────────────────── */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .shield-wrap {
+      width: 180px; height: 180px;
+      margin: .5rem auto;
+      box-shadow: 0 0 0 6px var(--gold), var(--shadow);
+    }
+    .shield-wrap img { width: 155px; height: 155px; margin: -2.5%; }
+    
+    header { padding: .4rem 1rem; padding-top: calc(.4rem + var(--safe-top)); }
+    main { padding: .75rem 1rem 2rem; }
+    
+    .home-title { font-size: 1.1rem; margin-bottom: .15rem; }
+    .home-sub { font-size: .75rem; margin-bottom: 1rem; }
+    
+    .main-btn {
+      padding: .7rem .6rem;
+      min-width: unset;
+      max-width: none;
+      flex-direction: column;
+      gap: .3rem;
+      font-size: .82rem;
+    }
+    .main-btn .btn-icon { font-size: 1.6rem; margin-bottom: 0; }
+    .modal { max-height: 95vh; }
+  }
+
+  /* ── Safe Area para iPhone con notch/dynamic island ── */
+  @supports (padding: env(safe-area-inset-top)) {
+    body {
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+    header {
+      padding-left: calc(1rem + env(safe-area-inset-left));
+      padding-right: calc(1rem + env(safe-area-inset-right));
+    }
+    .toast {
+      bottom: calc(1.5rem + env(safe-area-inset-bottom));
+    }
+  }
+
+  /* ── Impresión ══════════════════════════════════════ */
+  @media print {
+    body { background: white; color: black; }
+    header, .btn-config, .toast, .modal-bg { display: none !important; }
+    .app-grid { grid-template-columns: repeat(4, 1fr); }
+    .app-card { break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
+  }
+
+  /* ── Móvil pequeño (< 400px) ─────────────────────── */
+  @media (max-width: 400px) {
+    /* Ajustes del botón Volver estático para pantallas muy pequeñas */
+    .back-btn {
+      font-size: .78rem;
+      padding: .6rem 1.2rem;
+      max-width: 100%;
+      border-radius: 25px;
+    }
+    
+    .main-buttons {
+      display: grid !important;
+      grid-template-columns: repeat(2, 1fr);
+      gap: .5rem;
+      max-width: 100%;
+    }
+    
+    .main-btn {
+      min-width: unset !important;
+      flex: unset !important;
+      max-width: none !important;
+      padding: .85rem .5rem !important;
+      font-size: .78rem !important;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .main-btn .btn-icon { font-size: 2rem; }
+
+    .shield-wrap {
+      width: 210px; height: 210px;
+      box-shadow: 0 0 0 7px var(--gold), var(--shadow);
+    }
+    .shield-wrap img { width: 180px; height: 180px; }
+
+    .app-grid {
+      grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+      gap: .75rem;
+    }
+    .app-card { padding: .85rem .4rem .7rem; border-radius: 12px; }
+    .app-card-icon-wrap,
+    .app-card-icon-wrap img { width: 56px; height: 56px; }
+    .app-card-name { font-size: .72rem; }
+
+    header h1 { font-size: .95rem; }
+    .home-title { font-size: 1.25rem; }
+    .home-sub { font-size: .82rem; }
+    .group-heading { font-size: 1.15rem; }
+
+    .section-box { padding: 1rem; }
+    .config-title { font-size: 1.15rem; }
+
+    .btn { padding: .55rem .9rem; font-size: .82rem; }
+
+    table#appsTable thead,
+    table#adminsTable thead { display: none; }
+    table#appsTable,
+    table#adminsTable { display: block; width: 100%; }
+    table#appsTable tbody,
+    table#adminsTable tbody { display: block; width: 100%; }
+    table#appsTable tr,
+    table#adminsTable tr {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .6rem;
+      padding: .85rem;
+      margin-bottom: .75rem;
+      border: 1.5px solid #e5e7eb;
+      border-radius: var(--radius);
+      background: var(--white);
+    }
+    
+    /* Filas alternadas en modo tarjeta (móvil pequeño) */
+    table#appsTable tbody tr.row-odd {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border-color: #cbd5e1;
+    }
+    
+    table#appsTable tbody tr.row-even {
+      background: #ffffff;
+      border-color: #e5e7eb;
+    }
+    
+    /* Hover en filas alternadas móviles */
+    table#appsTable tbody tr:hover {
+      border-color: #93c5fd;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, .15);
+    }
+    
+    table#appsTable tr:hover td,
+    table#adminsTable tr:hover td { background: transparent; }
+    table#appsTable td,
+    table#adminsTable td {
+      display: flex; flex-direction: column;
+      border: none; padding: 0;
+    }
+    table#appsTable td::before,
+    table#adminsTable td::before {
+      content: attr(data-label);
+      font-size: .68rem; font-weight: 700; color: var(--navy);
+      margin-bottom: .25rem; text-transform: uppercase; letter-spacing: .03em;
+    }
+    table#appsTable td:last-child,
+    table#adminsTable td:last-child {
+      grid-column: 1 / -1;
+      align-items: stretch;
+    }
+    table#appsTable td:last-child::before,
+    table#adminsTable td:last-child::before { display: none; }
+    .desc-cell { min-width: 0; }
+    .url-fi { min-width: 0; }
+    .url-cell { min-width: 0; }
+
+    .modal {
+      width: 100%;
+      padding: 1.25rem 1rem 1rem;
+      border-radius: 12px;
+    }
+  }
+
+  /* ── Móvil medio (400–599px) ─────────────────────── */
+  @media (min-width: 401px) and (max-width: 599px) {
+    .shield-wrap {
+      width: 255px; height: 255px;
+    }
+    .shield-wrap img { width: 218px; height: 218px; }
+
+    .app-grid {
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: .85rem;
+    }
+
+    table#appsTable thead,
+    table#adminsTable thead { display: none; }
+    table#appsTable,
+    table#adminsTable { display: block; width: 100%; }
+    table#appsTable tbody,
+    table#adminsTable tbody { display: block; width: 100%; }
+    table#appsTable tr,
+    table#adminsTable tr {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .6rem;
+      padding: .85rem;
+      margin-bottom: .75rem;
+      border: 1.5px solid #e5e7eb;
+      border-radius: var(--radius);
+      background: var(--white);
+    }
+    
+    /* Filas alternadas en modo tarjeta (móvil medio) */
+    table#appsTable tbody tr.row-odd {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border-color: #cbd5e1;
+    }
+    
+    table#appsTable tbody tr.row-even {
+      background: #ffffff;
+      border-color: #e5e7eb;
+    }
+    
+    /* Hover en filas alternadas móviles */
+    table#appsTable tbody tr:hover {
+      border-color: #93c5fd;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, .15);
+    }
+    
+    table#appsTable tr:hover td,
+    table#adminsTable tr:hover td { background: transparent; }
+    table#appsTable td,
+    table#adminsTable td {
+      display: flex; flex-direction: column;
+      border: none; padding: 0;
+    }
+    table#appsTable td::before,
+    table#adminsTable td::before {
+      content: attr(data-label);
+      font-size: .68rem; font-weight: 700; color: var(--navy);
+      margin-bottom: .25rem; text-transform: uppercase; letter-spacing: .03em;
+    }
+    table#appsTable td:last-child,
+    table#adminsTable td:last-child {
+      grid-column: 1 / -1;
+      align-items: stretch;
+    }
+    table#appsTable td:last-child::before,
+    table#adminsTable td:last-child::before { display: none; }
+    .desc-cell { min-width: 0; }
+    .url-fi { min-width: 0; }
+    .url-cell { min-width: 0; }
+  }
+
+  /* ── Móvil/tablet (600–767px) ────────────────────── */
+  @media (min-width: 600px) and (max-width: 767px) {
+    .cred-grid { grid-template-columns: 1fr 1fr; } /* 2x2 para 4 items */
+  }
+
+  /* ── Móvil: credenciales en 1 columna ────────────── */
+  @media (max-width: 599px) {
+    .cred-grid { grid-template-columns: 1fr; }
+    .modal { padding: 1.5rem 1.25rem 1.25rem; }
+  }
+
+  /* ── Tablet (768px+) ─────────────────────────────── */
+  @media (min-width: 768px) {
+    main { padding: 2rem 1.5rem 4rem; }
+
+    .shield-wrap { width: 360px; height: 360px; box-shadow: var(--shadow); }
+    .shield-wrap img { width: 308px; height: 308px; }
+
+    .home-title { font-size: 1.6rem; }
+    .home-sub { font-size: .95rem; }
+
+    .main-btn {
+      min-width: 170px;
+      max-width: 210px;
+      padding: 1.4rem 2rem;
+      font-size: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .main-btn .btn-icon { font-size: 3rem; }
+
+    .app-grid {
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 1.25rem;
+    }
+    .app-card { padding: 1.2rem .8rem 1rem; }
+    .app-card-name { font-size: .82rem; }
+
+    .group-heading { font-size: 1.4rem; }
+    .config-title { font-size: 1.4rem; }
+    .section-box { padding: 1.5rem; }
+
+    header { padding: .75rem 1.5rem; }
+    header h1 { font-size: 1.1rem; }
+  }
+
+  /* ── Desktop (1024px+) ───────────────────────────── */
+  @media (min-width: 1024px) {
+    .shield-wrap { width: 420px; height: 420px; }
+    .shield-wrap img { width: 360px; height: 360px; }
+
+    .app-grid {
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 1.3rem;
+    }
+  }
+
+  /* ── Pantallas muy anchas (1280px+) ──────────────── */
+  @media (min-width: 1280px) {
+    main { max-width: 1080px; margin: 0 auto; }
+    .app-grid {
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    }
+    .shield-wrap { width: 450px; height: 450px; }
+    .shield-wrap img { width: 385px; height: 385px; }
+  }
+
+  /* ── Pantallas 4K/Ultra-wide (1920px+) ─────────────── */
+  @media (min-width: 1920px) {
+    main { max-width: 1400px; }
+    .app-grid {
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1.5rem;
+    }
+    .shield-wrap { width: 500px; height: 500px; }
+    .shield-wrap img { width: 430px; height: 430px; }
+    .main-btn { max-width: 240px; padding: 1.6rem 2.5rem; font-size: 1.1rem; }
+  }
+
+  /* ── Dispositivos pequeños tipo watch/mini ═══════════ */
+  @media (max-width: 320px) {
+    .main-buttons { 
+      display: grid !important;
+      grid-template-columns: repeat(2, 1fr);
+      gap: .4rem;
+    }
+    .main-btn { 
+      max-width: none !important; 
+      width: 100%; 
+      padding: .7rem .4rem !important;
+      font-size: .72rem !important;
+    }
+    .main-btn .btn-icon { font-size: 1.5rem; }
+    .shield-wrap { width: 180px; height: 180px; }
+    .header-content { flex-direction: column; text-align: center; gap: .5rem; }
+  }
+
+  /* ══ Utilidades adicionales ═══════════════════════ */
+
+  /* Checkboxes accesibles en móvil */
+  input[type="checkbox"] {
+    width: 22px; height: 22px;
+    accent-color: var(--navy);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  @media (max-width: 767px) {
+    input[type="checkbox"] {
+      width: 26px; height: 26px;
+    }
+  }
+
+  /* Scroll suave en iOS para tablas */
+  .tbl-wrap {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .tbl-wrap::-webkit-scrollbar { height: 4px; }
+  .tbl-wrap::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 4px; }
+
+  /* Prevenir selección de texto en botones (móvil) */
+  button, .app-card, .btn-config, .back-btn {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Fix para teclado virtual en iOS */
+  @supports (padding: max(0px)) {
+    main {
+      padding-bottom: calc(4rem + var(--safe-bottom));
+    }
+  }
+
+  /* Evitar zoom automático en inputs iOS (font-size >= 16px) */
+  @media (max-width: 767px) {
+    input.fi, input[type="text"], input[type="password"], input[type="url"] {
+      font-size: 16px;
+    }
+    table#appsTable .fi,
+    table#adminsTable .fi {
+      font-size: 14px;
+    }
+  }
+
+  /* Pantallas con prefers-reduced-motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      transition-duration: .01ms !important;
+    }
+    html { scroll-behavior: auto; }
+  }
+
+  /* Modo horizontal en móvil: ajustar shields */
+  @media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+    .shield-wrap {
+      width: 180px; height: 180px;
+      margin: 1rem auto 1.2rem;
+    }
+    .shield-wrap img { width: 155px; height: 155px; }
+    .home-sub { margin-bottom: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ CABECERA ═══════════════════════════════════ -->
+<header>
+  <div>
+    <h1>TecDeA - Portal Tecnología</h1>
+    <div class="subtitle">IES Virgen de Villadiego · angelmicelti</div>
+  </div>
+  <button class="btn-config" onclick="tecdea.showLoginModal()">⚙ Configuración</button>
+</header>
+
+<!-- ═══════════ MAIN ═══════════════════════════════════════ -->
+<main>
+
+  <!-- Vista: HOME -->
+  <section id="view-home">
+    <div class="shield-wrap">
+      <!-- Logo de TecDeA desde carpeta img -->
+      <img src="img/logo.png" alt="Logo TecDeA" onerror="this.style.display='none'">
+    </div>
+    <p class="home-title">Portal de Aplicaciones TecDeA</p>
+    <p class="home-sub">Departamento de Tecnología · IES Virgen de Villadiego<br>Peñaflor (Sevilla)</p>
+
+    <div class="main-buttons">
+      <button class="main-btn" onclick="tecdea.requestGroupAccess('tecnoApps')">
+        <span class="btn-icon"><svg viewBox="0 0 64 64" width="48" height="48" style="display:inline-block;vertical-align:middle"><defs><linearGradient id="appGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1E7A3D"/><stop offset="100%" stop-color="#145a28"/></linearGradient></defs><rect x="10" y="4" width="44" height="56" rx="10" fill="url(#appGrad)" stroke="#E8943A" stroke-width="2.5"/><rect x="16" y="12" width="32" height="36" rx="3" fill="#F5E6A3" opacity="0.95"/><circle cx="32" cy="54" r="2.5" fill="#E8943A"/><rect x="28" y="18" width="8" height="12" rx="2" fill="#1A3A8E" opacity="0.7"/><rect x="20" y="34" width="24" height="3" rx="1.5" fill="#1A3A8E" opacity="0.4"/></svg></span>TecnoApps
+      </button>
+      <button class="main-btn" onclick="tecdea.requestGroupAccess('herramientasTecno')">
+        <span class="btn-icon"><svg viewBox="0 0 64 64" width="48" height="48" style="display:inline-block;vertical-align:middle"><defs><linearGradient id="toolGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#9B59B6"/><stop offset="100%" stop-color="#6c3483"/></linearGradient></defs><rect x="8" y="8" width="48" height="48" rx="8" fill="url(#toolGrad)" stroke="#E8943A" stroke-width="2"/><path d="M20,20 L28,20 L24,32 Z" fill="#F5E6A3" stroke="#1E7A3D" stroke-width="1"/><circle cx="40" cy="26" r="8" fill="#F5E6A3" stroke="#1A3A8E" stroke-width="1.5"/><path d="M36,26 L38,28 L44,22" stroke="#1E7A3D" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="18" y="40" width="28" height="6" rx="2" fill="#F5E6A3" opacity="0.8"/><circle cx="24" cy="43" r="1.5" fill="#1A3A8E"/><circle cx="32" cy="43" r="1.5" fill="#1A3A8E"/><circle cx="40" cy="43" r="1.5" fill="#1A3A8E"/></svg></span>Herramientas Tecno
+      </button>
+      <button class="main-btn" onclick="tecdea.requestGroupAccess('departamento')">
+        <span class="btn-icon"><svg viewBox="0 0 64 64" width="48" height="48" style="display:inline-block;vertical-align:middle"><defs><linearGradient id="buildGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1A3A8E"/><stop offset="100%" stop-color="#0d2460"/></linearGradient></defs><rect x="6" y="22" width="52" height="38" rx="3" fill="url(#buildGrad)" stroke="#E8943A" stroke-width="2"/><polygon points="32,4 56,22 8,22" fill="#E8943A" stroke="#1E7A3D" stroke-width="1.5"/><rect x="26" y="34" width="12" height="22" rx="1.5" fill="#F5E6A3"/><rect x="14" y="40" width="8" height="14" rx="1" fill="#F5E6A3" opacity="0.75"/><rect x="42" y="40" width="8" height="14" rx="1" fill="#F5E6A3" opacity="0.75"/><circle cx="32" cy="45" r="2" fill="#1A3A8E"/></svg></span>Departamento
+      </button>
+      <button class="main-btn" onclick="tecdea.showCajonDeSastreMenu()">
+        <span class="btn-icon"><svg viewBox="0 0 64 64" width="48" height="48" style="display:inline-block;vertical-align:middle"><defs><linearGradient id="boxGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#E8943A"/><stop offset="100%" stop-color="#c77a28"/></linearGradient></defs><rect x="6" y="16" width="52" height="42" rx="4" fill="url(#boxGrad)" stroke="#1A3A8E" stroke-width="2.5"/><rect x="11" y="21" width="42" height="31" rx="2" fill="#1A3A8E" opacity="0.9"/><path d="M20,30 L28,30 L24,38 Z" fill="#1E7A3D" stroke="#E8943A" stroke-width="1"/><circle cx="40" cy="33" r="6" fill="#1E7A3D" stroke="#E8943A" stroke-width="1.5"/><path d="M37,33 L39,35 L43,31" stroke="#F5E6A3" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><line x1="15" y1="44" x2="30" y2="44" stroke="#F5E6A3" stroke-width="2" stroke-linecap="round"/><line x1="34" y1="44" x2="49" y2="44" stroke="#F5E6A3" stroke-width="2" stroke-linecap="round"/></svg></span>Cajón de sastre
+      </button>
+    </div>
+  </section>
+
+  <!-- Vista: GRUPO -->
+  <section id="view-group" class="hidden">
+    <h2 class="group-heading" id="groupTitle"></h2>
+    <div class="app-grid" id="appGrid"></div>
+    <div class="back-row">
+      <button class="back-btn" onclick="tecdea.renderHome()">Volver</button>
+    </div>
+  </section>
+
+  <!-- Vista: MENÚ CAJÓN DE SASTRE (subperfiles) -->
+  <section id="view-cajon-menu" class="hidden">
+    <h2 class="group-heading">Cajón de sastre</h2>
+    <p class="home-sub" style="margin-bottom:1.5rem">Selecciona una categoría para ver las aplicaciones relacionadas</p>
+    <div class="main-buttons" style="margin-top:1rem">
+      <button class="main-btn" onclick="tecdea.requestGroupAccess('cajonDeSastre', 'matematicas')" style="background:linear-gradient(135deg, #1E7A3D, #145a28)">
+        <span class="btn-icon">📐</span>Matemáticas
+      </button>
+      <button class="main-btn" onclick="tecdea.requestGroupAccess('cajonDeSastre', 'fisica')" style="background:linear-gradient(135deg, #1A3A8E, #0d2460)">
+        <span class="btn-icon">⚛️</span>Física
+      </button>
+      <button class="main-btn" onclick="tecdea.requestGroupAccess('cajonDeSastre', 'quimica')" style="background:linear-gradient(135deg, #E8943A, #c77a28)">
+        <span class="btn-icon">🧪</span>Química
+      </button>
+      <button class="main-btn" onclick="tecdea.requestGroupAccess('cajonDeSastre', 'ia')" style="background:linear-gradient(135deg, #7C3AED, #5B21B6)">
+        <span class="btn-icon">🤖</span>IA
+      </button>
+    </div>
+    <div class="back-row">
+      <button class="back-btn" onclick="tecdea.renderHome()">Volver</button>
+    </div>
+  </section>
+
+  <!-- Vista: CONFIGURACIÓN -->
+  <section id="view-config" class="hidden">
+    <div class="config-header">
+      <span class="config-title">Configuración</span>
+    </div>
+
+    <!-- Acordeón 1: Aplicaciones -->
+    <div class="accordion-item">
+      <button class="accordion-header" onclick="tecdea.toggleAccordion(this)" aria-expanded="false">
+        <span>📋 Aplicaciones</span>
+        <span class="accordion-icon">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p class="hint" style="margin-top:0;margin-bottom:1rem">
+          💾 Los cambios se guardan automáticamente al salir de cada celda.
+          La URL base fija es <code>https://tecdea.github.io/</code>. Añade el path final de cada aplicación (ejemplo: <code>miapp/</code>).<br>
+          Si la aplicación no está en el dominio <code>https://tecdea.github.io</code>, introduce la ruta completa de la PWA.
+        </p>
+        <div class="actions" style="margin-bottom:1rem">
+          <button class="btn btn-gold" onclick="tecdea.addAppRow()">＋ Añadir aplicación</button>
+          <button class="btn btn-ghost" onclick="tecdea.sortApps('name')">↕ Ordenar por nombre</button>
+          <button class="btn btn-ghost" onclick="tecdea.sortApps('url')">↕ Ordenar por URL</button>
+          <button class="btn btn-primary" onclick="tecdea.saveConfig()">💾 Guardar aplicaciones</button>
+        </div>
+        <div class="filter-bar" id="appsFilterBar">
+          <span class="filter-label">🔎 Filtrar por perfil:</span>
+          <button class="filter-btn" data-filter="tecnoApps" onclick="tecdea.setAppsFilter('tecnoApps')" aria-label="Filtrar TecnoApps"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px" aria-hidden="true"><rect x="4" y="1" width="16" height="22" rx="3" fill="#1E7A3D" stroke="#E8943A" stroke-width="1"/><rect x="6" y="4" width="12" height="13" rx="1" fill="#F5E6A3" opacity="0.9"/><circle cx="12" cy="20" r="1" fill="#E8943A"/></svg>TecnoApps</button>
+          <button class="filter-btn" data-filter="herramientasTecno" onclick="tecdea.setAppsFilter('herramientasTecno')" aria-label="Filtrar Herramientas Tecno"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="4" fill="#9B59B6" stroke="#E8943A" stroke-width="1"/><path d="M7,8 L11,8 L9,14 Z" fill="#F5E6A3"/><circle cx="15" cy="10" r="4" fill="#F5E6A3" stroke="#1A3A8E" stroke-width="1"/><path d="M13,10 L14,11 L17,8" stroke="#1E7A3D" stroke-width="1.5" fill="none"/></svg>Herramientas Tecno</button>
+          <button class="filter-btn" data-filter="departamento" onclick="tecdea.setAppsFilter('departamento')" aria-label="Filtrar Departamento"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px" aria-hidden="true"><rect x="2" y="9" width="20" height="13" rx="1" fill="#1A3A8E" stroke="#E8943A" stroke-width="1"/><polygon points="12,2 20,9 4,9" fill="#E8943A" stroke="#1E7A3D" stroke-width="0.5"/><rect x="10" y="13" width="4" height="7" rx="0.5" fill="#F5E6A3"/></svg>Departamento</button>
+          <button class="filter-btn" data-filter="cajonDeSastre" id="cajonDeSastreBtn" onclick="tecdea.setAppsFilter('cajonDeSastre')" aria-label="Filtrar Cajón de sastre">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px"><rect x="2" y="6" width="20" height="15" rx="2" fill="#E8943A" stroke="#1A3A8E" stroke-width="1"/><rect x="4" y="8" width="16" height="11" rx="1" fill="#1A3A8E" opacity="0.9"/></svg>Cajón de sastre
+          </button>
+          <!-- SUBFILTROS FUERA DEL BOTÓN (hermanos, no hijos) -->
+          <span id="cajonSubfilters" class="subfilters hidden">
+            <button class="filter-sub-btn" data-category="matematicas" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('matematicas')">📐 Matemáticas</button>
+            <button class="filter-sub-btn" data-category="fisica" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('fisica')">⚛️ Física</button>
+            <button class="filter-sub-btn" data-category="quimica" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('quimica')">🧪 Química</button>
+            <button class="filter-sub-btn" data-category="ia" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('ia')">🤖 IA</button>
+          </span>
+        </div>
+        <div class="tbl-wrap">
+          <table id="appsTable">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Descripción</th>
+                <th>URL</th>
+                <th>Tec.</th>
+                <th>HerrTec</th>
+                <th>Dep.</th>
+                <th>Caj.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Acordeón 2: Contraseñas de acceso por perfil -->
+    <div class="accordion-item">
+      <button class="accordion-header" onclick="tecdea.toggleAccordion(this)" aria-expanded="false">
+        <span>🔐 Contraseñas de acceso por perfil</span>
+        <span class="accordion-icon">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p class="hint">Al pulsar cada botón en la pantalla principal, se pedirá la contraseña correspondiente. Déjala vacía para permitir acceso libre a ese perfil (no recomendado).</p>
+        <div class="cred-grid">
+          <div>
+            <div class="fi-label">TecnoApps</div>
+            <input type="text" id="passTecnoApps" class="fi" placeholder="••••••" autocomplete="off">
+          </div>
+          <div>
+            <div class="fi-label">Herramientas Tecno</div>
+            <input type="text" id="passHerramientasTecno" class="fi" placeholder="••••••" autocomplete="off">
+          </div>
+          <div>
+            <div class="fi-label">Departamento</div>
+            <input type="text" id="passDepartamento" class="fi" placeholder="••••••" autocomplete="off">
+          </div>
+          <div>
+            <div class="fi-label">Cajón de sastre</div>
+            <input type="text" id="passCajonDeSastre" class="fi" placeholder="••••••" autocomplete="off">
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" onclick="tecdea.saveGroupPasswordsConfig()">🔒 Guardar contraseñas</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Acordeón 3: Administradores -->
+    <div class="accordion-item">
+      <button class="accordion-header" onclick="tecdea.toggleAccordion(this)" aria-expanded="false">
+        <span>👥 Administradores</span>
+        <span class="accordion-icon">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p class="hint">Gestiona los usuarios con permiso para acceder a esta pantalla de Configuración. Debe existir al menos uno; no se permiten usuarios duplicados.</p>
+        <p class="hint hint-warning" style="background:#fff8e6;border-left:4px solid #f59e0b;padding:.7rem .9rem;margin:.8rem 0;border-radius:8px;font-size:.82rem;">
+          🔒 <strong>Nota importante:</strong> Las contraseñas de los administradores se incluirán en la exportación a Excel/PDF. Asegúrate de proteger el archivo exportado.
+        </p>
+        <div class="tbl-wrap">
+          <table id="adminsTable">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>Contraseña</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="actions">
+          <button class="btn btn-gold" onclick="tecdea.addAdminRow()">＋ Añadir administrador</button>
+          <button class="btn btn-primary" onclick="tecdea.saveAdminsConfig()">💾 Guardar administradores</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Acordeón 4: Exportar datos -->
+    <div class="accordion-item">
+      <button class="accordion-header" onclick="tecdea.toggleAccordion(this)" aria-expanded="false">
+        <span>📤 Exportar datos</span>
+        <span class="accordion-icon">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p class="hint">Exporta todo o parte de la configuración a PDF o Excel (.xlsx). Las librerías se cargan bajo demanda al pulsar el botón (no afectan al rendimiento inicial).</p>
+        <p class="hint hint-warning" style="background:#fef3c7;border-left:4px solid #f59e0b;padding:.6rem .8rem;margin:.7rem 0;border-radius:8px;font-size:.8rem;">
+          ⚠️ <strong>Seguridad:</strong> Al exportar "Administradores", sus contraseñas serán visibles en el archivo. Protege el archivo exportado.
+        </p>
+        <div class="export-grid">
+          <div>
+            <div class="fi-label">¿Qué exportar?</div>
+            <div class="export-checkboxes">
+              <label class="exp-label">
+                <input type="checkbox" id="expApps" checked>
+                <span>Aplicaciones</span>
+              </label>
+              <label class="exp-label">
+                <input type="checkbox" id="expAdmins" checked>
+                <span>Administradores</span>
+              </label>
+              <label class="exp-label">
+                <input type="checkbox" id="expPass" checked>
+                <span>Contraseñas por perfil</span>
+              </label>
+            </div>
+          </div>
+          <div>
+            <div class="fi-label">Formato de exportación</div>
+            <div class="export-radios">
+              <label class="exp-label">
+                <input type="radio" name="expFormat" value="excel" checked>
+                <span>📊 Excel (.xlsx)</span>
+              </label>
+              <label class="exp-label">
+                <input type="radio" name="expFormat" value="pdf">
+                <span>📄 PDF (.pdf)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" onclick="tecdea.exportData()">📥 Exportar</button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="back-row">
+      <button class="back-btn" onclick="tecdea.renderHome()">Volver</button>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═══════════ MODAL LOGIN ADMINISTRADOR ══════════════════ -->
+<div id="loginModal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>🔐 Acceso a Configuración</h2>
+    <div class="fi-label">Usuario</div>
+    <input type="text"     id="loginUser" class="fi" placeholder="admin" autocomplete="username"
+           onkeydown="if(event.key==='Enter') document.getElementById('loginPass').focus()">
+    <div class="fi-label" style="margin-top:.5rem">Contraseña</div>
+    <input type="password" id="loginPass" class="fi" placeholder="••••••" autocomplete="current-password"
+           onkeydown="if(event.key==='Enter')  tecdea.doLogin()">
+    <div id="loginError" class="modal-error"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="tecdea.closeLoginModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="tecdea.doLogin()">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL CONTRASEÑA DE GRUPO ══════════════════ -->
+<div id="groupPassModal" class="modal-bg hidden">
+  <div class="modal">
+    <h2 id="groupPassTitle">Acceso</h2>
+    <div class="fi-label">Contraseña</div>
+    <input type="password" id="groupPassInput" class="fi" placeholder="••••••" autocomplete="current-password"
+           onkeydown="if(event.key==='Enter')  tecdea.doGroupLogin()">
+    <div id="groupPassError" class="modal-error"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="tecdea.closeGroupPassModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="tecdea.doGroupLogin()">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL DESCRIPCIÓN (hover / tap) ═══════════ -->
+<div id="descModal" class="hidden" style="position:fixed;top:0;left:0;z-index:9000;pointer-events:none;">
+  <div class="desc-modal-box">
+    <p id="descModalText"></p>
+  </div>
+</div>
+
+<!-- ═══════════ TOAST ══════════════════════════════════════ -->
+<div id="toast" class="toast hidden"></div>
+
+<!-- ═══════ Registro del Service Worker (PWA) ═══════ -->
+<script>
+  window.addEventListener('load', () => {
+    if (!('serviceWorker' in navigator)) return;
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
+
+    navigator.serviceWorker.register('sw.js', { scope: './' })
+      .then((reg) => {
+        console.log('[PWA] Service Worker registrado con scope:', reg.scope);
+
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('[PWA] Nueva versión disponible. Recarga para aplicar.');
+            }
+          });
+        });
+      })
+      .catch((err) => {
+        console.warn('[PWA] Error al registrar el Service Worker:', err);
+      });
+
+    if (navigator.serviceWorker.controller) {
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!window._swReloaded) {
+          window._swReloaded = true;
+        }
+      });
+    }
+  });
+</script>
+
+</body>
+</html>
