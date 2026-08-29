@@ -380,7 +380,8 @@
     return {
       matematicas: "Matemáticas",
       fisica: "Física",
-      quimica: "Química"
+      quimica: "Química",
+      ia: "IA"
     }[cat] || cat;
   }
 
@@ -823,7 +824,8 @@
       { value: '', label: 'Seleccionar categoría...' },
       { value: 'matematicas', label: '📐 Matemáticas' },
       { value: 'fisica', label: '⚛️ Física' },
-      { value: 'quimica', label: '🧪 Química' }
+      { value: 'quimica', label: '🧪 Química' },
+      { value: 'ia', label: '🤖 IA' }
     ];
 
     tbody.innerHTML = emptyRow + rowsData.map(({ app: a, idx: i }, visualIndex) => {
@@ -1461,7 +1463,7 @@
         'HerramientasTecno': a.herramientasTecno ? 'Sí' : 'No',
         'Departamento':     a.departamento   ? 'Sí' : 'No',
         'Cajón de sastre':  a.cajonDeSastre ? 'Sí' : 'No',
-        'Categoría':        a.category || '-'
+        'Categoría':        categoryLabel(a.category) || '-'
       }));
     }
 
@@ -3441,6 +3443,9 @@
       <button class="main-btn" onclick="tecdea.requestGroupAccess('cajonDeSastre', 'quimica')" style="background:linear-gradient(135deg, #E8943A, #c77a28)">
         <span class="btn-icon">🧪</span>Química
       </button>
+      <button class="main-btn" onclick="tecdea.requestGroupAccess('cajonDeSastre', 'ia')" style="background:linear-gradient(135deg, #7C3AED, #5B21B6)">
+        <span class="btn-icon">🤖</span>IA
+      </button>
     </div>
   </section>
 
@@ -3482,6 +3487,7 @@
             <button class="filter-sub-btn" data-category="matematicas" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('matematicas')">📐 Matemáticas</button>
             <button class="filter-sub-btn" data-category="fisica" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('fisica')">⚛️ Física</button>
             <button class="filter-sub-btn" data-category="quimica" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('quimica')">🧪 Química</button>
+            <button class="filter-sub-btn" data-category="ia" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('ia')">🤖 IA</button>
           </span>
         </div>
         <div class="tbl-wrap">
