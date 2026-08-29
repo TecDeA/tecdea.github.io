@@ -3715,6 +3715,7 @@
   <div class="modal">
     <h2 id="groupPassTitle">Acceso</h2>
     <form onsubmit="event.preventDefault(); tecdea.doGroupLogin()" autocomplete="on">
+      <input type="text" name="username" autocomplete="username" style="display:none" tabindex="-1" aria-hidden="true">
       <div class="fi-label">Contraseña</div>
       <input type="password" id="groupPassInput" class="fi" placeholder="••••••" autocomplete="current-password"
              onkeydown="if(event.key==='Enter')  tecdea.doGroupLogin()">
