@@ -1283,7 +1283,7 @@
     tbody.innerHTML = admins.map((a, i) => `
       <tr data-i="${i}">
         <td data-label="Usuario"><input type="text" class="fi" value="${escHtml(a.user)}" placeholder="usuario" data-af="user" autocomplete="off"></td>
-        <td data-label="Contraseña"><input type="password" class="fi" value="${escHtml(a.pass)}" placeholder="••••••" data-af="pass" autocomplete="new-password"></td>
+        <td data-label="Contraseña"><input type="text" class="fi" value="${escHtml(a.pass)}" placeholder="contraseña" data-af="pass" autocomplete="off"></td>
         <td data-label="" class="chk"><button class="btn-del" onclick="window._delAdmin(${i})" title="Eliminar">✕</button></td>
       </tr>`).join("");
 
