@@ -826,16 +826,18 @@
       { value: 'quimica', label: '🧪 Química' }
     ];
 
-    tbody.innerHTML = emptyRow + rowsData.map(({ app: a, idx: i }) => {
+    tbody.innerHTML = emptyRow + rowsData.map(({ app: a, idx: i }, visualIndex) => {
       const isCajon = a.cajonDeSastre;
 
-      // SIEMPRE generar el selector (para que esté disponible al marcar checkbox)
+      // SIEMPRE generar elselector (para que esté disponible al marcar checkbox)
       const categorySelect = `<select class="fi category-select" data-field="category" style="max-width:150px;width:100%" ${!isCajon ? 'disabled' : ''}>
              ${categoryOptions.map(opt => `<option value="${opt.value}" ${(a.category || '') === opt.value ? 'selected' : ''}>${opt.label}</option>`).join('')}
            </select>`;
 
+      // Usar visualIndex (índice en el array filtrado/ordenado) para alternancia correcta
+      const rowClass = visualIndex % 2 === 0 ? 'row-even' : 'row-odd';
       return `
-      <tr data-i="${i}">
+      <tr data-i="${i}" class="${rowClass}">
         <td data-label="Nombre"><input type="text" class="fi" value="${escHtml(a.name)}" placeholder="Nombre" data-field="name"></td>
         <td data-label="Descripción" class="desc-cell">
           <input type="text" class="fi desc-fi" value="${escHtml(a.desc || '')}" placeholder="Descripción" data-field="desc">
@@ -2579,6 +2581,24 @@
   table#appsTable tr:hover td,
   table#adminsTable tr:hover td { background: #f0f4ff; }
 
+  /* ══ Filas alternadas (zebra striping) para mejor legibilidad ═══ */
+  table#appsTable tbody tr.row-even td {
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  
+  table#appsTable tbody tr.row-odd td {
+    background: linear-gradient(to right, #e2e8f0 0%, #cbd5e1 50%, #e2e8f0 100%);
+    border-bottom: 1px solid #94a3b8;
+  }
+  
+  /* Efecto hover que funciona sobre las filas alternadas */
+  table#appsTable tbody tr.row-even:hover td,
+  table#appsTable tbody tr.row-odd:hover td {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border-bottom-color: #93c5fd;
+  }
+
   .chk { text-align: center; }
   .fi {
     width: 100%; border: 1.5px solid #d1d5db;
@@ -3078,6 +3098,24 @@
       border-radius: var(--radius);
       background: var(--white);
     }
+    
+    /* Filas alternadas en modo tarjeta (móvil pequeño) */
+    table#appsTable tbody tr.row-odd {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border-color: #cbd5e1;
+    }
+    
+    table#appsTable tbody tr.row-even {
+      background: #ffffff;
+      border-color: #e5e7eb;
+    }
+    
+    /* Hover en filas alternadas móviles */
+    table#appsTable tbody tr:hover {
+      border-color: #93c5fd;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, .15);
+    }
+    
     table#appsTable tr:hover td,
     table#adminsTable tr:hover td { background: transparent; }
     table#appsTable td,
@@ -3138,6 +3176,24 @@
       border-radius: var(--radius);
       background: var(--white);
     }
+    
+    /* Filas alternadas en modo tarjeta (móvil medio) */
+    table#appsTable tbody tr.row-odd {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border-color: #cbd5e1;
+    }
+    
+    table#appsTable tbody tr.row-even {
+      background: #ffffff;
+      border-color: #e5e7eb;
+    }
+    
+    /* Hover en filas alternadas móviles */
+    table#appsTable tbody tr:hover {
+      border-color: #93c5fd;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, .15);
+    }
+    
     table#appsTable tr:hover td,
     table#adminsTable tr:hover td { background: transparent; }
     table#appsTable td,
