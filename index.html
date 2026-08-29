@@ -29,7 +29,6 @@
 <meta name="description" content="Portal de aplicaciones del Departamento de Tecnología del IES Virgen de Villadiego. Acceso rápido a las aplicaciones creadas por angelmicelti para TecnoApps, Departamento y Cajón de sastre.">
 <!-- ═══════ SEGURIDAD ═══════ -->
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
-<meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 
 <!-- ═══════ PWA: manifest, iconos y favicon ═══════ -->
@@ -376,11 +375,6 @@
     grid.innerHTML = filtered.length
       ? filtered.map(a => appCard(a)).join("")
       : "<p class='empty'>No hay aplicaciones configuradas para este perfil.</p>";
-    
-    // Mostrar grid de apps y ocultar menú de categorías (si estaba visible)
-    document.getElementById("appGrid").parentElement.classList.remove('hidden');
-    document.getElementById("cajonCategoryMenu").classList.add('hidden');
-    
     setView("group");
     // Ocultar botón de configuración para evitar solapamiento con botón Volver flotante
     document.querySelector('.btn-config')?.classList.add('hidden');
@@ -3700,17 +3694,19 @@
 <div id="loginModal" class="modal-bg hidden">
   <div class="modal">
     <h2>🔐 Acceso a Configuración</h2>
-    <div class="fi-label">Usuario</div>
-    <input type="text"     id="loginUser" class="fi" placeholder="admin" autocomplete="username"
-           onkeydown="if(event.key==='Enter') document.getElementById('loginPass').focus()">
-    <div class="fi-label" style="margin-top:.5rem">Contraseña</div>
-    <input type="password" id="loginPass" class="fi" placeholder="••••••" autocomplete="current-password"
-           onkeydown="if(event.key==='Enter')  tecdea.doLogin()">
-    <div id="loginError" class="modal-error"></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="tecdea.closeLoginModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="tecdea.doLogin()">Entrar</button>
-    </div>
+    <form onsubmit="event.preventDefault(); tecdea.doLogin()" autocomplete="on">
+      <div class="fi-label">Usuario</div>
+      <input type="text"     id="loginUser" class="fi" placeholder="admin" autocomplete="username"
+             onkeydown="if(event.key==='Enter') document.getElementById('loginPass').focus()">
+      <div class="fi-label" style="margin-top:.5rem">Contraseña</div>
+      <input type="password" id="loginPass" class="fi" placeholder="••••••" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter')  tecdea.doLogin()">
+      <div id="loginError" class="modal-error"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="tecdea.closeLoginModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Entrar</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -3718,14 +3714,16 @@
 <div id="groupPassModal" class="modal-bg hidden">
   <div class="modal">
     <h2 id="groupPassTitle">Acceso</h2>
-    <div class="fi-label">Contraseña</div>
-    <input type="password" id="groupPassInput" class="fi" placeholder="••••••" autocomplete="current-password"
-           onkeydown="if(event.key==='Enter')  tecdea.doGroupLogin()">
-    <div id="groupPassError" class="modal-error"></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="tecdea.closeGroupPassModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="tecdea.doGroupLogin()">Entrar</button>
-    </div>
+    <form onsubmit="event.preventDefault(); tecdea.doGroupLogin()" autocomplete="on">
+      <div class="fi-label">Contraseña</div>
+      <input type="password" id="groupPassInput" class="fi" placeholder="••••••" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter')  tecdea.doGroupLogin()">
+      <div id="groupPassError" class="modal-error"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="tecdea.closeGroupPassModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Entrar</button>
+      </div>
+    </form>
   </div>
 </div>
 
