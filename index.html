@@ -336,15 +336,8 @@
     // Actualizar contexto de navegación
     currentNavigationContext = { group: 'cajonDeSastre', category: null };
     
-    // Establecer título
-    document.getElementById("groupTitle").textContent = "Cajón de sastre";
-    
-    // Ocultar grid de apps y mostrar menú de categorías
-    document.getElementById("appGrid").parentElement.classList.add('hidden');
-    document.getElementById("cajonCategoryMenu").classList.remove('hidden');
-    
-    // Mostrar vista de grupo
-    setView("group");
+    // Mostrar vista dedicada del menú de Cajón (donde están los 4 botones)
+    setView("cajon-menu");
     
     // Ocultar botón de configuración si está visible
     document.querySelector('.btn-config')?.classList.add('hidden');
