@@ -406,7 +406,8 @@
       matematicas: "Matemáticas",
       fisica: "Física",
       quimica: "Química",
-      ia: "IA"
+      ia: "IA",
+      utilidades: "Utilidades"
     }[cat] || cat;
   }
 
@@ -850,7 +851,8 @@
       { value: 'matematicas', label: '📐 Matemáticas' },
       { value: 'fisica', label: '⚛️ Física' },
       { value: 'quimica', label: '🧪 Química' },
-      { value: 'ia', label: '🤖 IA' }
+      { value: 'ia', label: '🤖 IA' },
+      { value: 'utilidades', label: '🔧 Utilidades' }
     ];
 
     tbody.innerHTML = emptyRow + rowsData.map(({ app: a, idx: i }, visualIndex) => {
@@ -3506,6 +3508,9 @@
       <button class="main-btn" onclick="tecdea.requestGroupAccess('cajonDeSastre', 'ia')" style="background:linear-gradient(135deg, #7C3AED, #5B21B6)">
         <span class="btn-icon">🤖</span>IA
       </button>
+      <button class="main-btn" onclick="tecdea.requestGroupAccess('cajonDeSastre', 'utilidades')" style="background:linear-gradient(135deg, #475569, #334155)">
+        <span class="btn-icon">🔧</span>Utilidades
+      </button>
     </div>
     <div class="back-row">
       <button class="back-btn" onclick="tecdea.renderHome()">Volver</button>
@@ -3550,6 +3555,7 @@
             <button class="filter-sub-btn" data-category="fisica" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('fisica')">⚛️ Física</button>
             <button class="filter-sub-btn" data-category="quimica" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('quimica')">🧪 Química</button>
             <button class="filter-sub-btn" data-category="ia" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('ia')">🤖 IA</button>
+            <button class="filter-sub-btn" data-category="utilidades" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('utilidades')">🔧 Utilidades</button>
           </span>
         </div>
         <div class="tbl-wrap">
