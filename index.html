@@ -865,8 +865,14 @@
 
       // Usar visualIndex (índice en el array filtrado/ordenado) para alternancia correcta
       const rowClass = visualIndex % 2 === 0 ? 'row-even' : 'row-odd';
+      // Resaltar filas con nombre pero sin ninguna categoría válida
+      const hasName = a.name && a.name.trim();
+      const hasCat  = (a.tecnoApps || a.herramientasTecno || a.departamento || (a.cajonDeSastre && a.category && a.category.trim()));
+      const uncategorized = hasName && !hasCat;
+      const rowClasses = [rowClass];
+      if (uncategorized) rowClasses.push('row-uncategorized');
       return `
-      <tr data-i="${i}" class="${rowClass}">
+      <tr data-i="${i}" class="${rowClasses.join(' ')}" data-uncategorized="${uncategorized}">
         <td data-label="Nombre"><input type="text" class="fi" value="${escHtml(a.name)}" placeholder="Nombre" data-field="name"></td>
         <td data-label="Descripción" class="desc-cell">
           <input type="text" class="fi desc-fi" value="${escHtml(a.desc || '')}" placeholder="Descripción" data-field="desc">
@@ -889,6 +895,7 @@
                    }else{
                      wrapper.classList.add('hidden');
                      sel.disabled = true;
+                     sel.value = '';
                    }">
           <div class="category-wrapper ${isCajon ? '' : 'hidden'}" style="margin-top:6px;padding:6px;background:#f8f9fa;border-radius:6px;border:1px dashed #d1d5db">
             <small style="color:var(--navy);font-weight:600;display:block;margin-bottom:4px">📂 Subperfil:</small>
@@ -906,8 +913,47 @@
 
     // Añadir event listeners frescos
     tbody.querySelectorAll("input").forEach(inp => {
-      inp.addEventListener("change", () => collectTableData());
-      inp.addEventListener("input",  () => collectTableData());
+      inp.addEventListener("change", () => {
+        collectTableData();
+        updateRowUncategorizedState(inp);
+        // Guardar inmediatamente en Firebase al cambiar un checkbox de categoría
+        if (inp.type === 'checkbox') {
+          // Comprobar si hay apps con Cajón marcado pero sin subcategoría
+          const noSubcat = getUncategorizedApps().filter(a => a.cajonDeSastre && !(a.category && a.category.trim()));
+          const noCat = getUncategorizedApps().filter(a => !a.cajonDeSastre);
+          const uncategorized = getUncategorizedApps();
+          saveApps().then(ok => {
+            if (!ok) {
+              showToast("Error al guardar en Firebase.", "err", 4000);
+              return;
+            }
+            // Priorizar aviso de Cajón sin subcategoría
+            if (noSubcat.length > 0) {
+              const names = noSubcat.map(a => `«${a.name}»`).join(', ');
+              showToast(`⚠ Cajón de sastre sin subcategoría: ${names}. Seleccione un subperfil.`, "err", 4000);
+            } else if (noCat.length > 0) {
+              const names = noCat.map(a => `«${a.name}»`).join(', ');
+              showToast(`⚠ Sin categoría: ${names}. Debe marcarse al menos un perfil.`, "err", 4000);
+            } else {
+              showToast("✓ Guardado", "ok", 1000);
+            }
+          });
+        }
+        // Si acabamos de marcar una categoría y ya no hay apps sin categoría,
+        // ocultar inmediatamente el toast de advertencia
+        if (inp.type === 'checkbox' && inp.checked && getUncategorizedApps().length === 0) {
+          const toast = document.getElementById("toast");
+          if (toast && !toast.classList.contains("hidden")) {
+            toast.classList.add("hidden");
+            clearTimeout(toast._timer);
+          }
+        }
+      });
+      inp.addEventListener("input",  () => {
+        collectTableData();
+        // Actualizar resaltado al teclear el nombre
+        if (inp.dataset.field === 'name') updateRowUncategorizedState(inp);
+      });
       inp.addEventListener("blur",    () => handleAppCellBlur(inp));
       
       // Validación de nombres duplicados/similares (solo campo nombre)
@@ -946,7 +992,47 @@
 
     // Añadir event listeners para selectores de categoría
     tbody.querySelectorAll("select.category-select").forEach(sel => {
-      sel.addEventListener("change", () => collectTableData());
+      sel.addEventListener("change", () => {
+        // Si se selecciona una subcategoría, marcar automáticamente "Cajón de sastre"
+        if (sel.value) {
+          const td = sel.closest('td');
+          const chk = td.querySelector('input[type=checkbox][data-field=cajonDeSastre]');
+          if (chk && !chk.checked) {
+            chk.checked = true;
+            const wrapper = td.querySelector('.category-wrapper');
+            if (wrapper) wrapper.classList.remove('hidden');
+            sel.disabled = false;
+          }
+        }
+        collectTableData();
+        updateRowUncategorizedState(sel);
+        // Guardar y avisar si aún hay apps sin categoría
+        const noSubcat = getUncategorizedApps().filter(a => a.cajonDeSastre && !(a.category && a.category.trim()));
+        const noCat = getUncategorizedApps().filter(a => !a.cajonDeSastre);
+        saveApps().then(ok => {
+          if (!ok) {
+            showToast("Error al guardar en Firebase.", "err", 4000);
+            return;
+          }
+          if (noSubcat.length > 0) {
+            const names = noSubcat.map(a => `«${a.name}»`).join(', ');
+            showToast(`⚠ Cajón de sastre sin subcategoría: ${names}. Seleccione un subperfil.`, "err", 4000);
+          } else if (noCat.length > 0) {
+            const names = noCat.map(a => `«${a.name}»`).join(', ');
+            showToast(`⚠ Sin categoría: ${names}. Debe marcarse al menos un perfil.`, "err", 4000);
+          } else {
+            showToast("✓ Guardado", "ok", 1000);
+          }
+        });
+        // Si acabamos de asignar categoría y ya no hay apps sin categoría, ocultar toast
+        if (sel.value && getUncategorizedApps().length === 0) {
+          const toast = document.getElementById("toast");
+          if (toast && !toast.classList.contains("hidden")) {
+            toast.classList.add("hidden");
+            clearTimeout(toast._timer);
+          }
+        }
+      });
       sel.addEventListener("change", () => handleAppCellBlur(sel));
     });
 
@@ -1017,6 +1103,20 @@
     _isSaving = true;
     
     try {
+      // Advertir si hay apps con nombre pero sin categoría
+      const uncategorized = getUncategorizedApps();
+      if (uncategorized.length > 0) {
+        const noSubcat = uncategorized.filter(a => a.cajonDeSastre && !(a.category && a.category.trim()));
+        const noCat = uncategorized.filter(a => !a.cajonDeSastre);
+        if (noSubcat.length > 0) {
+          const names = noSubcat.map(a => `«${a.name}»`).join(', ');
+          showToast(`⚠ Cajón de sastre sin subcategoría: ${names}. Seleccione un subperfil.`, "err", 4000);
+        } else {
+          const names = noCat.map(a => `«${a.name}»`).join(', ');
+          showToast(`⚠ Sin categoría: ${names}. Debe marcarse al menos un perfil.`, "err", 4000);
+        }
+        return;
+      }
       const ok = await saveApps();
       if (ok) {
         showToast("✓ Guardado", "ok", 1000);
@@ -1258,8 +1358,47 @@
     buildConfigTable();
   };
 
+  // Devuelve array de apps con nombre pero sin ninguna categoría válida
+  // En tecdea, Cajón de sastre requiere además una subcategoría seleccionada
+  function getUncategorizedApps() {
+    return apps.filter(a => {
+      if (!a.name || !a.name.trim()) return false;
+      return !(a.tecnoApps || a.herramientasTecno || a.departamento || (a.cajonDeSastre && a.category && a.category.trim()));
+    });
+  }
+
+  // Actualiza dinámicamente el estado visual de una fila (resaltado sin categoría)
+  // sin reconstruir toda la tabla. Se llama al cambiar cualquier campo.
+  function updateRowUncategorizedState(el) {
+    const tr = el.closest('tr');
+    if (!tr) return;
+    const i = parseInt(tr.dataset.i);
+    if (isNaN(i) || !apps[i]) return;
+    const a = apps[i];
+    const hasName = a.name && a.name.trim();
+    const hasCat  = (a.tecnoApps || a.herramientasTecno || a.departamento || (a.cajonDeSastre && a.category && a.category.trim()));
+    const uncategorized = hasName && !hasCat;
+    tr.classList.toggle('row-uncategorized', uncategorized);
+    tr.dataset.uncategorized = uncategorized;
+  }
+
   async function saveConfig() {
     collectTableData();
+    // Validación obligatoria: cada app con nombre debe tener al menos una categoría válida
+    // (Cajón de sastre requiere además subcategoría)
+    const uncategorized = getUncategorizedApps();
+    if (uncategorized.length > 0) {
+      const noSubcat = uncategorized.filter(a => a.cajonDeSastre && !(a.category && a.category.trim()));
+      const noCat = uncategorized.filter(a => !a.cajonDeSastre);
+      if (noSubcat.length > 0) {
+        const names = noSubcat.map(a => `«${a.name}»`).join(', ');
+        showToast(`Cajón de sastre sin subcategoría: ${names}. Cada app en Cajón debe tener un subperfil asignado.`, "err", 7000);
+      } else {
+        const names = noCat.map(a => `«${a.name}»`).join(', ');
+        showToast(`Cada aplicación debe clasificarse en al menos un perfil. Sin categoría: ${names}`, "err", 7000);
+      }
+      return;
+    }
     apps = apps.filter(a => a.name || a.url);
     const ok = await saveApps();
     if (!ok) {
@@ -2645,6 +2784,23 @@
     border-bottom-color: #93c5fd;
   }
 
+  /* ══ Fila sin categoría: resaltado de advertencia ═══ */
+  table#appsTable tbody tr.row-uncategorized td {
+    background: linear-gradient(to right, #fef2f2 0%, #fee2e2 50%, #fef2f2 100%) !important;
+    border-bottom: 1px solid #fca5a5 !important;
+  }
+  table#appsTable tbody tr.row-uncategorized:hover td {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+    border-bottom-color: #f87171 !important;
+  }
+  table#appsTable tbody tr.row-uncategorized {
+    animation: uncategorizedPulse 2.5s ease-in-out infinite;
+  }
+  @keyframes uncategorizedPulse {
+    0%, 100% { box-shadow: inset 4px 0 0 #ef4444; }
+    50%      { box-shadow: inset 4px 0 0 #f97316; }
+  }
+
   .chk { text-align: center; }
   .fi {
     width: 100%; border: 1.5px solid #d1d5db;
@@ -3197,6 +3353,13 @@
       padding: 1.25rem 1rem 1rem;
       border-radius: 12px;
     }
+    /* Fila sin categoría en móvil pequeño (tarjetas) */
+    table#appsTable tr.row-uncategorized {
+      background: linear-gradient(to right, #fef2f2 0%, #fee2e2 50%, #fef2f2 100%) !important;
+      outline: 2.5px solid #ef4444;
+      outline-offset: -1px;
+      border-radius: 12px;
+    }
   }
 
   /* ── Móvil medio (400–599px) ─────────────────────── */
@@ -3269,6 +3432,13 @@
     .desc-cell { min-width: 0; }
     .url-fi { min-width: 0; }
     .url-cell { min-width: 0; }
+    /* Fila sin categoría en móvil medio (tarjetas) */
+    table#appsTable tr.row-uncategorized {
+      background: linear-gradient(to right, #fef2f2 0%, #fee2e2 50%, #fef2f2 100%) !important;
+      outline: 2.5px solid #ef4444;
+      outline-offset: -1px;
+      border-radius: 12px;
+    }
   }
 
   /* ── Móvil/tablet (600–767px) ────────────────────── */
