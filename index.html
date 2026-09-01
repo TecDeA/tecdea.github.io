@@ -256,7 +256,7 @@
 
   function renderHome() {
     setView("home");
-    // Mostrar botón de configuración al volver al home
+    // Asegurar que el botón Configuración sea visible en Home
     document.querySelector('.btn-config')?.classList.remove('hidden');
   }
 
@@ -337,9 +337,8 @@
     
     // Mostrar vista dedicada del menú de Cajón (donde están los 4 botones)
     setView("cajon-menu");
-    
-    // Ocultar botón de configuración si está visible
-    document.querySelector('.btn-config')?.classList.add('hidden');
+    // Asegurar que el botón Configuración sea visible en el menú de Cajón
+    document.querySelector('.btn-config')?.classList.remove('hidden');
   }
 
   function showGroup(group, category) {
@@ -376,8 +375,8 @@
       ? filtered.map(a => appCard(a)).join("")
       : "<p class='empty'>No hay aplicaciones configuradas para este perfil.</p>";
     setView("group");
-    // Ocultar botón de configuración para evitar solapamiento con botón Volver flotante
-    document.querySelector('.btn-config')?.classList.add('hidden');
+    // Asegurar que el botón Configuración sea visible en las vistas de grupo
+    document.querySelector('.btn-config')?.classList.remove('hidden');
 
     if (filtered.length) {
       grid.querySelectorAll("img[data-app-url]").forEach(img => {
@@ -814,7 +813,7 @@
     buildAdminsTable();
     fillGroupPasswordInputs();
     setView("config");
-    // Ocultar botón de configuración mientras estamos en esta pantalla
+    // Ocultar el botón de Configuración en la propia pantalla de Configuración
     document.querySelector('.btn-config')?.classList.add('hidden');
   }
 
