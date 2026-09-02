@@ -1044,6 +1044,10 @@
       inp.addEventListener("mouseleave", hideDescModal);
       inp.addEventListener("focus", () => hideDescModal(true));
     });
+
+    // Mantener sincronizada la lista de selección para exportar
+    // (cubre: añadir/eliminar filas, guardar, filtrar y ordenar)
+    buildExportAppSelection(true);
   }
 
   // NOTA: setAppsFilter fue reemplazada por setAppsWithSubFilter (con toggle)
@@ -1614,7 +1618,33 @@
     const data = { format };
 
     if (expApps) {
-      let list = apps.slice();
+      // Respetar la selección individual del panel (si está activo y con apps listadas)
+      const selPanel = document.getElementById('appSelPanel');
+      const selList  = document.getElementById('appSelList');
+      const panelActive = selPanel && !selPanel.classList.contains('hidden')
+        && selList && selList.querySelector('.app-sel-item input[type="checkbox"]');
+
+      let list;
+      if (panelActive) {
+        // Resolver cada checkbox contra el array actual: primero por posición + clave,
+        // luego por clave (nombre|URL), y como último recurso por posición.
+        list = Array.from(selList.querySelectorAll('.app-sel-item input[type="checkbox"]:checked'))
+          .map(cb => {
+            const key = cb.dataset.key || '';
+            const i = parseInt(cb.dataset.i);
+            const byPos = (!isNaN(i) && i >= 0 && i < apps.length) ? apps[i] : null;
+            if (byPos && expAppKey(byPos) === key) return byPos;
+            const byKey = apps.find(a => expAppKey(a) === key);
+            if (byKey) return byKey;
+            return byPos; // fallback por posición (p. ej. app renombrada sin reconstruir lista)
+          })
+          .filter(Boolean);
+        if (list.length === 0) {
+          return { error: 'Has marcado exportar «Aplicaciones» pero no hay ninguna seleccionada. Marca al menos una o desmarca esa sección.' };
+        }
+      } else {
+        list = apps.slice();
+      }
       list.sort((a, b) => {
         const va = (a.name || '').toString().toLowerCase().trim();
         const vb = (b.name || '').toString().toLowerCase().trim();
@@ -1813,6 +1843,640 @@
     showToast('PDF exportado correctamente.', 'ok', 2500);
   }
 
+  // ════════════════════════════════════════════════════════
+  //  SELECCIÓN INDIVIDUAL DE APLICACIONES PARA EXPORTAR
+  // ════════════════════════════════════════════════════════
+
+  // Clave estable de una app para la lista de selección (nombre normalizado | URL normalizada)
+  function expAppKey(a) {
+    return normalizeForComparison(a.name || '') + '|' + normUrlKey(a.url || '');
+  }
+
+  // Perfiles («categorías») e iconos, en el orden del menú principal
+  const EXPORT_PROFILES = [
+    { key: 'tecnoApps',         label: 'TecnoApps',       icon: '📱' },
+    { key: 'herramientasTecno', label: 'Herr. Tecno',     icon: '🔧' },
+    { key: 'departamento',      label: 'Departamento',    icon: '🏫' },
+    { key: 'cajonDeSastre',     label: 'Cajón de sastre', icon: '🧰' }
+  ];
+
+  // Iconos de las subcategorías de Cajón de sastre (los mismos que usa el menú)
+  const EXPORT_SUBCAT_ICONS = {
+    matematicas: '📐', fisica: '⚛️', quimica: '🧪', ia: '🤖', utilidades: '🔧'
+  };
+
+  // Escapa un valor para usarlo como literal de cadena JS dentro de un onclick
+  function jsAttr(s) {
+    return escHtml(String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+  }
+
+  // Índices (en apps) de las apps de un perfil («p») o de una subcategoría de
+  // Cajón de sastre («c»). Se devuelven ÍNDICES (identidad de fila) y no claves
+  // nombre|URL, para que dos apps distintas con la misma clave no se afecten
+  // entre sí al marcar/desmarcar grupos.
+  function appSelTargetIdx(kind, key) {
+    const out = [];
+    apps.forEach((a, i) => {
+      if (kind === 'p') { if (!!a[key]) out.push(i); }
+      else if (key === '__none__') { if (a.cajonDeSastre && !(a.category || '')) out.push(i); }
+      else if (a.cajonDeSastre && (a.category || '') === key) out.push(i);
+    });
+    return out;
+  }
+
+  // Apps de un perfil («p») o de una subcategoría de Cajón de sastre («c»)
+  function appSelTargets(kind, key) {
+    return appSelTargetIdx(kind, key).map(i => apps[i]);
+  }
+
+  // Nº de perfiles a los que pertenece una app. Las subcategorías NO cuentan
+  // (Cajón + subcategoría es una relación padre-hijo, no multi-perfil): una app
+  // es multi-perfil cuando tiene marcados 2 o más de los 4 perfiles.
+  function appProfileCount(a) {
+    return (!!a.tecnoApps ? 1 : 0) + (!!a.herramientasTecno ? 1 : 0) +
+           (!!a.departamento ? 1 : 0) + (!!a.cajonDeSastre ? 1 : 0);
+  }
+
+  // Nota explicativa para el title de un chip con apps compartidas entre perfiles
+  function appSelSharedNote(nShared) {
+    return nShared
+      ? ` — ${nShared} también en otro${nShared === 1 ? '' : 's'} ${nShared === 1 ? 'perfil' : 'perfiles'} se mantiene${nShared === 1 ? '' : 'n'} marcada${nShared === 1 ? '' : 's'} al desmarcar`
+      : '';
+  }
+
+  // Subcategorías presentes en los datos (orden fijo; «sin subcategoría» al final)
+  function exportSubcatsInData() {
+    const ORDER = ['matematicas', 'fisica', 'quimica', 'ia', 'utilidades'];
+    const pos = v => v === '__none__' ? 999 : (ORDER.indexOf(v) === -1 ? 99 : ORDER.indexOf(v));
+    const found = new Set();
+    apps.forEach(a => { if (a.cajonDeSastre) found.add((a.category || '') || '__none__'); });
+    return Array.from(found).sort((x, y) =>
+      (pos(x) - pos(y)) || String(x).localeCompare(String(y), 'es', { sensitivity: 'base' }));
+  }
+
+  // Claves de las apps listadas (solo marcadas si onlyChecked)
+  function exportCheckedKeys(onlyChecked = true) {
+    const listEl = document.getElementById('appSelList');
+    if (!listEl) return new Set();
+    const suf = onlyChecked ? ':checked' : '';
+    return new Set(Array.from(listEl.querySelectorAll(`.app-sel-item input[type="checkbox"]${suf}`))
+      .map(cb => cb.dataset.key || ''));
+  }
+
+  // Visibilidad de una fila de la lista (afectada por el buscador/filtro de categoría)
+  function exportRowVisible(itemEl) {
+    return !!itemEl && itemEl.style.display !== 'none';
+  }
+
+  // ¿Hay filtro o búsqueda activa? (alguna fila oculta)
+  function exportListFiltered() {
+    const listEl = document.getElementById('appSelList');
+    if (!listEl) return false;
+    const rows = listEl.querySelectorAll('.app-sel-item');
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].style.display === 'none') return true;
+    }
+    return false;
+  }
+
+  // Botón-chip de una categoría/subcategoría con contador «seleccionadas/total»
+  function exportCatChip(kind, key, label, icon, checkedSet) {
+    const keys = appSelTargets(kind, key).map(expAppKey);
+    const nSel = keys.reduce((n, k) => n + (checkedSet.has(k) ? 1 : 0), 0);
+    const cls = (keys.length && nSel === keys.length) ? 'on' : (nSel > 0 ? 'partial' : '');
+    const nShared = appSelTargetIdx(kind, key).filter(i => appProfileCount(apps[i]) >= 2).length;
+    const title = keys.length
+      ? `${label}: ${nSel} de ${keys.length} seleccionadas — clic para ${nSel === keys.length ? 'desmarcar' : 'marcar'}${appSelSharedNote(nShared)}`
+      : `${label}: sin aplicaciones`;
+    return `<button type="button" class="app-sel-chip ${cls}" data-kind="${kind}" data-key="${escHtml(key)}" data-label="${escHtml(label)}" title="${escHtml(title)}" onclick="tecdea.toggleExportCat('${kind}','${jsAttr(key)}')">${icon ? icon + ' ' : ''}${escHtml(label)} <span class="app-sel-chip-n">${nSel}/${keys.length}</span></button>`;
+  }
+
+  // Pinta los chips de selección por perfil/subcategoría y las opciones del filtro
+  function renderExportCatControls() {
+    const catsBox = document.getElementById('appSelCats');
+    const selEl   = document.getElementById('appSelCatFilter');
+    if (!catsBox || !selEl) return;
+
+    const prevFilter = selEl.value || '';
+    const checkedSet = exportCheckedKeys(true);
+
+    const profChips = EXPORT_PROFILES
+      .map(p => ({ p, n: apps.filter(a => !!a[p.key]).length }))
+      .filter(({ n }) => n > 0)
+      .map(({ p }) => exportCatChip('p', p.key, p.label, p.icon, checkedSet));
+
+    const subcats = exportSubcatsInData();
+    const subChips = subcats.map(c =>
+      exportCatChip('c', c,
+        c === '__none__' ? 'Sin subcategoría' : categoryLabel(c),
+        c === '__none__' ? '' : (EXPORT_SUBCAT_ICONS[c] || '🏷'), checkedSet));
+
+    if (!profChips.length) {
+      catsBox.innerHTML = '';
+      catsBox.classList.add('hidden');
+    } else {
+      catsBox.classList.remove('hidden');
+      const nMulti = apps.filter(a => appProfileCount(a) >= 2).length;
+      catsBox.innerHTML = `
+        <div class="app-sel-cats-row">
+          <span class="app-sel-cats-label">Seleccionar por perfil:</span>
+          <div class="app-sel-chips">${profChips.join('')}</div>
+        </div>
+        ${subChips.length ? `
+        <div class="app-sel-cats-row">
+          <span class="app-sel-cats-label">Subcategorías (Cajón):</span>
+          <div class="app-sel-chips">${subChips.join('')}</div>
+        </div>` : ''}
+        ${nMulti ? `<div class="app-sel-cats-note">ℹ️ ${nMulti === 1
+          ? 'Hay 1 aplicación que pertenece a varios perfiles: al desmarcar un grupo permanece marcada (quítala con su casilla si no quieres exportarla).'
+          : `Hay ${nMulti} aplicaciones que pertenecen a varios perfiles: al desmarcar un grupo permanecen marcadas (quítalas con su casilla si no quieres exportarlas).`}</div>` : ''}`;
+    }
+
+    const opts = ['<option value="">Filtrar: todas las categorías</option>'];
+    if (profChips.length) {
+      opts.push('<optgroup label="Perfiles">' + EXPORT_PROFILES
+        .filter(p => apps.some(a => !!a[p.key]))
+        .map(p => `<option value="p:${p.key}">${p.icon} ${escHtml(p.label)}</option>`)
+        .join('') + '</optgroup>');
+    }
+    if (subcats.length) {
+      opts.push('<optgroup label="Subcategorías de Cajón de sastre">' + subcats
+        .map(c => `<option value="c:${escHtml(c)}">${c === '__none__' ? '🧰 Sin subcategoría' : escHtml((EXPORT_SUBCAT_ICONS[c] || '🏷') + ' ' + categoryLabel(c))}</option>`)
+        .join('') + '</optgroup>');
+    }
+    selEl.innerHTML = opts.join('');
+    selEl.value = Array.from(selEl.options).some(o => o.value === prevFilter) ? prevFilter : '';
+  }
+
+  // Refresca contadores y estado visual de los chips sin reconstruirlos.
+  // Con filtro/búsqueda activa, contador y estado se calculan sobre las filas
+  // VISIBLES del grupo (el alcance real del clic); sin filtro, sobre el grupo entero.
+  function refreshExportChipCounts() {
+    const catsBox = document.getElementById('appSelCats');
+    if (!catsBox || catsBox.classList.contains('hidden')) return;
+    const filtered = exportListFiltered();
+    const checkedSet = exportCheckedKeys(true);
+    const listEl = document.getElementById('appSelList');
+    const allBoxes = listEl
+      ? Array.from(listEl.querySelectorAll('.app-sel-item input[type="checkbox"]'))
+      : [];
+    catsBox.querySelectorAll('.app-sel-chip[data-kind]').forEach(chip => {
+      const idxArr = appSelTargetIdx(chip.dataset.kind, chip.dataset.key);
+      const idxSet = new Set(idxArr);
+      const total = idxSet.size;
+      const nShared = idxArr.filter(i => appProfileCount(apps[i]) >= 2).length;
+      const boxes = allBoxes
+        .filter(cb => idxSet.has(Number(cb.dataset.i)))
+        .map(cb => ({ cb, vis: exportRowVisible(cb.closest('.app-sel-item')) }));
+      const scope = filtered ? boxes.filter(b => b.vis) : boxes;
+      const nScope = scope.length;
+      const nSel = scope.reduce((n, b) => n + (b.cb.checked ? 1 : 0), 0);
+      const nEl = chip.querySelector('.app-sel-chip-n');
+      if (nEl) nEl.textContent = `${nSel}/${nScope}`;
+      const noop = nScope === 0;
+      chip.disabled = noop;
+      chip.classList.toggle('noop', noop);
+      chip.classList.toggle('on', !noop && nSel === nScope);
+      chip.classList.toggle('partial', !noop && nSel > 0 && nSel < nScope);
+      const label = chip.dataset.label || '';
+      chip.title = noop
+        ? `${label}: sin aplicaciones visibles con el filtro actual`
+        : `${label}: ${nSel} de ${nScope}${filtered ? ` visibles (${total} en total)` : ''} seleccionadas — clic para ${nSel === nScope ? 'desmarcar' : 'marcar'}${appSelSharedNote(nShared)}`;
+    });
+  }
+
+  // Marca o desmarca (toggle) las apps de un perfil o subcategoría.
+  // Con filtro/búsqueda activa solo afecta a las filas VISIBLES del grupo.
+  // Al DESMARCAR, las apps que además pertenecen a OTRO perfil se mantienen
+  // marcadas: desactivar un grupo (p. ej. «Cajón de sastre») nunca desactiva
+  // otro grupo distinto (p. ej. «Herr. Tecno»), porque esa app sigue
+  // seleccionada por su otro perfil. Las filas se emparejan por data-i
+  // (identidad), no por clave nombre|URL, para tolerar claves duplicadas.
+  function toggleExportCat(kind, key) {
+    const listEl = document.getElementById('appSelList');
+    if (!listEl) return;
+    const idxSet = new Set(appSelTargetIdx(kind, key));
+    if (!idxSet.size) return;
+    const filtered = exportListFiltered();
+    const inCat = Array.from(listEl.querySelectorAll('.app-sel-item input[type="checkbox"]'))
+      .filter(cb => idxSet.has(Number(cb.dataset.i)))
+      .filter(cb => !filtered || exportRowVisible(cb.closest('.app-sel-item')));
+    if (!inCat.length) return;
+    const allChecked = inCat.every(cb => cb.checked);
+    inCat.forEach(cb => {
+      const a = apps[Number(cb.dataset.i)];
+      // Retención: solo se desmarcan las apps EXCLUSIVAS de este perfil;
+      // las multi-perfil siguen marcadas porque las cubre su otro perfil.
+      cb.checked = allChecked ? !!(a && appProfileCount(a) >= 2) : true;
+    });
+    updateExportSelCount();
+  }
+
+  // Muestra/oculta el panel según el estado del check "Aplicaciones"
+  function syncExportAppPanel() {
+    const expAppsEl = document.getElementById('expApps');
+    const panel = document.getElementById('appSelPanel');
+    if (!expAppsEl || !panel) return;
+    panel.classList.toggle('hidden', !expAppsEl.checked);
+  }
+
+  // Handler del check "Aplicaciones" en la exportación
+  function onExpAppsToggle() {
+    const expAppsEl = document.getElementById('expApps');
+    if (expAppsEl && expAppsEl.checked) {
+      buildExportAppSelection(true);
+    }
+    syncExportAppPanel();
+  }
+
+  // Construye (o reconstruye) la lista de selección de aplicaciones.
+  // preserveSelection: mantiene las marcas anteriores; las apps nuevas se marcan por defecto.
+  function buildExportAppSelection(preserveSelection = true) {
+    const listEl = document.getElementById('appSelList');
+    if (!listEl) return;
+
+    // Selección previa: marcadas y existentes (para preservar al reconstruir)
+    const prevChecked = new Set();
+    const prevAll = new Set();
+    if (preserveSelection) {
+      listEl.querySelectorAll('.app-sel-item input[type="checkbox"]').forEach(cb => {
+        prevAll.add(cb.dataset.key || '');
+        if (cb.checked) prevChecked.add(cb.dataset.key || '');
+      });
+    }
+    const isFirstBuild = prevAll.size === 0;
+
+    const indexed = apps.map((a, idx) => ({ a, idx }));
+    indexed.sort((x, y) => {
+      const va = (x.a.name || '').toString().toLowerCase().trim();
+      const vb = (y.a.name || '').toString().toLowerCase().trim();
+      return va.localeCompare(vb, 'es', { numeric: true, sensitivity: 'base' });
+    });
+
+    if (indexed.length === 0) {
+      listEl.innerHTML = '<div class="app-sel-empty">No hay aplicaciones configuradas.</div>';
+      renderExportCatControls();
+      filterExportAppList();
+      updateExportSelCount();
+      return;
+    }
+
+    listEl.innerHTML = indexed.map(({ a, idx }) => {
+      const key = expAppKey(a);
+      let checked;
+      if (isFirstBuild || !preserveSelection) checked = true;
+      else if (prevChecked.has(key)) checked = true;
+      else if (!prevAll.has(key)) checked = true; // app añadida recientemente → marcada
+      else checked = false;                       // existía y estaba desmarcada
+      const profiles = EXPORT_PROFILES.filter(p => !!a[p.key]);
+      const catTag = a.cajonDeSastre && a.category
+        ? `<span class="app-sel-tag tag-cat" title="Cajón de sastre · ${escHtml(categoryLabel(a.category))}">${escHtml(EXPORT_SUBCAT_ICONS[a.category] || '🏷')} ${escHtml(categoryLabel(a.category))}</span>`
+        : '';
+      return `
+        <label class="app-sel-item" data-profiles="${escHtml(profiles.map(p => p.key).join(','))}" data-cat="${a.cajonDeSastre ? escHtml(a.category || '__none__') : ''}">
+          <input type="checkbox" data-i="${idx}" data-key="${escHtml(key)}" ${checked ? 'checked' : ''} onchange="tecdea.updateExportSelCount()">
+          <span class="app-sel-name">${escHtml(a.name || '(sin nombre)')}</span>
+          <span class="app-sel-tags">${profiles.map(p => `<span class="app-sel-tag" title="${escHtml(p.label)}">${p.icon}</span>`).join('')}${catTag}</span>
+          <span class="app-sel-url">${escHtml(a.url || '')}</span>
+        </label>`;
+    }).join('') + '<div id="appSelNoRes" class="app-sel-empty hidden">Ninguna aplicación coincide con el buscador o el filtro de categoría.</div>';
+
+    renderExportCatControls();
+    filterExportAppList(); // re-aplica el filtro preservado a las filas recién creadas
+    updateExportSelCount();
+  }
+
+  function updateExportSelCount() {
+    const listEl = document.getElementById('appSelList');
+    const countEl = document.getElementById('appSelCount');
+    if (listEl && countEl) {
+      const boxes = listEl.querySelectorAll('.app-sel-item input[type="checkbox"]');
+      const sel = listEl.querySelectorAll('.app-sel-item input[type="checkbox"]:checked');
+      countEl.textContent = `${sel.length} de ${boxes.length}`;
+    }
+    refreshExportChipCounts();
+  }
+
+  // «Todas» / «Ninguna»: con filtro/búsqueda activa solo afecta a las filas visibles
+  function selectAllExportApps(state) {
+    const listEl = document.getElementById('appSelList');
+    if (!listEl) return;
+    const filtered = exportListFiltered();
+    listEl.querySelectorAll('.app-sel-item input[type="checkbox"]').forEach(cb => {
+      if (!filtered || exportRowVisible(cb.closest('.app-sel-item'))) cb.checked = !!state;
+    });
+    updateExportSelCount();
+  }
+
+  function filterExportAppList() {
+    const searchEl = document.getElementById('appSelSearch');
+    const catEl    = document.getElementById('appSelCatFilter');
+    const q  = (searchEl ? searchEl.value : '').toLowerCase().trim();
+    const fv = catEl ? (catEl.value || '') : '';
+    const rows = Array.from(document.querySelectorAll('#appSelList .app-sel-item'));
+    let visible = 0;
+    rows.forEach(it => {
+      const okText = !q || it.textContent.toLowerCase().includes(q);
+      let okCat = true;
+      if (fv.startsWith('p:'))      okCat = (it.dataset.profiles || '').split(',').includes(fv.slice(2));
+      else if (fv.startsWith('c:')) okCat = (it.dataset.cat || '') === fv.slice(2);
+      const show = okText && okCat;
+      it.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+    const noRes = document.getElementById('appSelNoRes');
+    if (noRes) noRes.classList.toggle('hidden', visible > 0);
+    // Nota de alcance: los botones masivos y chips actúan solo sobre lo visible
+    const note = document.getElementById('appSelScopeNote');
+    if (note) note.classList.toggle('hidden', visible === rows.length);
+    // Los chips cambian de alcance/estado cuando el filtro cambia
+    refreshExportChipCounts();
+  }
+
+  // ════════════════════════════════════════════════════════
+  //  IMPORTACIÓN MASIVA DE APLICACIONES (desde .xlsx exportado)
+  // ════════════════════════════════════════════════════════
+
+  let _importCandidates = null;
+
+  // Normaliza una URL para detectar duplicados (ignora protocolo, www y barras finales)
+  function normUrlKey(u) {
+    if (!u) return '';
+    return String(u).trim().toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/^www\./, '')
+      .replace(/\/+$/, '');
+  }
+
+  function parseImportBool(v) {
+    if (v === true || v === 1) return true;
+    const s = String(v == null ? '' : v).trim().toLowerCase();
+    return ['sí', 'si', 'yes', 'true', 'x', '1', 'verdadero'].includes(s);
+  }
+
+  const IMPORT_CATEGORIES = [
+    { value: 'matematicas', label: 'Matemáticas' },
+    { value: 'fisica',      label: 'Física' },
+    { value: 'quimica',     label: 'Química' },
+    { value: 'ia',          label: 'IA' },
+    { value: 'utilidades',  label: 'Utilidades' }
+  ];
+
+  function parseImportCategory(v) {
+    const s = String(v == null ? '' : v).trim();
+    if (!s || s === '-') return '';
+    const norm = normalizeForComparison(s);
+    const direct = IMPORT_CATEGORIES.find(c => c.value === norm);
+    if (direct) return direct.value;
+    const byLabel = IMPORT_CATEGORIES.find(c => normalizeForComparison(c.label) === norm);
+    return byLabel ? byLabel.value : '';
+  }
+
+  // Busca el valor de un campo de fila tolerando variaciones del encabezado
+  // (acentos, mayúsculas y espacios: «Herramientas Tecno» ≡ «HerramientasTecno»)
+  function pickImportField(row, ...names) {
+    const keys = Object.keys(row);
+    const normHeader = s => normalizeForComparison(s).replace(/\s+/g, '');
+    for (const n of names) {
+      const target = normHeader(n);
+      const key = keys.find(k => normHeader(k) === target);
+      if (key !== undefined) {
+        const v = row[key];
+        if (v !== undefined && v !== '') return v;
+      }
+    }
+    return '';
+  }
+
+  // Clasifica cada fila del archivo: nueva / duplicada / inválida
+  function analyzeImportRows(rows) {
+    const existing = apps
+      .map(a => ({
+        nameKey: normalizeForComparison(a.name || ''),
+        urlKey:  normUrlKey(a.url || ''),
+        name:    a.name || ''
+      }))
+      .filter(e => e.nameKey || e.urlKey);
+
+    const seenNameKeys = new Set();
+    const seenUrlKeys  = new Set();
+
+    return rows.map((r, i) => {
+      const cand = {
+        id: i,
+        name: String(r.name || '').trim(),
+        desc: String(r.desc || '').trim(),
+        url:  String(r.url || '').trim(),
+        tecnoApps: !!r.tecnoApps,
+        herramientasTecno: !!r.herramientasTecno,
+        departamento: !!r.departamento,
+        cajonDeSastre: !!r.cajonDeSastre,
+        category: r.category || '',
+        status: 'new',
+        dupOf: ''
+      };
+      const nameKey = normalizeForComparison(cand.name);
+      const urlKey  = normUrlKey(cand.url);
+
+      if (!cand.name || !cand.url) {
+        cand.status = 'invalid';
+      } else {
+        const hit = existing.find(e =>
+          (nameKey && e.nameKey === nameKey) ||
+          (urlKey && e.urlKey && e.urlKey === urlKey));
+        if (hit) {
+          cand.status = 'dup';
+          cand.dupOf = hit.name || 'app existente';
+        } else if (seenNameKeys.has(nameKey) || (urlKey && seenUrlKeys.has(urlKey))) {
+          cand.status = 'dup';
+          cand.dupOf = 'repetida en el archivo';
+        } else {
+          seenNameKeys.add(nameKey);
+          if (urlKey) seenUrlKeys.add(urlKey);
+        }
+      }
+      return cand;
+    });
+  }
+
+  function onImportFileSelected() {
+    const fi = document.getElementById('importFile');
+    const fn = document.getElementById('importFileName');
+    if (!fi || !fn) return;
+    const f = fi.files && fi.files[0];
+    fn.textContent = f ? f.name : 'Ningún archivo seleccionado';
+    _importCandidates = null; // invalida el análisis previo si cambia el archivo
+  }
+
+  async function analyzeImportFile() {
+    const fi = document.getElementById('importFile');
+    const file = fi && fi.files && fi.files[0];
+    if (!file) {
+      showToast('Selecciona primero un archivo Excel (.xlsx).', 'err', 4000);
+      return;
+    }
+    if (!/\.(xlsx|xlsm)$/i.test(file.name)) {
+      showToast('El archivo debe ser un Excel .xlsx (como el generado por «Exportar datos»).', 'err', 5000);
+      return;
+    }
+    showToast('Analizando archivo…', 'ok', 1500);
+    try {
+      await loadScript('https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js');
+      const X = window.XLSX;
+      if (!X) throw new Error('SheetJS no disponible');
+
+      const buf = await file.arrayBuffer();
+      const wb = X.read(buf, { type: 'array' });
+      const names = wb.SheetNames || [];
+      const target = names.find(n => normalizeForComparison(n) === 'aplicaciones')
+        || (names.length === 1 ? names[0] : null);
+      if (!target) {
+        throw new Error('No se encontró la hoja «Aplicaciones». Hojas del archivo: ' + names.join(', '));
+      }
+
+      const rawRows = X.utils.sheet_to_json(wb.Sheets[target], { defval: '' });
+      if (!rawRows.length) throw new Error('La hoja «Aplicaciones» no contiene filas.');
+
+      const parsed = rawRows.map(r => ({
+        name: String(pickImportField(r, 'Nombre', 'name') || ''),
+        desc: String(pickImportField(r, 'Descripción', 'Descripcion', 'desc') || ''),
+        url:  String(pickImportField(r, 'URL', 'url', 'Enlace') || ''),
+        tecnoApps:         parseImportBool(pickImportField(r, 'TecnoApps', 'Tec.')),
+        herramientasTecno: parseImportBool(pickImportField(r, 'HerramientasTecno', 'Herramientas Tecno', 'HerrTec')),
+        departamento:      parseImportBool(pickImportField(r, 'Departamento', 'Dep.')),
+        cajonDeSastre:     parseImportBool(pickImportField(r, 'Cajón de sastre', 'Cajon de sastre', 'Caj.')),
+        category:          parseImportCategory(pickImportField(r, 'Categoría', 'Categoria', 'Subperfil'))
+      }));
+
+      _importCandidates = analyzeImportRows(parsed);
+      openImportModal();
+    } catch (e) {
+      console.error('[TecDeA] Error al analizar el archivo de importación:', e);
+      showToast('Error al analizar el archivo: ' + e.message, 'err', 7000);
+    }
+  }
+
+  function importPerfilesLabel(c) {
+    const parts = [];
+    if (c.tecnoApps) parts.push('TecnoApps');
+    if (c.herramientasTecno) parts.push('Herr. Tecno');
+    if (c.departamento) parts.push('Dep.');
+    if (c.cajonDeSastre) {
+      const cat = c.category ? categoryLabel(c.category) : '';
+      parts.push('Cajón' + (cat ? ` (${cat})` : ''));
+    }
+    return parts.length ? parts.join(' · ') : '— ninguno —';
+  }
+
+  function openImportModal() {
+    renderImportPreview();
+    const m = document.getElementById('importModal');
+    if (m) m.classList.remove('hidden');
+  }
+
+  function closeImportModal() {
+    const m = document.getElementById('importModal');
+    if (m) m.classList.add('hidden');
+  }
+
+  function renderImportPreview() {
+    const body = document.getElementById('importPreviewBody');
+    const sum  = document.getElementById('importSummary');
+    if (!body || !_importCandidates) return;
+
+    const news   = _importCandidates.filter(c => c.status === 'new');
+    const dups   = _importCandidates.filter(c => c.status === 'dup');
+    const invals = _importCandidates.filter(c => c.status === 'invalid');
+
+    sum.innerHTML =
+      `Se han detectado <strong>${news.length}</strong> aplicación(es) nueva(s), ` +
+      `<strong>${dups.length}</strong> duplicada(s) y <strong>${invals.length}</strong> inválida(s) (sin nombre o URL). ` +
+      `Las duplicadas se omitirán automáticamente para evitar repeticiones en la base de datos.`;
+
+    body.innerHTML = _importCandidates.map(c => {
+      const rowCls = c.status === 'dup' ? 'imp-row-dup' : (c.status === 'invalid' ? 'imp-row-inv' : 'imp-row-new');
+      const badge = c.status === 'new'
+        ? '<span class="imp-badge imp-badge-ok">✅ Nueva</span>'
+        : c.status === 'dup'
+          ? '<span class="imp-badge imp-badge-dup">⚠️ Duplicada</span>'
+          : '<span class="imp-badge imp-badge-inv">❌ Inválida</span>';
+      const dupOf = c.dupOf ? `<span class="imp-dupof">↳ coincide con «${escHtml(c.dupOf)}»</span>` : '';
+      const chk = c.status === 'new'
+        ? `<input type="checkbox" data-cid="${c.id}" checked onchange="tecdea.updateImportConfirmBtn()">`
+        : '<input type="checkbox" disabled>';
+      return `
+        <tr class="${rowCls}">
+          <td>${chk}</td>
+          <td><span class="imp-name">${escHtml(c.name || '(sin nombre)')}</span><br><span class="imp-url">${escHtml(c.desc || '')}</span></td>
+          <td><span class="imp-url">${escHtml(c.url || '—')}</span></td>
+          <td><span class="imp-perfiles">${importPerfilesLabel(c)}</span></td>
+          <td>${badge}${dupOf}</td>
+        </tr>`;
+    }).join('');
+
+    updateImportConfirmBtn();
+  }
+
+  function updateImportConfirmBtn() {
+    const btn = document.getElementById('importConfirmBtn');
+    if (!btn || !_importCandidates) return;
+    const n = _importCandidates.filter(c => {
+      if (c.status !== 'new') return false;
+      const cb = document.querySelector(`#importPreviewBody input[data-cid="${c.id}"]`);
+      return cb && cb.checked;
+    }).length;
+    btn.textContent = `📥 Importar seleccionadas (${n})`;
+    btn.disabled = n === 0;
+  }
+
+  async function confirmImport() {
+    if (!_importCandidates) { closeImportModal(); return; }
+
+    const toImport = _importCandidates.filter(c => {
+      if (c.status !== 'new') return false;
+      const cb = document.querySelector(`#importPreviewBody input[data-cid="${c.id}"]`);
+      return cb && cb.checked;
+    });
+
+    if (toImport.length === 0) {
+      showToast('No hay aplicaciones nuevas seleccionadas para importar.', 'err', 4000);
+      return;
+    }
+
+    const imported = toImport.map(c => ({
+      name: c.name,
+      desc: c.desc,
+      url:  c.url,
+      tecnoApps: c.tecnoApps,
+      herramientasTecno: c.herramientasTecno,
+      departamento: c.departamento,
+      cajonDeSastre: c.cajonDeSastre,
+      category: c.cajonDeSastre ? (c.category || '') : ''
+    }));
+
+    apps = apps.concat(imported);
+    const ok = await saveApps();
+    if (!ok) {
+      showToast('Error al guardar en Firebase. No se ha importado nada.', 'err', 7000);
+      return;
+    }
+
+    const omitted = _importCandidates.length - imported.length;
+    closeImportModal();
+    showToast(`✓ Importadas ${imported.length} aplicación(es). Omitidas (duplicadas/inválidas): ${omitted}.`, 'ok', 7000);
+
+    // Refrescar tabla de configuración y lista de selección de exportación
+    buildConfigTable();
+    buildExportAppSelection(true);
+
+    // Reset del formulario de importación
+    _importCandidates = null;
+    const fi = document.getElementById('importFile');
+    if (fi) fi.value = '';
+    const fn = document.getElementById('importFileName');
+    if (fn) fn.textContent = 'Ningún archivo seleccionado';
+  }
+
   // ── Utilidades ────────────────────────────────────────
   function setView(id) {
     ["home","group","cajon-menu","config"].forEach(v =>
@@ -1955,6 +2619,12 @@
       headerBtn.classList.add('active');
       headerBtn.setAttribute('aria-expanded', 'true');
       content.classList.add('open');
+
+      // Al abrir el acordeón de Exportar, refrescar el panel de selección de aplicaciones
+      if (item.querySelector('#appSelPanel')) {
+        buildExportAppSelection(true);
+        syncExportAppPanel();
+      }
     }
   }
 
@@ -2107,7 +2777,13 @@
     toggleCajonCategory,
     // Detección de duplicados
     findSimilarApps,
-    validateAppName
+    validateAppName,
+    // Selección individual de aplicaciones para exportar
+    onExpAppsToggle, buildExportAppSelection, selectAllExportApps,
+    filterExportAppList, updateExportSelCount, toggleExportCat,
+    // Importación masiva de aplicaciones
+    onImportFileSelected, analyzeImportFile, closeImportModal,
+    confirmImport, updateImportConfirmBtn
     // toggleCajonSubfilters eliminada de API pública (obsoleta - usar setAppsFilter)
   };
 
@@ -3057,6 +3733,158 @@
     font-weight: 700;
   }
 
+  /* ══ Panel de selección de aplicaciones a exportar ══ */
+  .app-sel-panel {
+    margin: .8rem 0 .4rem;
+    padding: .9rem;
+    background: var(--white);
+    border: 1px solid #d7dce5;
+    border-radius: 10px;
+  }
+  .app-sel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: .6rem; flex-wrap: wrap; margin-bottom: .5rem;
+  }
+  .app-sel-header .fi-label { margin: 0; }
+  .app-sel-actions { display: flex; gap: .4rem; }
+  .app-sel-actions .btn { min-height: 32px; padding: .25rem .75rem; font-size: .75rem; }
+  .app-sel-search { margin-bottom: .6rem; font-size: .85rem; }
+  .app-sel-list {
+    max-height: 230px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    border: 1px solid #e5e7eb; border-radius: 8px; background: #fafbfd;
+  }
+  .app-sel-item {
+    display: flex; align-items: center; gap: .55rem;
+    padding: .45rem .7rem; border-bottom: 1px solid #eef1f5;
+    font-size: .85rem; cursor: pointer;
+    user-select: none; -webkit-user-select: none;
+  }
+  .app-sel-item:last-child { border-bottom: none; }
+  .app-sel-item:hover { background: #f0f4fa; }
+  .app-sel-item input[type="checkbox"] {
+    width: 17px; height: 17px; accent-color: var(--navy);
+    flex-shrink: 0; cursor: pointer; margin: 0;
+  }
+  .app-sel-name { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 48%; min-width: 0; }
+  .app-sel-url {
+    color: var(--muted); font-size: .72rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    min-width: 0; flex: 1; text-align: right;
+  }
+  .app-sel-empty {
+    padding: 1rem; text-align: center;
+    color: var(--muted); font-style: italic; font-size: .85rem;
+  }
+
+  /* ══ Chips de selección por perfil/subcategoría y filtro por categoría ══ */
+  .app-sel-cats { display: flex; flex-direction: column; gap: .45rem; margin-bottom: .6rem; }
+  .app-sel-cats-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+  .app-sel-cats-label {
+    font-size: .68rem; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .04em; min-width: 128px;
+  }
+  .app-sel-chips { display: flex; flex-wrap: wrap; gap: .35rem; flex: 1; min-width: 0; }
+  .app-sel-chip {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .28rem .6rem; border-radius: 999px; cursor: pointer;
+    background: #eef2f7; border: 1.5px solid #d7dce5; color: var(--text);
+    font-size: .74rem; font-weight: 600; line-height: 1.25; font-family: inherit;
+    transition: background .15s, border-color .15s, color .15s;
+    user-select: none; -webkit-user-select: none;
+  }
+  .app-sel-chip:hover { border-color: var(--navy); background: #e3ebf5; }
+  .app-sel-chip .app-sel-chip-n {
+    font-weight: 700; font-size: .66rem; color: var(--muted);
+    background: #fff; border-radius: 999px; padding: .04rem .38rem;
+  }
+  .app-sel-chip.on { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .app-sel-chip.on .app-sel-chip-n { background: rgba(255,255,255,.28); color: #fff; }
+  .app-sel-chip.partial { border-color: var(--navy); background: #e8eefb; color: var(--navy); }
+  .app-sel-chip.partial .app-sel-chip-n { color: var(--navy); }
+  .app-sel-filters { display: flex; gap: .5rem; margin-bottom: .6rem; flex-wrap: wrap; }
+  .app-sel-filters .app-sel-search { flex: 1; min-width: 150px; margin-bottom: 0; }
+  .app-sel-catfilter {
+    width: auto; min-width: 175px; max-width: 100%; flex-shrink: 0;
+    appearance: auto; -webkit-appearance: menulist;
+    padding: .35rem .45rem; font-size: .8rem; min-height: 38px;
+  }
+  .app-sel-tags { display: inline-flex; align-items: center; gap: .25rem; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+  .app-sel-tag {
+    font-size: .62rem; font-weight: 700; padding: .08rem .34rem; border-radius: 6px;
+    background: #e8eefb; color: var(--navy); border: 1px solid #d5dff0; white-space: nowrap;
+  }
+  .app-sel-tag.tag-cat { background: #fdf3d9; color: #8a6100; border-color: #efdba6; }
+  .app-sel-scope {
+    font-size: .72rem; color: #8a6100; background: #fdf3d9;
+    border: 1px dashed #efdba6; padding: .3rem .55rem;
+    border-radius: 8px; margin-bottom: .55rem;
+  }
+  .app-sel-chip.noop,
+  .app-sel-chip:disabled { opacity: .45; cursor: not-allowed; }
+  .app-sel-cats-note {
+    font-size: .72rem; color: #4b5b74; background: #eef2f7;
+    border: 1px dashed #d7dce5; padding: .3rem .55rem; border-radius: 8px;
+  }
+  @media (max-width: 600px) {
+    .app-sel-cats-label { min-width: 100%; }
+    .app-sel-catfilter { min-width: 0; flex: 1; }
+  }
+
+  /* ══ Importación de aplicaciones ════════════════════ */
+  .import-zone {
+    padding: 1rem;
+    background: #f5f7fb;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+  }
+  .import-file-row {
+    display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
+    margin: .4rem 0 .8rem;
+  }
+  .import-file-btn { cursor: pointer; }
+  .import-file-name {
+    font-size: .82rem; color: var(--muted); font-style: italic; word-break: break-all;
+  }
+  .import-summary {
+    background: #eef4fb; border-left: 4px solid var(--navy);
+    padding: .6rem .8rem; border-radius: 8px; font-size: .82rem;
+    margin-bottom: .8rem; color: var(--text);
+  }
+  .modal-wide { width: min(760px, 100%); }
+  .modal.modal-wide { width: min(760px, 100%); }
+  .import-preview-wrap {
+    max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: .9rem;
+  }
+  .import-preview-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+  .import-preview-table th {
+    position: sticky; top: 0; z-index: 1;
+    background: var(--navy); color: var(--white);
+    padding: .5rem .6rem; text-align: left;
+    font-size: .74rem; font-weight: 700;
+  }
+  .import-preview-table td {
+    padding: .45rem .6rem; border-bottom: 1px solid #eef1f5; vertical-align: top;
+  }
+  .import-preview-table input[type="checkbox"] {
+    width: 16px; height: 16px; accent-color: var(--navy); cursor: pointer;
+  }
+  .import-preview-table input[type="checkbox"]:disabled { cursor: not-allowed; }
+  .imp-row-new { background: var(--white); }
+  .imp-row-dup { background: #fef3c7; }
+  .imp-row-inv { background: #fee2e2; }
+  .imp-badge {
+    display: inline-block; padding: .15rem .5rem; border-radius: 20px;
+    font-size: .68rem; font-weight: 700; white-space: nowrap;
+  }
+  .imp-badge-ok  { background: #dcfce7; color: #166534; }
+  .imp-badge-dup { background: #fef3c7; color: #92400e; }
+  .imp-badge-inv { background: #fee2e2; color: #991b1b; }
+  .imp-dupof { display: block; font-size: .68rem; color: var(--muted); margin-top: .15rem; }
+  .imp-name { font-weight: 600; word-break: break-word; }
+  .imp-url { color: var(--muted); font-size: .72rem; word-break: break-all; }
+  .imp-perfiles { font-size: .74rem; color: var(--text); }
+
   .btn {
     display: inline-flex; align-items: center; justify-content: center;
     gap: .4rem;
@@ -3816,7 +4644,7 @@
         <span class="accordion-icon">▼</span>
       </button>
       <div class="accordion-content">
-        <p class="hint">Exporta todo o parte de la configuración a PDF o Excel (.xlsx). Las librerías se cargan bajo demanda al pulsar el botón (no afectan al rendimiento inicial).</p>
+        <p class="hint">Exporta todo o parte de la configuración a PDF o Excel (.xlsx). Las librerías se cargan bajo demanda al pulsar el botón (no afectan al rendimiento inicial). Si marcas «Aplicaciones», podrás elegir en el panel inferior exactamente cuáles exportar: marcando casillas individuales, pulsando los chips de perfil o subcategoría (un clic marca todo el grupo, otro clic lo desmarca) o filtrando la lista por categoría. Con un filtro o búsqueda activa, «Todas», «Ninguna» y los chips se aplican únicamente a las aplicaciones visibles.</p>
         <p class="hint hint-warning" style="background:#fef3c7;border-left:4px solid #f59e0b;padding:.6rem .8rem;margin:.7rem 0;border-radius:8px;font-size:.8rem;">
           ⚠️ <strong>Seguridad:</strong> Al exportar "Administradores", sus contraseñas serán visibles en el archivo. Protege el archivo exportado.
         </p>
@@ -3825,7 +4653,7 @@
             <div class="fi-label">¿Qué exportar?</div>
             <div class="export-checkboxes">
               <label class="exp-label">
-                <input type="checkbox" id="expApps" checked>
+                <input type="checkbox" id="expApps" checked onchange="tecdea.onExpAppsToggle()">
                 <span>Aplicaciones</span>
               </label>
               <label class="exp-label">
@@ -3852,8 +4680,52 @@
             </div>
           </div>
         </div>
+
+        <!-- ══ Panel de selección individual de aplicaciones (visible al marcar "Aplicaciones") ══ -->
+        <div id="appSelPanel" class="app-sel-panel">
+          <div class="app-sel-header">
+            <div class="fi-label" style="margin:0">Aplicaciones a exportar: <strong id="appSelCount">0</strong></div>
+            <div class="app-sel-actions">
+              <button type="button" class="btn btn-ghost" onclick="tecdea.selectAllExportApps(true)">Todas</button>
+              <button type="button" class="btn btn-ghost" onclick="tecdea.selectAllExportApps(false)">Ninguna</button>
+            </div>
+          </div>
+          <div id="appSelCats" class="app-sel-cats"></div>
+          <div class="app-sel-filters">
+            <input type="text" id="appSelSearch" class="fi app-sel-search" placeholder="🔎 Buscar aplicación por nombre o URL…" oninput="tecdea.filterExportAppList()" autocomplete="off">
+            <select id="appSelCatFilter" class="fi app-sel-catfilter" onchange="tecdea.filterExportAppList()" aria-label="Filtrar por categoría o subcategoría"></select>
+          </div>
+          <div id="appSelScopeNote" class="app-sel-scope hidden">🎯 Filtro o búsqueda activa: «Todas», «Ninguna» y los chips solo afectan a las aplicaciones visibles.</div>
+          <div id="appSelList" class="app-sel-list"></div>
+        </div>
+
         <div class="actions">
           <button class="btn btn-primary" onclick="tecdea.exportData()">📥 Exportar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Acordeón 5: Importar aplicaciones -->
+    <div class="accordion-item">
+      <button class="accordion-header" onclick="tecdea.toggleAccordion(this)" aria-expanded="false">
+        <span>📥 Importar aplicaciones</span>
+        <span class="accordion-icon">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p class="hint">Añade aplicaciones masivamente desde un archivo Excel (.xlsx) exportado previamente desde este portal (hoja «Aplicaciones»). Se omitirán automáticamente los duplicados: se considera duplicada cualquier aplicación cuyo nombre o URL coincida con una ya existente en la base de datos o que esté repetida dentro del propio archivo.</p>
+        <p class="hint hint-warning" style="background:#fef3c7;border-left:4px solid #f59e0b;padding:.6rem .8rem;margin:.7rem 0;border-radius:8px;font-size:.8rem;">
+          ⚠️ <strong>Importante:</strong> Solo se importan los datos de aplicaciones (nombre, descripción, URL, perfiles y subcategoría). Las contraseñas de perfiles y administradores que pudiera contener el archivo NO se importan.
+        </p>
+        <div class="import-zone">
+          <div class="fi-label">Archivo Excel exportado (.xlsx)</div>
+          <div class="import-file-row">
+            <label class="btn btn-gold import-file-btn" for="importFile">📂 Seleccionar archivo…</label>
+            <input type="file" id="importFile" accept=".xlsx,.xlsm" style="display:none" onchange="tecdea.onImportFileSelected()">
+            <span id="importFileName" class="import-file-name">Ningún archivo seleccionado</span>
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary" onclick="tecdea.analyzeImportFile()">🔍 Analizar archivo</button>
+          </div>
         </div>
       </div>
     </div>
@@ -3910,6 +4782,32 @@
   </div>
 </div>
 
+<!-- ═══════════ MODAL IMPORTACIÓN DE APLICACIONES ══════════ -->
+<div id="importModal" class="modal-bg hidden">
+  <div class="modal modal-wide">
+    <h2>📥 Importar aplicaciones</h2>
+    <div id="importSummary" class="import-summary"></div>
+    <div class="import-preview-wrap">
+      <table class="import-preview-table">
+        <thead>
+          <tr>
+            <th style="width:34px"></th>
+            <th>Nombre</th>
+            <th>URL</th>
+            <th>Perfiles</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="importPreviewBody"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="tecdea.closeImportModal()">Cancelar</button>
+      <button type="button" class="btn btn-primary" id="importConfirmBtn" onclick="tecdea.confirmImport()">📥 Importar seleccionadas</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════ TOAST ══════════════════════════════════════ -->
 <div id="toast" class="toast hidden"></div>
 
@@ -3948,4 +4846,4 @@
 </script>
 
 </body>
-</html>
+</html>
