@@ -221,6 +221,10 @@
       }
     }
 
+    // Estado inicial conocido: evita un guardado/toast fantasma al primer blur
+    markAppsAsSaved(apps); // lo cargado de la BD es residente desde el principio
+    _lastSavedAppsJson = JSON.stringify(apps);
+
     const configView = document.getElementById("view-config");
     if (configView && !configView.classList.contains("hidden")) {
       buildConfigTable();
@@ -237,8 +241,28 @@
   }
 
   // ── Persistencia ──────────────────────────────────────
-  async function saveApps() {
-    try { await set(appsRef, apps); return true; }
+  // Apps cuya versión actual ya vive en la base de datos (las cargadas al inicio
+  // y las incluidas en algún guardado con éxito). Permite al autoguardado omitir
+  // del payload las filas NUEVAS incompletas sin riesgo de perder apps existentes
+  // (p. ej. renombradas o a las que se les quitó la categoría).
+  const _dbResidentApps = new WeakSet();
+  function markAppsAsSaved(list) {
+    (list || []).forEach(a => { if (a && typeof a === 'object') _dbResidentApps.add(a); });
+  }
+  function isAppResident(a) { return _dbResidentApps.has(a); }
+
+  // Rechaza la promesa si la escritura no se confirma en `ms` (evita dejar el
+  // autoguardado bloqueado para siempre si la red o Firebase no responden).
+  function withTimeout(p, ms) {
+    return Promise.race([
+      Promise.resolve(p),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout: Firebase no confirma la escritura')), ms))
+    ]);
+  }
+
+  async function saveApps(payload) {
+    const list = payload || apps;
+    try { await withTimeout(set(appsRef, list), 5000); markAppsAsSaved(list); return true; }
     catch(e) { console.error("Error guardando apps:", e); return false; }
   }
   async function saveAdmins() {
@@ -773,6 +797,15 @@
     document.getElementById("loginModal").classList.add("hidden");
   }
 
+  // ── Modal «Sobre esta app» (Vibe Coding · reporte de bugs) ──
+  function showAboutModal() {
+    document.getElementById("aboutModal").classList.remove("hidden");
+  }
+
+  function closeAboutModal() {
+    document.getElementById("aboutModal").classList.add("hidden");
+  }
+
   function doLogin() {
     const u = document.getElementById("loginUser").value.trim();
     const p = document.getElementById("loginPass").value;
@@ -917,26 +950,7 @@
         updateRowUncategorizedState(inp);
         // Guardar inmediatamente en Firebase al cambiar un checkbox de categoría
         if (inp.type === 'checkbox') {
-          // Comprobar si hay apps con Cajón marcado pero sin subcategoría
-          const noSubcat = getUncategorizedApps().filter(a => a.cajonDeSastre && !(a.category && a.category.trim()));
-          const noCat = getUncategorizedApps().filter(a => !a.cajonDeSastre);
-          const uncategorized = getUncategorizedApps();
-          saveApps().then(ok => {
-            if (!ok) {
-              showToast("Error al guardar en Firebase.", "err", 4000);
-              return;
-            }
-            // Priorizar aviso de Cajón sin subcategoría
-            if (noSubcat.length > 0) {
-              const names = noSubcat.map(a => `«${a.name}»`).join(', ');
-              showToast(`⚠ Cajón de sastre sin subcategoría: ${names}. Seleccione un subperfil.`, "err", 4000);
-            } else if (noCat.length > 0) {
-              const names = noCat.map(a => `«${a.name}»`).join(', ');
-              showToast(`⚠ Sin categoría: ${names}. Debe marcarse al menos un perfil.`, "err", 4000);
-            } else {
-              showToast("✓ Guardado", "ok", 1000);
-            }
-          });
+          persistAppsChanges().then(notifyPersistResult);
         }
         // Si acabamos de marcar una categoría y ya no hay apps sin categoría,
         // ocultar inmediatamente el toast de advertencia
@@ -1006,23 +1020,7 @@
         collectTableData();
         updateRowUncategorizedState(sel);
         // Guardar y avisar si aún hay apps sin categoría
-        const noSubcat = getUncategorizedApps().filter(a => a.cajonDeSastre && !(a.category && a.category.trim()));
-        const noCat = getUncategorizedApps().filter(a => !a.cajonDeSastre);
-        saveApps().then(ok => {
-          if (!ok) {
-            showToast("Error al guardar en Firebase.", "err", 4000);
-            return;
-          }
-          if (noSubcat.length > 0) {
-            const names = noSubcat.map(a => `«${a.name}»`).join(', ');
-            showToast(`⚠ Cajón de sastre sin subcategoría: ${names}. Seleccione un subperfil.`, "err", 4000);
-          } else if (noCat.length > 0) {
-            const names = noCat.map(a => `«${a.name}»`).join(', ');
-            showToast(`⚠ Sin categoría: ${names}. Debe marcarse al menos un perfil.`, "err", 4000);
-          } else {
-            showToast("✓ Guardado", "ok", 1000);
-          }
-        });
+        persistAppsChanges().then(notifyPersistResult);
         // Si acabamos de asignar categoría y ya no hay apps sin categoría, ocultar toast
         if (sel.value && getUncategorizedApps().length === 0) {
           const toast = document.getElementById("toast");
@@ -1091,7 +1089,70 @@
   let _autoSaveTimeout = null;
   let _autoSaveToastTimer = null;
   let _isSaving = false; // Protección contra race conditions
+  let _lastSavedAppsJson = null; // Snapshot del último estado conocido de apps (evita guardados sin cambios y reintentos en bucle)
   
+  // ── Persistencia tolerante del autoguardado ────────────
+  // El borrado/edición de apps válidas se persiste AUNQUE haya otras apps sin
+  // categorizar (antes todo el guardado quedaba bloqueado y los borrados se
+  // perdían al recargar). Las filas NUEVAS incompletas no se dan de alta.
+
+  // Payload que de verdad se escribe en la BD: todas las apps salvo las nuevas
+  // (no residentes) vacías o sin categoría válida. Las ya residentes se incluyen
+  // SIEMPRE para que la reescritura completa de la lista nunca las pierda.
+  function autoSavePayload(list, isResident) {
+    return (list || []).filter(a => {
+      if (!a || typeof a !== 'object') return false;
+      if (isResident(a)) return true;
+      const hasName = !!(a.name && a.name.trim());
+      const hasUrl  = !!(a.url && a.url.trim());
+      if (!hasName && !hasUrl) return false; // fila en blanco nueva: no se da de alta
+      return !isAppUncategorized(a);         // nueva sin categoría aún → fuera
+    });
+  }
+
+  // Aviso de apps sin categoría (compartido por autoguardado y cambios de casillas)
+  function showUncategorizedToast(uncategorized, saved) {
+    const noSubcat = uncategorized.filter(a => a.cajonDeSastre && !(a.category && a.category.trim()));
+    const noCat    = uncategorized.filter(a => !a.cajonDeSastre);
+    const tail = saved
+      ? ' El resto de cambios se ha guardado.'
+      : ' Las filas incompletas no se guardan hasta completarse.';
+    if (noSubcat.length > 0) {
+      const names = noSubcat.map(a => `«${a.name}»`).join(', ');
+      showToast(`⚠ Cajón de sastre sin subcategoría: ${names}. Seleccione un subperfil.${tail}`, "err", 4000);
+    } else {
+      const names = noCat.map(a => `«${a.name}»`).join(', ');
+      showToast(`⚠ Sin categoría: ${names}. Debe marcarse al menos un perfil.${tail}`, "err", 4000);
+    }
+  }
+
+  // Resultado de un intento de guardado → toast adecuado
+  function notifyPersistResult(res) {
+    if (!res) return;
+    if (!res.ok) { showToast("Error al guardar en Firebase.", "err", 4000); return; }
+    if (res.uncategorized && res.uncategorized.length > 0) showUncategorizedToast(res.uncategorized, res.saved);
+    else if (res.saved) showToast("✓ Guardado", "ok", 1000);
+  }
+
+  // Intento de guardado tolerante, compartido por el autoguardado y los cambios
+  // de casillas/selects. Persiste lo que pueda sin dar de alta filas nuevas
+  // incompletas y sin bloquearse por las apps sin categorizar.
+  async function persistAppsChanges() {
+    const json = JSON.stringify(apps);
+    const uncategorized = getUncategorizedApps();
+    const payload = autoSavePayload(apps, isAppResident);
+    if (payload.length === 0 && apps.length > 0) {
+      // Solo hay filas nuevas incompletas/vacías: no tocar la BD (evita vaciarla)
+      _lastSavedAppsJson = json;
+      return { ok: true, saved: false, uncategorized };
+    }
+    const ok = await saveApps(payload);
+    // Snapshot sincronizado SIEMPRE (también si falla): sin reintentos en bucle
+    // ni toasts fantasma; el siguiente cambio real volverá a intentarlo.
+    _lastSavedAppsJson = json;
+    return { ok, saved: ok, uncategorized };
+  }
+
   // Debounce: esperar 800ms antes de guardar (evita excesivas escrituras Firebase)
   function debouncedAutoSaveApps() {
     clearTimeout(_autoSaveTimeout);
@@ -1101,31 +1162,21 @@
   }
   
   async function autoSaveApps() {
-    // Prevenir múltiples guardados simultáneos (race condition)
-    if (_isSaving) return;
+    // Si hay un guardado en curso, reintentarlo cuando termine (el snapshot
+    // decidirá entonces si de verdad queda algo por guardar)
+    if (_isSaving) {
+      clearTimeout(_autoSaveTimeout);
+      _autoSaveTimeout = setTimeout(autoSaveApps, 1500);
+      return;
+    }
     _isSaving = true;
     
     try {
-      // Advertir si hay apps con nombre pero sin categoría
-      const uncategorized = getUncategorizedApps();
-      if (uncategorized.length > 0) {
-        const noSubcat = uncategorized.filter(a => a.cajonDeSastre && !(a.category && a.category.trim()));
-        const noCat = uncategorized.filter(a => !a.cajonDeSastre);
-        if (noSubcat.length > 0) {
-          const names = noSubcat.map(a => `«${a.name}»`).join(', ');
-          showToast(`⚠ Cajón de sastre sin subcategoría: ${names}. Seleccione un subperfil.`, "err", 4000);
-        } else {
-          const names = noCat.map(a => `«${a.name}»`).join(', ');
-          showToast(`⚠ Sin categoría: ${names}. Debe marcarse al menos un perfil.`, "err", 4000);
-        }
-        return;
-      }
-      const ok = await saveApps();
-      if (ok) {
-        showToast("✓ Guardado", "ok", 1000);
-      } else {
-        showToast("Error al guardar en Firebase.", "err", 4000);
-      }
+      // Si nada cambió desde el último guardado, no reescribir ni mostrar avisos
+      const json = JSON.stringify(apps);
+      if (json === _lastSavedAppsJson) return;
+
+      notifyPersistResult(await persistAppsChanges());
     } finally {
       _isSaving = false;
     }
@@ -1200,9 +1251,10 @@
     // Coincidencia exacta después de normalizar
     if (norm1 === norm2) return 1;
     
-    // Uno contiene al otro (substring)
+    // Uno contiene al otro (substring). Se limita a 1 para que el porcentaje
+    // mostrado nunca supere el 100% («Mate» vs «Matemáticas Aplicadas»).  
     if (norm1.includes(norm2) || norm2.includes(norm1)) {
-      return Math.max(norm1.length, norm2.length) / Math.min(norm1.length, norm2.length);
+      return Math.min(1, Math.max(norm1.length, norm2.length) / Math.min(norm1.length, norm2.length));
     }
     
     // Distancia de Levenshtein
@@ -1295,19 +1347,20 @@
     }
   }
 
-  function addAppRow() {
-    collectTableData();
+  // ════════════════════════════════════════════════════════
+  //  ALTA DE NUEVAS APLICACIONES (modal con confirmación)
+  //  Sustituye al alta por fila vacía. Conserva TODAS las condiciones
+  //  que existían: límite de 200 apps, nombre obligatorio, al menos un
+  //  perfil (Cajón exige subcategoría), detección de duplicados/similares
+  //  (aviso, no bloqueo), URL base por defecto y autoguardado tolerante.
+  // ════════════════════════════════════════════════════════
 
-    // Resetear filtros para mostrar todas las apps (incluida la nueva)
+  // Deja la barra de filtros en «Todas» (misma secuencia que el antiguo addAppRow,
+  // corrigiendo el detalle de que el botón «Todas» quedaba sin marcar al final)
+  function resetAppsFilterUI() {
     appsFilter = 'all';
-    cajonCategoryFilters = []; // Resetear array de categorías
+    cajonCategoryFilters = [];
 
-    // Actualizar visualmente botones de filtro principal
-    document.querySelectorAll('#appsFilterBar .filter-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.filter === 'all');
-    });
-
-    // Ocultar subfiltros de Cajón de sastre
     const subfilters = document.getElementById('cajonSubfilters');
     if (subfilters) {
       subfilters.classList.add('hidden');
@@ -1316,58 +1369,187 @@
         btn.classList.remove('active');
       });
     }
-    
-    // Quitar clase expanded del botón Cajón de sastre (usar ID porque subfiltros son hermanos, no hijos)
+
     const cajonBtn = document.getElementById('cajonDeSastreBtn');
-    if (cajonBtn) {
-      cajonBtn.classList.remove('expanded');
-    }
-    
-    // Restaurar visibilidad de todos los botones de filtro
+    if (cajonBtn) cajonBtn.classList.remove('expanded');
+
     document.querySelectorAll('#appsFilterBar .filter-btn').forEach(btn => {
       btn.style.display = '';
-      btn.classList.remove('active', 'expanded');
+      btn.classList.remove('expanded');
+      btn.classList.toggle('active', btn.dataset.filter === 'all');
     });
+  }
 
-    // Añadir nueva aplicación con límite razonable (máx. 200 apps)
+  function setAddAppError(msg) {
+    const el = document.getElementById("addAppError");
+    if (el) el.textContent = msg || "";
+  }
+
+  function showAddAppModal() {
+    collectTableData();
+
+    // Límite razonable (mismo MAX_APPS que el antiguo alta por fila)
     const MAX_APPS = 200;
     if (apps.length >= MAX_APPS) {
       showToast(`⚠️ Límite de aplicaciones alcanzado (${MAX_APPS}). Elimina algunas antes de añadir más.`, 'err', 5000);
       return;
     }
-    
-    const newIndex = apps.length;
-    apps.push({ name: "", desc: "", url: "https://tecdea.github.io/", tecnoApps: false, herramientasTecno: false, departamento: false, cajonDeSastre: false, category: "" });
 
-    // Reconstruir tabla (ahora mostrará todas las apps + la nueva)
+    // Reset del formulario
+    document.getElementById("addAppName").value = "";
+    document.getElementById("addAppDesc").value = "";
+    document.getElementById("addAppUrl").value = "https://tecdea.github.io/";
+    ["addAppTecnoApps", "addAppHerramientasTecno", "addAppDepartamento", "addAppCajonDeSastre"].forEach(id => {
+      document.getElementById(id).checked = false;
+    });
+    document.getElementById("addAppCategory").value = "";
+    document.getElementById("addAppCajonWrap").classList.add("hidden");
+    document.getElementById("addAppNameWarn").classList.add("hidden");
+    const nameInp = document.getElementById("addAppName");
+    nameInp.style.borderColor = "";
+    nameInp.style.boxShadow = "";
+    setAddAppError("");
+
+    document.getElementById("addAppModal").classList.remove("hidden");
+    setTimeout(() => document.getElementById("addAppName").focus(), 50);
+  }
+
+  function closeAddAppModal() {
+    document.getElementById("addAppModal").classList.add("hidden");
+  }
+
+  // Toggle del bloque de subcategoría al marcar Cajón de sastre (como en la tabla:
+  // al desmarcar se limpia el valor)
+  function addAppCajonChanged(chk) {
+    document.getElementById("addAppCajonWrap").classList.toggle("hidden", !chk.checked);
+    if (!chk.checked) document.getElementById("addAppCategory").value = "";
+    setAddAppError("");
+  }
+
+  function addAppFormChanged() {
+    setAddAppError("");
+  }
+
+  // Aviso en vivo de nombres duplicados/similares mientras se escribe
+  // (misma detección que la tabla: findSimilarApps con umbral 0.75)
+  function addAppRenderNameWarn() {
+    const inp  = document.getElementById("addAppName");
+    const warn = document.getElementById("addAppNameWarn");
+    if (!inp || !warn) return;
+    const val = (inp.value || "").trim();
+    if (val.length < 3) {
+      warn.textContent = "";
+      warn.classList.add("hidden");
+      inp.style.borderColor = "";
+      inp.style.boxShadow = "";
+      return;
+    }
+    const similar = findSimilarApps(val, -1, 0.75);
+    if (similar.length > 0) {
+      const exact = similar.find(s => s.isExact);
+      warn.textContent = exact
+        ? `⚠️ Ya existe una aplicación con el nombre «${exact.name}»`
+        : (similar.length === 1
+            ? `⚠️ Nombre similar a «${similar[0].name}» (${similar[0].similarity}% parecido)`
+            : `⚠️ Nombre similar a: ${similar.slice(0, 3).map(a => `«${a.name}»`).join(', ')}`);
+      warn.classList.remove("hidden");
+      inp.style.borderColor = "#E8943A";
+      inp.style.boxShadow = "0 0 0 3px rgba(232, 148, 58, 0.3)";
+    } else {
+      warn.textContent = "";
+      warn.classList.add("hidden");
+      inp.style.borderColor = "";
+      inp.style.boxShadow = "";
+    }
+  }
+
+  let _addAppNameTimer = null;
+  function addAppNameInput() {
+    setAddAppError("");
+    clearTimeout(_addAppNameTimer);
+    _addAppNameTimer = setTimeout(addAppRenderNameWarn, 600);
+  }
+
+  // Confirmación del alta: valida las mismas condiciones que existían y añade
+  // la app a la tabla + autoguardado tolerante (persistAppsChanges)
+  function confirmAddApp() {
+    collectTableData();
+
+    const name = document.getElementById("addAppName").value.trim();
+    const desc = document.getElementById("addAppDesc").value.trim();
+    const url  = document.getElementById("addAppUrl").value.trim() || "https://tecdea.github.io/";
+    const tec  = !!document.getElementById("addAppTecnoApps").checked;
+    const her  = !!document.getElementById("addAppHerramientasTecno").checked;
+    const dep  = !!document.getElementById("addAppDepartamento").checked;
+    const caj  = !!document.getElementById("addAppCajonDeSastre").checked;
+    const cat  = document.getElementById("addAppCategory").value || "";
+
+    setAddAppError("");
+    if (!name) {
+      setAddAppError("Escribe el nombre de la aplicación.");
+      document.getElementById("addAppName").focus();
+      return;
+    }
+    if (caj && !cat) {
+      setAddAppError("Cajón de sastre requiere seleccionar una subcategoría.");
+      return;
+    }
+    if (!(tec || her || dep || caj)) {
+      setAddAppError("Debe marcarse al menos un perfil (TecnoApps, Herr. Tecno, Departamento o Cajón de sastre).");
+      return;
+    }
+
+    const MAX_APPS = 200;
+    if (apps.length >= MAX_APPS) {
+      closeAddAppModal();
+      showToast(`⚠️ Límite de aplicaciones alcanzado (${MAX_APPS}). Elimina algunas antes de añadir más.`, 'err', 5000);
+      return;
+    }
+
+    // Detección de duplicados/similares (aviso, no bloqueo — igual que en la tabla)
+    const similar = findSimilarApps(name, -1, 0.75);
+
+    apps.push({ name, desc, url, tecnoApps: tec, herramientasTecno: her, departamento: dep, cajonDeSastre: caj, category: caj ? cat : "" });
+
+    // Mostrar la nueva app: reset de filtros (comportamiento del antiguo addAppRow)
+    resetAppsFilterUI();
     buildConfigTable();
-    
-    // Focus en el campo nombre de la nueva fila con pequeño delay para asegurar render
-    setTimeout(() => {
-      const newRow = document.querySelector(`#appsTable tbody tr[data-i="${newIndex}"]`);
-      if (newRow) {
-        const nameInput = newRow.querySelector('input[data-field="name"]');
-        if (nameInput) {
-          nameInput.focus();
-          nameInput.select();
-        }
-      }
-    }, 50);
+    closeAddAppModal();
+
+    let msg = `✓ Aplicación «${name}» añadida`;
+    if (similar.length > 0) {
+      const exact = similar.find(s => s.isExact);
+      msg += exact
+        ? ` ⚠️ Ya existía una app con ese nombre`
+        : ` ⚠️ Nombre similar a «${similar[0].name}» (${similar[0].similarity}%)`;
+    }
+    showToast(msg, "ok", 3500);
+
+    // Persistir como cualquier otro cambio (tolerante con apps sin categorizar)
+    persistAppsChanges().then(notifyPersistResult);
   }
 
   window._delApp = function(i) {
+    const a = apps[i];
+    const label = a && a.name && a.name.trim() ? `«${a.name.trim()}»`
+                : (a && a.url ? `«${a.url}»` : 'la fila vacía');
+    if (!window.confirm(`¿Eliminar la aplicación ${label}? Se quitará de la tabla y el cambio se guardará en la base de datos.`)) return;
     collectTableData();
     apps.splice(i, 1);
     buildConfigTable();
+    debouncedAutoSaveApps(); // persistir el borrado como cualquier otra edición
   };
 
-  // Devuelve array de apps con nombre pero sin ninguna categoría válida
+  // ¿App con nombre pero sin ninguna categoría válida?
   // En tecdea, Cajón de sastre requiere además una subcategoría seleccionada
+  function isAppUncategorized(a) {
+    if (!a || !a.name || !a.name.trim()) return false;
+    return !(a.tecnoApps || a.herramientasTecno || a.departamento || (a.cajonDeSastre && a.category && a.category.trim()));
+  }
+
+  // Devuelve array de apps con nombre pero sin ninguna categoría válida
   function getUncategorizedApps() {
-    return apps.filter(a => {
-      if (!a.name || !a.name.trim()) return false;
-      return !(a.tecnoApps || a.herramientasTecno || a.departamento || (a.cajonDeSastre && a.category && a.category.trim()));
-    });
+    return apps.filter(isAppUncategorized);
   }
 
   // Actualiza dinámicamente el estado visual de una fila (resaltado sin categoría)
@@ -1413,10 +1595,12 @@
       const snap = await get(appsRef);
       const v = snap.exists() ? normalizeList(snap.val()) : [];
       apps = v.filter(a => a && typeof a === 'object');
+      markAppsAsSaved(apps); // objetos releídos de la BD → residentes
       verifiedCount = apps.length;
     } catch (e) {
       console.warn("No se pudo verificar la lectura tras guardar apps:", e);
     }
+    _lastSavedAppsJson = JSON.stringify(apps);
     showToast(`Aplicaciones guardadas en base de datos Firebase (${verifiedCount}).`, "ok", 4500);
     renderConfig();
   }
@@ -1487,9 +1671,13 @@
       showToast("Debe existir al menos un administrador.", "err", 5000);
       return;
     }
+    const a = admins[i];
+    const label = a && a.user ? `«${a.user}»` : 'este administrador';
+    if (!window.confirm(`¿Eliminar al administrador ${label}? El cambio se guardará en la base de datos.`)) return;
     collectAdminsData();
     admins.splice(i, 1);
     buildAdminsTable();
+    autoSaveAdmins();
   };
 
   async function saveAdminsConfig() {
@@ -1626,16 +1814,29 @@
 
       let list;
       if (panelActive) {
-        // Resolver cada checkbox contra el array actual: primero por posición + clave,
-        // luego por clave (nombre|URL), y como último recurso por posición.
+        // Resolver cada checkbox contra el array actual: primero por posición + clave;
+        // si no, por clave respetando el ORDEN de aparición (la k-ésima casilla de
+        // una clave resuelve a la k-ésima app con esa clave), de modo que dos apps
+        // distintas con la misma clave no se resuelvan ambas a la primera.
+        const byKeyMap = new Map();
+        apps.forEach(a => {
+          const k = expAppKey(a);
+          const arr = byKeyMap.get(k);
+          if (arr) arr.push(a); else byKeyMap.set(k, [a]);
+        });
+        const nextByKey = new Map();
+        const claimed = new Set();
         list = Array.from(selList.querySelectorAll('.app-sel-item input[type="checkbox"]:checked'))
           .map(cb => {
             const key = cb.dataset.key || '';
             const i = parseInt(cb.dataset.i);
             const byPos = (!isNaN(i) && i >= 0 && i < apps.length) ? apps[i] : null;
-            if (byPos && expAppKey(byPos) === key) return byPos;
-            const byKey = apps.find(a => expAppKey(a) === key);
-            if (byKey) return byKey;
+            if (byPos && expAppKey(byPos) === key) { claimed.add(byPos); return byPos; }
+            const arr = byKeyMap.get(key) || [];
+            const start = nextByKey.get(key) || 0;
+            for (let k = start; k < arr.length; k++) {
+              if (!claimed.has(arr[k])) { nextByKey.set(key, k + 1); return arr[k]; }
+            }
             return byPos; // fallback por posición (p. ej. app renombrada sin reconstruir lista)
           })
           .filter(Boolean);
@@ -1658,7 +1859,9 @@
         'HerramientasTecno': a.herramientasTecno ? 'Sí' : 'No',
         'Departamento':     a.departamento   ? 'Sí' : 'No',
         'Cajón de sastre':  a.cajonDeSastre ? 'Sí' : 'No',
-        'Categoría':        categoryLabel(a.category) || '-'
+        // La subcategoría solo tiene sentido para apps de Cajón de sastre;
+        // si la app no es de Cajón se exporta «-» aunque tenga category residual.
+        'Categoría':        a.cajonDeSastre ? (categoryLabel(a.category) || '-') : '-'
       }));
     }
 
@@ -1914,13 +2117,15 @@
       (pos(x) - pos(y)) || String(x).localeCompare(String(y), 'es', { sensitivity: 'base' }));
   }
 
-  // Claves de las apps listadas (solo marcadas si onlyChecked)
-  function exportCheckedKeys(onlyChecked = true) {
+  // Índices (data-i) de las apps listadas (solo marcadas si onlyChecked).
+  // Se usa IDENTIDAD de fila (índice en apps) y no la clave nombre|URL para que
+  // dos apps distintas con la misma clave no se contaminen entre sí.
+  function exportCheckedIdx(onlyChecked = true) {
     const listEl = document.getElementById('appSelList');
     if (!listEl) return new Set();
     const suf = onlyChecked ? ':checked' : '';
     return new Set(Array.from(listEl.querySelectorAll(`.app-sel-item input[type="checkbox"]${suf}`))
-      .map(cb => cb.dataset.key || ''));
+      .map(cb => Number(cb.dataset.i)));
   }
 
   // Visibilidad de una fila de la lista (afectada por el buscador/filtro de categoría)
@@ -1940,15 +2145,16 @@
   }
 
   // Botón-chip de una categoría/subcategoría con contador «seleccionadas/total»
-  function exportCatChip(kind, key, label, icon, checkedSet) {
-    const keys = appSelTargets(kind, key).map(expAppKey);
-    const nSel = keys.reduce((n, k) => n + (checkedSet.has(k) ? 1 : 0), 0);
-    const cls = (keys.length && nSel === keys.length) ? 'on' : (nSel > 0 ? 'partial' : '');
-    const nShared = appSelTargetIdx(kind, key).filter(i => appProfileCount(apps[i]) >= 2).length;
-    const title = keys.length
-      ? `${label}: ${nSel} de ${keys.length} seleccionadas — clic para ${nSel === keys.length ? 'desmarcar' : 'marcar'}${appSelSharedNote(nShared)}`
+  function exportCatChip(kind, key, label, icon, checkedIdx) {
+    const idxArr = appSelTargetIdx(kind, key);
+    const nSel = idxArr.reduce((n, i) => n + (checkedIdx.has(i) ? 1 : 0), 0);
+    const total = idxArr.length;
+    const cls = (total && nSel === total) ? 'on' : (nSel > 0 ? 'partial' : '');
+    const nShared = idxArr.filter(i => appProfileCount(apps[i]) >= 2).length;
+    const title = total
+      ? `${label}: ${nSel} de ${total} seleccionadas — clic para ${nSel === total ? 'desmarcar' : 'marcar'}${appSelSharedNote(nShared)}`
       : `${label}: sin aplicaciones`;
-    return `<button type="button" class="app-sel-chip ${cls}" data-kind="${kind}" data-key="${escHtml(key)}" data-label="${escHtml(label)}" title="${escHtml(title)}" onclick="tecdea.toggleExportCat('${kind}','${jsAttr(key)}')">${icon ? icon + ' ' : ''}${escHtml(label)} <span class="app-sel-chip-n">${nSel}/${keys.length}</span></button>`;
+    return `<button type="button" class="app-sel-chip ${cls}" data-kind="${kind}" data-key="${escHtml(key)}" data-label="${escHtml(label)}" title="${escHtml(title)}" onclick="tecdea.toggleExportCat('${kind}','${jsAttr(key)}')">${icon ? icon + ' ' : ''}${escHtml(label)} <span class="app-sel-chip-n">${nSel}/${total}</span></button>`;
   }
 
   // Pinta los chips de selección por perfil/subcategoría y las opciones del filtro
@@ -1958,18 +2164,18 @@
     if (!catsBox || !selEl) return;
 
     const prevFilter = selEl.value || '';
-    const checkedSet = exportCheckedKeys(true);
+    const checkedIdx = exportCheckedIdx(true);
 
     const profChips = EXPORT_PROFILES
       .map(p => ({ p, n: apps.filter(a => !!a[p.key]).length }))
       .filter(({ n }) => n > 0)
-      .map(({ p }) => exportCatChip('p', p.key, p.label, p.icon, checkedSet));
+      .map(({ p }) => exportCatChip('p', p.key, p.label, p.icon, checkedIdx));
 
     const subcats = exportSubcatsInData();
     const subChips = subcats.map(c =>
       exportCatChip('c', c,
         c === '__none__' ? 'Sin subcategoría' : categoryLabel(c),
-        c === '__none__' ? '' : (EXPORT_SUBCAT_ICONS[c] || '🏷'), checkedSet));
+        c === '__none__' ? '' : (EXPORT_SUBCAT_ICONS[c] || '🏷'), checkedIdx));
 
     if (!profChips.length) {
       catsBox.innerHTML = '';
@@ -2015,7 +2221,6 @@
     const catsBox = document.getElementById('appSelCats');
     if (!catsBox || catsBox.classList.contains('hidden')) return;
     const filtered = exportListFiltered();
-    const checkedSet = exportCheckedKeys(true);
     const listEl = document.getElementById('appSelList');
     const allBoxes = listEl
       ? Array.from(listEl.querySelectorAll('.app-sel-item input[type="checkbox"]'))
@@ -2089,22 +2294,54 @@
     syncExportAppPanel();
   }
 
+  // Estado de selección previo de la lista, para preservarlo al reconstruir.
+  // 1) Identidad por posición+clave (refs): fiable cuando en esa posición sigue
+  //    estando la misma app (misma clave nombre|URL), aunque el objeto sea nuevo
+  //    (p. ej. tras «Guardar aplicaciones» se releen los datos de la BD).
+  // 2) Cola por clave (queueByKey): para filas cuya posición ya no coincide
+  //    (lista reordenada al ordenar, filas recortadas al guardar, claves
+  //    duplicadas desalineadas…), la k-ésima aparición de una clave hereda el
+  //    estado de la k-ésima aparición anterior. Así dos apps distintas con la
+  //    misma clave (duplicadas) nunca se contaminan entre sí al reconstruir.
+  function captureExportSelectionState() {
+    const st = { checkedRefs: new Set(), allRefs: new Set(), queueByKey: new Map(), rowCount: 0 };
+    const listEl = document.getElementById('appSelList');
+    if (!listEl) return st;
+    listEl.querySelectorAll('.app-sel-item input[type="checkbox"]').forEach(cb => {
+      const key = cb.dataset.key || '';
+      const i = Number(cb.dataset.i);
+      const ref = (!isNaN(i) && i >= 0 && i < apps.length) ? apps[i] : null;
+      if (ref && expAppKey(ref) === key) {          // la misma app sigue en esa posición
+        st.allRefs.add(ref);
+        if (cb.checked) st.checkedRefs.add(ref);
+      } else if (key) {                             // posición desalineada → cola por clave
+        const q = st.queueByKey.get(key);
+        if (q) q.push(!!cb.checked); else st.queueByKey.set(key, [!!cb.checked]);
+      }
+      st.rowCount++;
+    });
+    return st;
+  }
+
+  // Decide si una fila reconstruida nace marcada (consume la cola de su clave)
+  function exportRowCheckedState(a, key, st, preserveSelection) {
+    if (!st || st.rowCount === 0 || !preserveSelection) return true; // primera construcción
+    if (st.checkedRefs.has(a)) return true;   // identidad: estaba marcada
+    if (st.allRefs.has(a)) return false;      // identidad: estaba desmarcada
+    const q = st.queueByKey.get(key);
+    if (q && q.length) return q.shift();      // k-ésima aparición de esa clave
+    return true;                              // app nueva (o aparición extra) → marcada
+  }
+
   // Construye (o reconstruye) la lista de selección de aplicaciones.
   // preserveSelection: mantiene las marcas anteriores; las apps nuevas se marcan por defecto.
   function buildExportAppSelection(preserveSelection = true) {
     const listEl = document.getElementById('appSelList');
     if (!listEl) return;
 
-    // Selección previa: marcadas y existentes (para preservar al reconstruir)
-    const prevChecked = new Set();
-    const prevAll = new Set();
-    if (preserveSelection) {
-      listEl.querySelectorAll('.app-sel-item input[type="checkbox"]').forEach(cb => {
-        prevAll.add(cb.dataset.key || '');
-        if (cb.checked) prevChecked.add(cb.dataset.key || '');
-      });
-    }
-    const isFirstBuild = prevAll.size === 0;
+    // Selección previa capturada del DOM actual (identidad posición+clave y
+    // cola por clave para las filas desalineadas; ver captureExportSelectionState)
+    const st = preserveSelection ? captureExportSelectionState() : null;
 
     const indexed = apps.map((a, idx) => ({ a, idx }));
     indexed.sort((x, y) => {
@@ -2123,11 +2360,7 @@
 
     listEl.innerHTML = indexed.map(({ a, idx }) => {
       const key = expAppKey(a);
-      let checked;
-      if (isFirstBuild || !preserveSelection) checked = true;
-      else if (prevChecked.has(key)) checked = true;
-      else if (!prevAll.has(key)) checked = true; // app añadida recientemente → marcada
-      else checked = false;                       // existía y estaba desmarcada
+      const checked = exportRowCheckedState(a, key, st, preserveSelection);
       const profiles = EXPORT_PROFILES.filter(p => !!a[p.key]);
       const catTag = a.cajonDeSastre && a.category
         ? `<span class="app-sel-tag tag-cat" title="Cajón de sastre · ${escHtml(categoryLabel(a.category))}">${escHtml(EXPORT_SUBCAT_ICONS[a.category] || '🏷')} ${escHtml(categoryLabel(a.category))}</span>`
@@ -2173,10 +2406,13 @@
     const catEl    = document.getElementById('appSelCatFilter');
     const q  = (searchEl ? searchEl.value : '').toLowerCase().trim();
     const fv = catEl ? (catEl.value || '') : '';
+    // Búsqueda tolerante a acentos: «matematicas» encuentra «Matemáticas»
+    const stripAccents = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const qn = stripAccents(q);
     const rows = Array.from(document.querySelectorAll('#appSelList .app-sel-item'));
     let visible = 0;
     rows.forEach(it => {
-      const okText = !q || it.textContent.toLowerCase().includes(q);
+      const okText = !qn || stripAccents(it.textContent.toLowerCase()).includes(qn);
       let okCat = true;
       if (fv.startsWith('p:'))      okCat = (it.dataset.profiles || '').split(',').includes(fv.slice(2));
       else if (fv.startsWith('c:')) okCat = (it.dataset.cat || '') === fv.slice(2);
@@ -2460,6 +2696,7 @@
       showToast('Error al guardar en Firebase. No se ha importado nada.', 'err', 7000);
       return;
     }
+    _lastSavedAppsJson = JSON.stringify(apps);
 
     const omitted = _importCandidates.length - imported.length;
     closeImportModal();
@@ -2595,6 +2832,11 @@
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+      // Cerrar con limpieza de estado (pendingGroup, etc.), no solo ocultando
+      const gp = document.getElementById("groupPassModal");
+      if (gp && !gp.classList.contains("hidden")) closeGroupPassModal();
+      const im = document.getElementById("importModal");
+      if (im && !im.classList.contains("hidden")) closeImportModal();
       document.querySelectorAll(".modal-bg:not(.hidden)").forEach(m => m.classList.add("hidden"));
       const dm = document.getElementById("descModal");
       if (dm) dm.classList.add("hidden");
@@ -2766,7 +3008,11 @@
     requestGroupAccess, closeGroupPassModal, doGroupLogin,
     showGroup, showCajonDeSastreMenu, goBackFromGroup,
     showLoginModal, closeLoginModal, doLogin,
-    renderHome, renderConfig, addAppRow, saveConfig,
+    showAboutModal, closeAboutModal,
+    renderHome, renderConfig, saveConfig,
+    // Alta de aplicaciones vía modal
+    showAddAppModal, closeAddAppModal, confirmAddApp,
+    addAppNameInput, addAppFormChanged, addAppCajonChanged,
     addAdminRow, saveAdminsConfig,
     saveGroupPasswordsConfig,
     hideDescModal, iconFallback,
@@ -2962,6 +3208,32 @@
   }
   .btn-config:hover { background: var(--gold); color: var(--navy); }
   .btn-config:active { background: var(--gold); color: var(--navy); transform: scale(.96); }
+
+  /* Botón ⚠ de información junto a «Configuración» */
+  .header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    flex-shrink: 0;
+  }
+  .btn-about {
+    background: transparent;
+    border: 1.5px solid var(--gold);
+    color: var(--gold2);
+    width: 40px; height: 40px;
+    padding: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background .2s, transform .2s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    flex-shrink: 0;
+  }
+  .btn-about:hover  { background: var(--gold); transform: scale(1.05); }
+  .btn-about:active { background: var(--gold); transform: scale(.94); }
 
   /* ══ Main wrapper ═══════════════════════════════════ */
   main {
@@ -3951,6 +4223,80 @@
   .modal-error { color: var(--danger); font-size: .82rem; min-height: 1.2rem; margin-bottom: .5rem; }
   .modal-actions { display: flex; gap: .7rem; justify-content: flex-end; margin-top: .5rem; }
 
+  /* Contenido del modal «Sobre esta app» */
+  .about-body {
+    font-size: .92rem;
+    color: var(--text);
+    line-height: 1.55;
+  }
+  .about-body p { margin: 0 0 .75rem; }
+  .about-body p:last-of-type { margin-bottom: .5rem; }
+  .about-link {
+    color: var(--navy);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    word-break: break-word;
+  }
+  .about-link:hover { color: var(--gold); }
+  .about-list { list-style: none; margin: 0; padding-left: 1.7rem; }
+  .about-list li { counter-increment: about-item; margin-bottom: .5rem; position: relative; }
+  .about-list li::before {
+    content: counter(about-item) ")";
+    position: absolute; left: -1.7rem;
+    font-weight: 700; color: var(--navy);
+  }
+
+  /* Modal «Nueva aplicación» */
+  .req { color: var(--danger); font-weight: 700; }
+  .addapp-hint {
+    font-size: .78rem;
+    color: var(--muted);
+    line-height: 1.45;
+    margin: -.3rem 0 .8rem;
+  }
+  .addapp-warn {
+    font-size: .8rem;
+    color: #8a5a00;
+    background: #fff6e0;
+    border: 1px solid #E8943A;
+    border-radius: 6px;
+    padding: .4rem .6rem;
+    margin: -.2rem 0 .7rem;
+  }
+  .addapp-profiles {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .5rem .8rem;
+    margin-bottom: .2rem;
+  }
+  .addapp-profiles label {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    font-size: .85rem;
+    color: var(--text);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .addapp-profiles input[type=checkbox] {
+    width: 17px; height: 17px;
+    accent-color: var(--navy);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .addapp-cajon-box {
+    margin: .65rem 0 .2rem;
+    padding: .6rem;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px dashed #d1d5db;
+  }
+  @media (max-width: 480px) {
+    .addapp-profiles { grid-template-columns: 1fr; }
+  }
+
   /* ══ Toast ══════════════════════════════════════════ */
   .toast {
     position: fixed;
@@ -4443,7 +4789,12 @@
     <h1>TecDeA - Portal Tecnología</h1>
     <div class="subtitle">IES Virgen de Villadiego · angelmicelti</div>
   </div>
-  <button class="btn-config" onclick="tecdea.showLoginModal()">⚙ Configuración</button>
+  <div class="header-actions">
+    <button class="btn-about" type="button" aria-label="Información sobre esta aplicación"
+            title="Información sobre esta app (Vibe Coding · reportar errores)"
+            onclick="tecdea.showAboutModal()">⚠️</button>
+    <button class="btn-config" onclick="tecdea.showLoginModal()">⚙ Configuración</button>
+  </div>
 </header>
 
 <!-- ═══════════ MAIN ═══════════════════════════════════════ -->
@@ -4529,11 +4880,12 @@
       <div class="accordion-content">
         <p class="hint" style="margin-top:0;margin-bottom:1rem">
           💾 Los cambios se guardan automáticamente al salir de cada celda.
-          La URL base fija es <code>https://tecdea.github.io/</code>. Añade el path final de cada aplicación (ejemplo: <code>miapp/</code>).<br>
+          Las nuevas aplicaciones se dan de alta con el botón «＋ Añadir aplicación», que abre un modal de confirmación.<br>
+          La URL base fija es <code>https://tecdea.github.io/</code>. Añade el path final de cada aplicación (ejemplo: <code>miapp/</code>).
           Si la aplicación no está en el dominio <code>https://tecdea.github.io</code>, introduce la ruta completa de la PWA.
         </p>
         <div class="actions" style="margin-bottom:1rem">
-          <button class="btn btn-gold" onclick="tecdea.addAppRow()">＋ Añadir aplicación</button>
+          <button class="btn btn-gold" onclick="tecdea.showAddAppModal()">＋ Añadir aplicación</button>
           <button class="btn btn-ghost" onclick="tecdea.sortApps('name')">↕ Ordenar por nombre</button>
           <button class="btn btn-ghost" onclick="tecdea.sortApps('url')">↕ Ordenar por URL</button>
           <button class="btn btn-primary" onclick="tecdea.saveConfig()">💾 Guardar aplicaciones</button>
@@ -4779,6 +5131,69 @@
 <div id="descModal" class="hidden" style="position:fixed;top:0;left:0;z-index:9000;pointer-events:none;">
   <div class="desc-modal-box">
     <p id="descModalText"></p>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL «SOBRE ESTA APP» (Vibe Coding) ═══════ -->
+<div id="aboutModal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>⚠️ Sobre esta aplicación</h2>
+    <div class="about-body">
+      <p>Esta app está implementada mediante <a class="about-link" href="https://educacion.bilateria.org/creacion-de-herramientas-educativas-con-inteligencia-artificial-guia-para-docentes-sin-programacion" target="_blank" rel="noopener noreferrer">Vibe Coding</a>.</p>
+      <p>Ni soy un programador experto ni el Vibe Coding es perfecto.</p>
+      <p>Si detectas un bug, envía un mail a <a class="about-link" href="mailto:bugs@iesvilladiego.com">bugs@iesvilladiego.com</a>, indicando:</p>
+      <ol class="about-list">
+        <li>Nombre de la aplicación en la que has encontrado el error.</li>
+        <li>Descripción detallada del error.</li>
+      </ol>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-primary" onclick="tecdea.closeAboutModal()">Entendido</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL NUEVA APLICACIÓN ═══════════════════ -->
+<div id="addAppModal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>＋ Nueva aplicación</h2>
+    <form onsubmit="event.preventDefault(); tecdea.confirmAddApp()" autocomplete="off" novalidate>
+      <div class="fi-label">Nombre <span class="req">*</span></div>
+      <input type="text" id="addAppName" class="fi" placeholder="Nombre de la aplicación" oninput="tecdea.addAppNameInput()">
+      <div id="addAppNameWarn" class="addapp-warn hidden"></div>
+
+      <div class="fi-label">Descripción</div>
+      <input type="text" id="addAppDesc" class="fi" placeholder="Descripción (opcional)" oninput="tecdea.addAppFormChanged()">
+
+      <div class="fi-label">URL</div>
+      <input type="text" id="addAppUrl" class="fi" value="https://tecdea.github.io/" oninput="tecdea.addAppFormChanged()">
+      <div class="addapp-hint">La URL base fija es <code>https://tecdea.github.io/</code>. Añade el path final (ej.: <code>miapp/</code>). Si la aplicación está en otro dominio, introduce la ruta completa de la PWA.</div>
+
+      <div class="fi-label">Perfiles <span class="req">*</span></div>
+      <div class="addapp-profiles">
+        <label><input type="checkbox" id="addAppTecnoApps" onchange="tecdea.addAppFormChanged()"> 📱 TecnoApps</label>
+        <label><input type="checkbox" id="addAppHerramientasTecno" onchange="tecdea.addAppFormChanged()"> 🔧 Herr. Tecno</label>
+        <label><input type="checkbox" id="addAppDepartamento" onchange="tecdea.addAppFormChanged()"> 🏫 Departamento</label>
+        <label><input type="checkbox" id="addAppCajonDeSastre" onchange="tecdea.addAppCajonChanged(this)"> 🧰 Cajón de sastre</label>
+      </div>
+      <div id="addAppCajonWrap" class="addapp-cajon-box hidden">
+        <small style="color:var(--navy);font-weight:600;display:block;margin-bottom:4px">📂 Subcategoría (obligatoria para Cajón de sastre):</small>
+        <select id="addAppCategory" class="fi" style="max-width:none;width:100%" onchange="tecdea.addAppFormChanged()">
+          <option value="">Seleccionar categoría...</option>
+          <option value="matematicas">📐 Matemáticas</option>
+          <option value="fisica">⚛️ Física</option>
+          <option value="quimica">🧪 Química</option>
+          <option value="ia">🤖 IA</option>
+          <option value="utilidades">🔧 Utilidades</option>
+        </select>
+      </div>
+
+      <div id="addAppError" class="modal-error"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="tecdea.closeAddAppModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="addAppConfirmBtn">＋ Añadir aplicación</button>
+      </div>
+    </form>
   </div>
 </div>
 
