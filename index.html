@@ -373,7 +373,8 @@
     }
     
     // Para cualquier otro caso (incluido cajonDeSastre con categoría), mostrar apps
-    let filtered = apps.filter(a => a[group]);
+    // Solo las apps ACTIVAS: las desactivadas por el administrador no se listan
+    let filtered = apps.filter(a => a[group] && isAppActive(a));
     
     // Si es Cajón de sastre con subcategoría, filtrar también por categoría
     if (group === 'cajonDeSastre' && category) {
@@ -874,7 +875,7 @@
     });
 
     const emptyRow = rowsData.length === 0
-      ? `<tr class="no-apps-row"><td colspan="8" style="text-align:center;color:var(--muted);padding:1.5rem;font-style:italic;">No hay aplicaciones que coincidan con el filtro seleccionado.</td></tr>`
+      ? `<tr class="no-apps-row"><td colspan="9" style="text-align:center;color:var(--muted);padding:1.5rem;font-style:italic;">No hay aplicaciones que coincidan con el filtro seleccionado.</td></tr>`
       : "";
 
     // Opciones de categoría para Cajón de sastre (siempre disponibles)
@@ -903,6 +904,8 @@
       const uncategorized = hasName && !hasCat;
       const rowClasses = [rowClass];
       if (uncategorized) rowClasses.push('row-uncategorized');
+      // App desactivada por el administrador → fila atenuada (no se muestra en perfiles)
+      if (!isAppActive(a)) rowClasses.push('row-inactive');
       return `
       <tr data-i="${i}" class="${rowClasses.join(' ')}" data-uncategorized="${uncategorized}">
         <td data-label="Nombre"><input type="text" class="fi" value="${escHtml(a.name)}" placeholder="Nombre" data-field="name"></td>
@@ -934,6 +937,10 @@
             ${categorySelect}
           </div>
         </td>
+        <td data-label="Activa" class="chk chk-activa">
+          <input type="checkbox" ${isAppActive(a) ? "checked" : ""} data-field="activa"
+                 title="Desmarcar para desactivar la app: deja de mostrarse en los perfiles sin eliminarla">
+        </td>
         <td data-label="" class="chk"><button class="btn-del" onclick="window._delApp(${i})" title="Eliminar">✕</button></td>
       </tr>`;
     }).join("");
@@ -948,6 +955,11 @@
       inp.addEventListener("change", () => {
         collectTableData();
         updateRowUncategorizedState(inp);
+        // Visibilidad inmediata del estado desactivado (sin reconstruir la tabla)
+        if (inp.dataset.field === 'activa') {
+          const tr = inp.closest('tr');
+          if (tr) tr.classList.toggle('row-inactive', !inp.checked);
+        }
         // Guardar inmediatamente en Firebase al cambiar un checkbox de categoría
         if (inp.type === 'checkbox') {
           persistAppsChanges().then(notifyPersistResult);
@@ -1067,7 +1079,7 @@
       // Asegurar que el objeto existe
       if (!apps[i]) {
         console.warn(`[TecDeA] apps[${i}] es undefined, inicializando...`);
-        apps[i] = { name: "", desc: "", url: "https://tecdea.github.io/", tecnoApps: false, herramientasTecno: false, departamento: false, cajonDeSastre: false, category: "" };
+        apps[i] = { name: "", desc: "", url: "https://tecdea.github.io/", tecnoApps: false, herramientasTecno: false, departamento: false, cajonDeSastre: false, category: "", activa: true };
       }
       tr.querySelectorAll("[data-field]").forEach(el => {
         const f = el.dataset.field;
@@ -1350,9 +1362,10 @@
   // ════════════════════════════════════════════════════════
   //  ALTA DE NUEVAS APLICACIONES (modal con confirmación)
   //  Sustituye al alta por fila vacía. Conserva TODAS las condiciones
-  //  que existían: límite de 200 apps, nombre obligatorio, al menos un
-  //  perfil (Cajón exige subcategoría), detección de duplicados/similares
-  //  (aviso, no bloqueo), URL base por defecto y autoguardado tolerante.
+  //  que existían (sin límite de aplicaciones: Firebase RTDB y la tabla
+  //  no lo requieren): nombre obligatorio, al menos un perfil (Cajón
+  //  exige subcategoría), detección de duplicados/similares (aviso, no
+  //  bloqueo), URL base por defecto y autoguardado tolerante.
   // ════════════════════════════════════════════════════════
 
   // Deja la barra de filtros en «Todas» (misma secuencia que el antiguo addAppRow,
@@ -1387,13 +1400,6 @@
 
   function showAddAppModal() {
     collectTableData();
-
-    // Límite razonable (mismo MAX_APPS que el antiguo alta por fila)
-    const MAX_APPS = 200;
-    if (apps.length >= MAX_APPS) {
-      showToast(`⚠️ Límite de aplicaciones alcanzado (${MAX_APPS}). Elimina algunas antes de añadir más.`, 'err', 5000);
-      return;
-    }
 
     // Reset del formulario
     document.getElementById("addAppName").value = "";
@@ -1499,17 +1505,10 @@
       return;
     }
 
-    const MAX_APPS = 200;
-    if (apps.length >= MAX_APPS) {
-      closeAddAppModal();
-      showToast(`⚠️ Límite de aplicaciones alcanzado (${MAX_APPS}). Elimina algunas antes de añadir más.`, 'err', 5000);
-      return;
-    }
-
     // Detección de duplicados/similares (aviso, no bloqueo — igual que en la tabla)
     const similar = findSimilarApps(name, -1, 0.75);
 
-    apps.push({ name, desc, url, tecnoApps: tec, herramientasTecno: her, departamento: dep, cajonDeSastre: caj, category: caj ? cat : "" });
+    apps.push({ name, desc, url, tecnoApps: tec, herramientasTecno: her, departamento: dep, cajonDeSastre: caj, category: caj ? cat : "", activa: true });
 
     // Mostrar la nueva app: reset de filtros (comportamiento del antiguo addAppRow)
     resetAppsFilterUI();
@@ -1539,6 +1538,14 @@
     buildConfigTable();
     debouncedAutoSaveApps(); // persistir el borrado como cualquier otra edición
   };
+
+  // ¿App desactivada? Convención compatible hacia atrás: las apps antiguas
+  // (sin el campo) y las nuevas nacen ACTIVAS; solo activa === false desactiva.
+  // Una app desactivada conserva sus datos y perfiles, pero NO se muestra en
+  // ninguno de los perfiles visibles para el usuario (elección del administrador).
+  function isAppActive(a) {
+    return !(a && a.activa === false);
+  }
 
   // ¿App con nombre pero sin ninguna categoría válida?
   // En tecdea, Cajón de sastre requiere además una subcategoría seleccionada
@@ -1861,7 +1868,9 @@
         'Cajón de sastre':  a.cajonDeSastre ? 'Sí' : 'No',
         // La subcategoría solo tiene sentido para apps de Cajón de sastre;
         // si la app no es de Cajón se exporta «-» aunque tenga category residual.
-        'Categoría':        a.cajonDeSastre ? (categoryLabel(a.category) || '-') : '-'
+        'Categoría':        a.cajonDeSastre ? (categoryLabel(a.category) || '-') : '-',
+        // Estado de visibilidad en los perfiles (elección del administrador)
+        'Activa':           isAppActive(a) ? 'Sí' : 'No'
       }));
     }
 
@@ -1914,8 +1923,8 @@
     if (data.apps && data.apps.length > 0) {
       const ws = X.utils.json_to_sheet(data.apps);
       ws['!cols'] = [
-        { wch: 25 }, { wch: 40 }, { wch: 50 }, 
-        { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 16 }, { wch: 14 }
+        { wch: 25 }, { wch: 40 }, { wch: 50 },
+        { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 8 }
       ];
       X.utils.book_append_sheet(wb, ws, 'Aplicaciones');
     }
@@ -2365,11 +2374,15 @@
       const catTag = a.cajonDeSastre && a.category
         ? `<span class="app-sel-tag tag-cat" title="Cajón de sastre · ${escHtml(categoryLabel(a.category))}">${escHtml(EXPORT_SUBCAT_ICONS[a.category] || '🏷')} ${escHtml(categoryLabel(a.category))}</span>`
         : '';
+      // Apps desactivadas: se pueden exportar, pero se marcan visualmente
+      const offTag = !isAppActive(a)
+        ? '<span class="app-sel-tag tag-off" title="Aplicación desactivada: no se muestra en los perfiles">inactiva</span>'
+        : '';
       return `
         <label class="app-sel-item" data-profiles="${escHtml(profiles.map(p => p.key).join(','))}" data-cat="${a.cajonDeSastre ? escHtml(a.category || '__none__') : ''}">
           <input type="checkbox" data-i="${idx}" data-key="${escHtml(key)}" ${checked ? 'checked' : ''} onchange="tecdea.updateExportSelCount()">
           <span class="app-sel-name">${escHtml(a.name || '(sin nombre)')}</span>
-          <span class="app-sel-tags">${profiles.map(p => `<span class="app-sel-tag" title="${escHtml(p.label)}">${p.icon}</span>`).join('')}${catTag}</span>
+          <span class="app-sel-tags">${profiles.map(p => `<span class="app-sel-tag" title="${escHtml(p.label)}">${p.icon}</span>`).join('')}${catTag}${offTag}</span>
           <span class="app-sel-url">${escHtml(a.url || '')}</span>
         </label>`;
     }).join('') + '<div id="appSelNoRes" class="app-sel-empty hidden">Ninguna aplicación coincide con el buscador o el filtro de categoría.</div>';
@@ -2508,6 +2521,7 @@
         departamento: !!r.departamento,
         cajonDeSastre: !!r.cajonDeSastre,
         category: r.category || '',
+        activa: (r.activaRaw === '' || r.activaRaw == null) ? true : parseImportBool(r.activaRaw),
         status: 'new',
         dupOf: ''
       };
@@ -2581,7 +2595,10 @@
         herramientasTecno: parseImportBool(pickImportField(r, 'HerramientasTecno', 'Herramientas Tecno', 'HerrTec')),
         departamento:      parseImportBool(pickImportField(r, 'Departamento', 'Dep.')),
         cajonDeSastre:     parseImportBool(pickImportField(r, 'Cajón de sastre', 'Cajon de sastre', 'Caj.')),
-        category:          parseImportCategory(pickImportField(r, 'Categoría', 'Categoria', 'Subperfil'))
+        category:          parseImportCategory(pickImportField(r, 'Categoría', 'Categoria', 'Subperfil')),
+        // Columna «Activa» opcional (añadida con el sistema de desactivación):
+        // ausente/vacía → activa (compatible con exportaciones antiguas)
+        activaRaw:         pickImportField(r, 'Activa', 'activa')
       }));
 
       _importCandidates = analyzeImportRows(parsed);
@@ -2601,6 +2618,7 @@
       const cat = c.category ? categoryLabel(c.category) : '';
       parts.push('Cajón' + (cat ? ` (${cat})` : ''));
     }
+    if (c.activa === false) parts.push('⛔ inactiva');
     return parts.length ? parts.join(' · ') : '— ninguno —';
   }
 
@@ -2687,7 +2705,8 @@
       herramientasTecno: c.herramientasTecno,
       departamento: c.departamento,
       cajonDeSastre: c.cajonDeSastre,
-      category: c.cajonDeSastre ? (c.category || '') : ''
+      category: c.cajonDeSastre ? (c.category || '') : '',
+      activa: c.activa !== false
     }));
 
     apps = apps.concat(imported);
@@ -3027,6 +3046,8 @@
     // Selección individual de aplicaciones para exportar
     onExpAppsToggle, buildExportAppSelection, selectAllExportApps,
     filterExportAppList, updateExportSelCount, toggleExportCat,
+    // Estado de activación de apps (visibilidad en los perfiles)
+    isAppActive,
     // Importación masiva de aplicaciones
     onImportFileSelected, analyzeImportFile, closeImportModal,
     confirmImport, updateImportConfirmBtn
@@ -3748,6 +3769,29 @@
     50%      { box-shadow: inset 4px 0 0 #f97316; }
   }
 
+  /* ══ Fila desactivada (Act. sin marcar): atenuada, no se muestra en perfiles ═══ */
+  table#appsTable tbody tr.row-inactive td {
+    background: linear-gradient(to right, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%) !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+  }
+  table#appsTable tbody tr.row-inactive:hover td {
+    background: linear-gradient(135deg, #eef2f7 0%, #e2e8f0 100%) !important;
+    border-bottom-color: #cbd5e1 !important;
+  }
+  table#appsTable tbody tr.row-inactive {
+    box-shadow: inset 4px 0 0 #94a3b8;
+  }
+  table#appsTable tbody tr.row-inactive .fi:not([type="checkbox"]),
+  table#appsTable tbody tr.row-inactive .category-wrapper {
+    opacity: .55;
+  }
+  table#appsTable tbody tr.row-inactive input[data-field="activa"] {
+    accent-color: #94a3b8;
+    outline: 1.5px dashed #94a3b8;
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
   .chk { text-align: center; }
   .fi {
     width: 100%; border: 1.5px solid #d1d5db;
@@ -4086,6 +4130,7 @@
     background: #e8eefb; color: var(--navy); border: 1px solid #d5dff0; white-space: nowrap;
   }
   .app-sel-tag.tag-cat { background: #fdf3d9; color: #8a6100; border-color: #efdba6; }
+  .app-sel-tag.tag-off { background: #f1f5f9; color: #475569; border-color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; }
   .app-sel-scope {
     font-size: .72rem; color: #8a6100; background: #fdf3d9;
     border: 1px dashed #efdba6; padding: .3rem .55rem;
@@ -4533,6 +4578,13 @@
       outline-offset: -1px;
       border-radius: 12px;
     }
+    /* Fila desactivada en móvil pequeño (tarjetas) */
+    table#appsTable tr.row-inactive {
+      outline: 2px dashed #94a3b8;
+      outline-offset: -1.5px;
+      border-radius: 12px;
+    }
+    table#appsTable tr.row-inactive .fi:not([type="checkbox"]) { opacity: .55; }
   }
 
   /* ── Móvil medio (400–599px) ─────────────────────── */
@@ -4612,6 +4664,13 @@
       outline-offset: -1px;
       border-radius: 12px;
     }
+    /* Fila desactivada en móvil medio (tarjetas) */
+    table#appsTable tr.row-inactive {
+      outline: 2px dashed #94a3b8;
+      outline-offset: -1.5px;
+      border-radius: 12px;
+    }
+    table#appsTable tr.row-inactive .fi:not([type="checkbox"]) { opacity: .55; }
   }
 
   /* ── Móvil/tablet (600–767px) ────────────────────── */
@@ -4881,6 +4940,7 @@
         <p class="hint" style="margin-top:0;margin-bottom:1rem">
           💾 Los cambios se guardan automáticamente al salir de cada celda.
           Las nuevas aplicaciones se dan de alta con el botón «＋ Añadir aplicación», que abre un modal de confirmación.<br>
+          La casilla <b>Act.</b> activa o desactiva cada aplicación: desmarcada, la app deja de mostrarse en los perfiles sin llegar a eliminarse (la fila aparece atenuada).<br>
           La URL base fija es <code>https://tecdea.github.io/</code>. Añade el path final de cada aplicación (ejemplo: <code>miapp/</code>).
           Si la aplicación no está en el dominio <code>https://tecdea.github.io</code>, introduce la ruta completa de la PWA.
         </p>
@@ -4918,6 +4978,7 @@
                 <th>HerrTec</th>
                 <th>Dep.</th>
                 <th>Caj.</th>
+                <th title="Activa: desmárcala para ocultar la app en los perfiles sin eliminarla">Act.</th>
                 <th></th>
               </tr>
             </thead>
