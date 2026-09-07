@@ -858,6 +858,20 @@
     document.querySelector('.btn-config')?.classList.add('hidden');
   }
 
+  // Filtrado combinado en vivo: indica si el campo editado en la tabla puede
+  // cambiar el resultado del filtro activo (y por tanto exige repintar al momento).
+  function affectsActiveFilter(field) {
+    if (field === 'activa') return appsEstadoFilter !== 'all';
+    if (field === 'tecnoApps' || field === 'herramientasTecno' ||
+        field === 'departamento' || field === 'cajonDeSastre') {
+      return appsProfileFilters.length > 0;
+    }
+    if (field === 'category') {
+      return appsProfileFilters.includes('cajonDeSastre') && cajonCategoryFilters.length > 0;
+    }
+    return false;
+  }
+
   // ── Tabla de aplicaciones ─────────────────────────────
   function buildConfigTable() {
     const tbody = document.querySelector("#appsTable tbody");
@@ -967,7 +981,8 @@
       inp.addEventListener("change", () => {
         collectTableData();
         updateRowUncategorizedState(inp);
-        // Visibilidad inmediata del estado desactivado (sin reconstruir la tabla)
+        // Visibilidad inmediata del estado desactivado (si hay filtro de estado
+        // activo, el repintado completo ocurre después vía affectsActiveFilter)
         if (inp.dataset.field === 'activa') {
           const tr = inp.closest('tr');
           if (tr) tr.classList.toggle('row-inactive', !inp.checked);
@@ -986,6 +1001,10 @@
             clearTimeout(toast._timer);
           }
         }
+        // Filtrado combinado en vivo: si el campo editado afecta a un filtro
+        // activo, repintar la tabla al instante para que la fila aparezca o
+        // desaparezca según el filtro (p. ej. desactivar una app con «Activas»)
+        if (affectsActiveFilter(inp.dataset.field || '')) buildConfigTable();
       });
       inp.addEventListener("input",  () => {
         collectTableData();
@@ -1054,6 +1073,9 @@
             clearTimeout(toast._timer);
           }
         }
+        // Filtrado combinado en vivo: la subcategoría puede afectar al filtro
+        // activo (Cajón + subcategorías) → repintar si procede
+        if (affectsActiveFilter('category')) buildConfigTable();
       });
       sel.addEventListener("change", () => handleAppCellBlur(sel));
     });
