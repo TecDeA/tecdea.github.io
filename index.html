@@ -155,7 +155,7 @@
   let admins = [{ user: "admin", pass: "admin" }];
   let groupPasswords = { tecnoApps: "", herramientasTecno: "", departamento: "", cajonDeSastre: "" };
   let pendingGroup = null;
-  let appsFilter = 'all';
+  let appsProfileFilters = []; // Perfiles activos (COMBINABLES): p. ej. ['tecnoApps','departamento']
   let appsEstadoFilter = 'all'; // Filtro de estado: 'all' | 'activas' | 'inactivas'
   let appsSort = { field: 'name', direction: 'asc' };
   let cajonCategoryFilters = []; // Array para filtros de subcategoría del Cajón de sastre
@@ -823,7 +823,7 @@
   // ── Pantalla configuración ────────────────────────────
   function renderConfig() {
     // Resetear filtros al entrar en configuración
-    appsFilter = 'all';
+    appsProfileFilters = [];
     cajonCategoryFilters = [];
     appsEstadoFilter = 'all';
 
@@ -863,17 +863,18 @@
     const tbody = document.querySelector("#appsTable tbody");
     const rowsData = [];
     apps.forEach((a, i) => {
-      // Filtro principal por perfil
-      let matches = appsFilter === 'all' || a[appsFilter];
+      // Filtro por perfil (multi-selección COMBINABLE): sin perfiles marcados
+      // se muestran todas; con alguno, la app debe pertenecer a AL MENOS UNO
+      // (unión). El Cajón de sastre aplica además sus subcategorías, si hay.
+      let matches = appsProfileFilters.length === 0 ||
+        appsProfileFilters.some(f =>
+          f === 'cajonDeSastre'
+            ? (!!a.cajonDeSastre && (cajonCategoryFilters.length === 0 || cajonCategoryFilters.includes(a.category || '')))
+            : !!a[f]);
 
-      // Filtro de estado (Activas/Inactivas), combinable con el de perfil
+      // Filtro de estado (Activas/Inactivas), combinable con los de perfil
       if (matches && appsEstadoFilter === 'activas') matches = isAppActive(a);
       else if (matches && appsEstadoFilter === 'inactivas') matches = !isAppActive(a);
-
-      // Si es Cajón de sastre con subfiltros de categoría, filtrar también
-      if (matches && appsFilter === 'cajonDeSastre' && cajonCategoryFilters.length > 0) {
-        matches = cajonCategoryFilters.includes(a.category || '');
-      }
 
       if (matches) rowsData.push({ app: a, idx: i });
     });
@@ -1396,7 +1397,7 @@
   // Deja la barra de filtros en «Todas» (misma secuencia que el antiguo addAppRow,
   // corrigiendo el detalle de que el botón «Todas» quedaba sin marcar al final)
   function resetAppsFilterUI() {
-    appsFilter = 'all';
+    appsProfileFilters = [];
     cajonCategoryFilters = [];
 
     const subfilters = document.getElementById('cajonSubfilters');
@@ -1413,8 +1414,7 @@
 
     document.querySelectorAll('#appsFilterBar .filter-btn').forEach(btn => {
       btn.style.display = '';
-      btn.classList.remove('expanded');
-      btn.classList.toggle('active', btn.dataset.filter === 'all');
+      btn.classList.remove('active', 'expanded');
     });
 
     appsEstadoFilter = 'all';
@@ -2934,11 +2934,14 @@
     // Si los subfiltros están ocultos, mostrarlos y activar el filtro principal
     if (subfilters.classList.contains('hidden')) {
       // Activar el filtro principal cajonDeSastre (sin subfiltros = todas)
-      appsFilter = 'cajonDeSastre';
+      if (!appsProfileFilters.includes('cajonDeSastre')) {
+        setAppsWithSubFilter('cajonDeSastre'); // activa el perfil y repinta barra y tabla
+        return;
+      }
       cajonCategoryFilters = []; // Resetear subfiltros al abrir
 
       document.querySelectorAll('#appsFilterBar .filter-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.filter === 'cajonDeSastre' || b === btn);
+        b.classList.toggle('active', appsProfileFilters.includes(b.dataset.filter));
       });
 
       // Resetear estado visual de subfiltros
@@ -2982,73 +2985,48 @@
     buildConfigTable();
   }
 
-  // Modificar setAppsFilter para manejar subfiltros de Cajón de sastre con TOGGLE
+  // Filtros de perfil con TOGGLE y MULTI-SELECCIÓN (filtrado combinado): cada
+  // clic añade o quita el perfil del conjunto activo, los botones NUNCA se
+  // ocultan entre sí y la tabla muestra la UNIÓN de los perfiles marcados
+  // (combinable además con el filtro de estado Activas/Inactivas).
   function setAppsWithSubFilter(filter) {
     try {
       console.log('[TecDeA] setAppsWithSubFilter llamado con:', filter);
-      
+
       const subfilters = document.getElementById('cajonSubfilters');
       const cajonBtn = document.getElementById('cajonDeSastreBtn');
-      const allFilterBtns = Array.from(document.querySelectorAll('#appsFilterBar .filter-btn'));
-      
-      console.log('[TecDeA] Botones encontrados:', allFilterBtns.length);
-      console.log('[TecDeA] appsFilter actual:', appsFilter);
-    
-      if (appsFilter === filter) {
-        // ═══ TOGGLE OFF: desactivar, mostrar todo ═══
-        appsFilter = 'all';
-        cajonCategoryFilters = [];
-        
-        allFilterBtns.forEach(btn => {
-          btn.style.display = '';
-          btn.classList.remove('active', 'expanded');
-        });
-        
-        // Ocultar subfiltros
-        if (subfilters) {
-          subfilters.classList.add('hidden');
-          subfilters.style.display = 'none';
-        }
-        if (cajonBtn) {
-          cajonBtn.classList.remove('expanded');
-        }
-        console.log('[TecDeA] Toggle OFF ejecutado');
+
+      // ═══ TOGGLE: añadir/quitar el perfil del conjunto de filtros activos ═══
+      const pos = appsProfileFilters.indexOf(filter);
+      if (pos > -1) {
+        appsProfileFilters.splice(pos, 1);
+        console.log('[TecDeA] Perfil desactivado:', filter);
       } else {
-        // ═══ TOGGLE ON: activar filtro ═══
-        appsFilter = filter;
-        cajonCategoryFilters = [];
-        
-        allFilterBtns.forEach(btn => {
-          if (btn.dataset.filter === filter) {
-            btn.style.display = '';
-            btn.classList.add('active');
-          } else {
-            btn.style.display = 'none';
-            btn.classList.remove('active', 'expanded');
-          }
-        });
-        
-        // Mostrar subfiltros solo si es Cajón de sastre
-        if (filter === 'cajonDeSastre') {
-          if (subfilters) {
-            subfilters.classList.remove('hidden');
-            subfilters.style.display = 'inline-flex';
-          }
-          if (cajonBtn) {
-            cajonBtn.classList.add('expanded');
-          }
-        } else {
-          if (subfilters) {
-            subfilters.classList.add('hidden');
-            subfilters.style.display = 'none';
-          }
-          if (cajonBtn) {
-            cajonBtn.classList.remove('expanded');
-          }
-        }
-        console.log('[TecDeA] Toggle ON ejecutado para:', filter);
+        appsProfileFilters.push(filter);
+        console.log('[TecDeA] Perfil activado:', filter);
       }
 
+      // Estado visual: cada botón refleja su propia selección; ninguno se oculta
+      document.querySelectorAll('#appsFilterBar .filter-btn').forEach(btn => {
+        btn.style.display = '';
+        btn.classList.toggle('active', appsProfileFilters.includes(btn.dataset.filter));
+        if (btn.dataset.filter !== 'cajonDeSastre') btn.classList.remove('expanded');
+      });
+
+      // Subfiltros del Cajón: visibles solo con ese perfil activo
+      const cajonOn = appsProfileFilters.includes('cajonDeSastre');
+      if (subfilters) {
+        subfilters.classList.toggle('hidden', !cajonOn);
+        subfilters.style.display = cajonOn ? 'inline-flex' : 'none';
+      }
+      if (cajonBtn) cajonBtn.classList.toggle('expanded', cajonOn);
+      if (!cajonOn && cajonCategoryFilters.length) {
+        // Al quitar el Cajón se olvidan sus subcategorías marcadas
+        cajonCategoryFilters = [];
+        document.querySelectorAll('#cajonSubfilters .filter-sub-btn').forEach(b => b.classList.remove('active'));
+      }
+
+      console.log('[TecDeA] Perfiles activos:', appsProfileFilters.join(', ') || '(ninguno)');
       buildConfigTable();
     } catch (error) {
       console.error('[TecDeA] Error en setAppsWithSubFilter:', error);
@@ -3057,9 +3035,10 @@
   }
 
   // Filtro por estado (Activas/Inactivas): toggle (repetir el click quita el
-  // filtro), exclusivo entre sí y COMBINABLE con el filtro de perfil, que se
-  // aplica primero. No usa la clase .filter-btn a propósito: los bucles de
-  // exclusividad de los filtros de perfil no deben ocultar estos botones.
+  // filtro) y exclusivo entre sí, pero COMBINABLE con los filtros de perfil
+  // (multi-seleccionables entre sí desde el filtrado combinado). No usa la
+  // clase .filter-btn a propósito: los bucles de los filtros de perfil no
+  // deben tocar estos botones.
   function setAppsEstadoFilter(estado) {
     try {
       appsEstadoFilter = (appsEstadoFilter === estado) ? 'all' : estado;
@@ -5089,6 +5068,7 @@
           💾 Los cambios se guardan automáticamente al salir de cada celda.
           Las nuevas aplicaciones se dan de alta con el botón «＋ Añadir aplicación», que abre un modal de confirmación.<br>
           La casilla <b>Act.</b> activa o desactiva cada aplicación: desmarcada, la app deja de mostrarse en los perfiles sin llegar a eliminarse (la fila aparece atenuada).<br>
+          Los filtros de la barra («TecnoApps», «Herramientas Tecno», «Departamento», «Cajón de sastre» y «Estado») son <b>combinables</b>: márcalos a la vez para afinar la búsqueda (p. ej. TecnoApps + Inactivas).<br>
           La URL base fija es <code>https://tecdea.github.io/</code>. Añade el path final de cada aplicación (ejemplo: <code>miapp/</code>).
           Si la aplicación no está en el dominio <code>https://tecdea.github.io</code>, introduce la ruta completa de la PWA.
         </p>
@@ -5099,7 +5079,7 @@
           <button class="btn btn-primary" onclick="tecdea.saveConfig()">💾 Guardar aplicaciones</button>
         </div>
         <div class="filter-bar" id="appsFilterBar">
-          <span class="filter-label">🔎 Filtrar por perfil:</span>
+          <span class="filter-label" title="Puedes combinar varios perfiles a la vez, y también con el filtro de Estado">🔎 Filtrar por perfil:</span>
           <button class="filter-btn" data-filter="tecnoApps" onclick="tecdea.setAppsFilter('tecnoApps')" aria-label="Filtrar TecnoApps"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px" aria-hidden="true"><rect x="4" y="1" width="16" height="22" rx="3" fill="#1E7A3D" stroke="#E8943A" stroke-width="1"/><rect x="6" y="4" width="12" height="13" rx="1" fill="#F5E6A3" opacity="0.9"/><circle cx="12" cy="20" r="1" fill="#E8943A"/></svg>TecnoApps</button>
           <button class="filter-btn" data-filter="herramientasTecno" onclick="tecdea.setAppsFilter('herramientasTecno')" aria-label="Filtrar Herramientas Tecno"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="4" fill="#9B59B6" stroke="#E8943A" stroke-width="1"/><path d="M7,8 L11,8 L9,14 Z" fill="#F5E6A3"/><circle cx="15" cy="10" r="4" fill="#F5E6A3" stroke="#1A3A8E" stroke-width="1"/><path d="M13,10 L14,11 L17,8" stroke="#1E7A3D" stroke-width="1.5" fill="none"/></svg>Herramientas Tecno</button>
           <button class="filter-btn" data-filter="departamento" onclick="tecdea.setAppsFilter('departamento')" aria-label="Filtrar Departamento"><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:4px" aria-hidden="true"><rect x="2" y="9" width="20" height="13" rx="1" fill="#1A3A8E" stroke="#E8943A" stroke-width="1"/><polygon points="12,2 20,9 4,9" fill="#E8943A" stroke="#1E7A3D" stroke-width="0.5"/><rect x="10" y="13" width="4" height="7" rx="0.5" fill="#F5E6A3"/></svg>Departamento</button>
@@ -5116,7 +5096,7 @@
           </span>
 
           <span class="filter-estado-sep" aria-hidden="true"></span>
-          <span class="filter-label">Estado:</span>
+          <span class="filter-label" title="Combinable con los filtros de perfil">Estado:</span>
           <button type="button" class="filter-estado-btn" id="filtroActivasBtn" data-estado="activas" onclick="tecdea.setAppsEstadoFilter('activas')" aria-pressed="false" title="Mostrar solo las aplicaciones activas (visibles en los perfiles)">✅ Activas <span class="estado-count" id="filtroActivasCount">0</span></button>
           <button type="button" class="filter-estado-btn" id="filtroInactivasBtn" data-estado="inactivas" onclick="tecdea.setAppsEstadoFilter('inactivas')" aria-pressed="false" title="Mostrar solo las aplicaciones desactivadas (ocultas en los perfiles)">⛔ Inactivas <span class="estado-count" id="filtroInactivasCount">0</span></button>
         </div>
