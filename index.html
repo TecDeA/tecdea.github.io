@@ -156,6 +156,7 @@
   let groupPasswords = { tecnoApps: "", herramientasTecno: "", departamento: "", cajonDeSastre: "" };
   let pendingGroup = null;
   let appsFilter = 'all';
+  let appsEstadoFilter = 'all'; // Filtro de estado: 'all' | 'activas' | 'inactivas'
   let appsSort = { field: 'name', direction: 'asc' };
   let cajonCategoryFilters = []; // Array para filtros de subcategoría del Cajón de sastre
   
@@ -824,10 +825,16 @@
     // Resetear filtros al entrar en configuración
     appsFilter = 'all';
     cajonCategoryFilters = [];
-    
+    appsEstadoFilter = 'all';
+
     document.querySelectorAll('#appsFilterBar .filter-btn').forEach(btn => {
       btn.style.display = '';
       btn.classList.remove('active', 'expanded');
+    });
+
+    document.querySelectorAll('#appsFilterBar .filter-estado-btn').forEach(btn => {
+      btn.classList.remove('active');
+      btn.setAttribute('aria-pressed', 'false');
     });
     
     const subfilters = document.getElementById('cajonSubfilters');
@@ -858,6 +865,10 @@
     apps.forEach((a, i) => {
       // Filtro principal por perfil
       let matches = appsFilter === 'all' || a[appsFilter];
+
+      // Filtro de estado (Activas/Inactivas), combinable con el de perfil
+      if (matches && appsEstadoFilter === 'activas') matches = isAppActive(a);
+      else if (matches && appsEstadoFilter === 'inactivas') matches = !isAppActive(a);
 
       // Si es Cajón de sastre con subfiltros de categoría, filtrar también
       if (matches && appsFilter === 'cajonDeSastre' && cajonCategoryFilters.length > 0) {
@@ -959,6 +970,7 @@
         if (inp.dataset.field === 'activa') {
           const tr = inp.closest('tr');
           if (tr) tr.classList.toggle('row-inactive', !inp.checked);
+          updateEstadoFilterCounts();
         }
         // Guardar inmediatamente en Firebase al cambiar un checkbox de categoría
         if (inp.type === 'checkbox') {
@@ -1055,9 +1067,22 @@
       inp.addEventListener("focus", () => hideDescModal(true));
     });
 
+    // Contadores de los filtros de estado (siempre sobre TODAS las apps)
+    updateEstadoFilterCounts();
+
     // Mantener sincronizada la lista de selección para exportar
     // (cubre: añadir/eliminar filas, guardar, filtrar y ordenar)
     buildExportAppSelection(true);
+  }
+
+  // Actualiza los contadores de los botones «Activas» / «Inactivas» de la
+  // barra de filtros (sobre el total de apps, sin afectar el filtro activo)
+  function updateEstadoFilterCounts() {
+    const nActivas = apps.filter(isAppActive).length;
+    const cA = document.getElementById('filtroActivasCount');
+    const cI = document.getElementById('filtroInactivasCount');
+    if (cA) cA.textContent = nActivas;
+    if (cI) cI.textContent = apps.length - nActivas;
   }
 
   // NOTA: setAppsFilter fue reemplazada por setAppsWithSubFilter (con toggle)
@@ -1391,6 +1416,12 @@
       btn.classList.remove('expanded');
       btn.classList.toggle('active', btn.dataset.filter === 'all');
     });
+
+    appsEstadoFilter = 'all';
+    document.querySelectorAll('#appsFilterBar .filter-estado-btn').forEach(btn => {
+      btn.classList.remove('active');
+      btn.setAttribute('aria-pressed', 'false');
+    });
   }
 
   function setAddAppError(msg) {
@@ -1408,6 +1439,7 @@
     ["addAppTecnoApps", "addAppHerramientasTecno", "addAppDepartamento", "addAppCajonDeSastre"].forEach(id => {
       document.getElementById(id).checked = false;
     });
+    document.getElementById("addAppActiva").checked = true;
     document.getElementById("addAppCategory").value = "";
     document.getElementById("addAppCajonWrap").classList.add("hidden");
     document.getElementById("addAppNameWarn").classList.add("hidden");
@@ -1489,6 +1521,7 @@
     const dep  = !!document.getElementById("addAppDepartamento").checked;
     const caj  = !!document.getElementById("addAppCajonDeSastre").checked;
     const cat  = document.getElementById("addAppCategory").value || "";
+    const act  = !!document.getElementById("addAppActiva").checked;
 
     setAddAppError("");
     if (!name) {
@@ -1508,7 +1541,7 @@
     // Detección de duplicados/similares (aviso, no bloqueo — igual que en la tabla)
     const similar = findSimilarApps(name, -1, 0.75);
 
-    apps.push({ name, desc, url, tecnoApps: tec, herramientasTecno: her, departamento: dep, cajonDeSastre: caj, category: caj ? cat : "", activa: true });
+    apps.push({ name, desc, url, tecnoApps: tec, herramientasTecno: her, departamento: dep, cajonDeSastre: caj, category: caj ? cat : "", activa: act });
 
     // Mostrar la nueva app: reset de filtros (comportamiento del antiguo addAppRow)
     resetAppsFilterUI();
@@ -1516,6 +1549,7 @@
     closeAddAppModal();
 
     let msg = `✓ Aplicación «${name}» añadida`;
+    if (!act) msg += " (inactiva: no se mostrará en los perfiles)";
     if (similar.length > 0) {
       const exact = similar.find(s => s.isExact);
       msg += exact
@@ -3022,6 +3056,27 @@
     }
   }
 
+  // Filtro por estado (Activas/Inactivas): toggle (repetir el click quita el
+  // filtro), exclusivo entre sí y COMBINABLE con el filtro de perfil, que se
+  // aplica primero. No usa la clase .filter-btn a propósito: los bucles de
+  // exclusividad de los filtros de perfil no deben ocultar estos botones.
+  function setAppsEstadoFilter(estado) {
+    try {
+      appsEstadoFilter = (appsEstadoFilter === estado) ? 'all' : estado;
+
+      document.querySelectorAll('#appsFilterBar .filter-estado-btn').forEach(btn => {
+        const on = btn.dataset.estado === appsEstadoFilter;
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+
+      buildConfigTable();
+    } catch (error) {
+      console.error('[TecDeA] Error en setAppsEstadoFilter:', error);
+      showToast('Error al aplicar filtro: ' + error.message, 'err', 4000);
+    }
+  }
+
   // ── Exponemos al HTML ──────────────────────────────────
   window.tecdea = {
     requestGroupAccess, closeGroupPassModal, doGroupLogin,
@@ -3039,6 +3094,7 @@
     exportData,
     toggleAccordion,
     setAppsFilter: setAppsWithSubFilter,
+    setAppsEstadoFilter,
     toggleCajonCategory,
     // Detección de duplicados
     findSimilarApps,
@@ -3984,6 +4040,71 @@
     opacity: .8;
   }
 
+  /* Filtros de estado (Activas / Inactivas): ortogonales a los de perfil.
+     Clase propia (no .filter-btn) para que los bucles de exclusividad de los
+     filtros de perfil no los oculten. */
+  .filter-estado-sep {
+    width: 1.5px;
+    height: 24px;
+    background: #d1d5db;
+    margin: 0 .2rem;
+    flex-shrink: 0;
+  }
+  .filter-estado-btn {
+    background: #fff;
+    border: 1.5px solid #d1d5db;
+    color: var(--text);
+    padding: .4rem .9rem;
+    border-radius: 22px;
+    cursor: pointer;
+    font-size: .82rem;
+    font-weight: 600;
+    transition: all .18s ease;
+    min-height: 36px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+  }
+  .filter-estado-btn:hover {
+    border-color: var(--navy);
+    background: #f0f4ff;
+    transform: translateY(-1px);
+  }
+  .filter-estado-btn.active {
+    background: var(--navy);
+    color: var(--white);
+    border-color: var(--navy);
+    box-shadow: 0 3px 12px rgba(11,37,69,.25);
+  }
+  .filter-estado-btn.active:hover {
+    background: var(--gold);
+    color: var(--navy);
+    border-color: var(--gold);
+    box-shadow: 0 4px 14px rgba(200,168,75,.4);
+  }
+  .estado-count {
+    background: rgba(11,37,69,.08);
+    color: var(--navy);
+    border-radius: 10px;
+    font-size: .72rem;
+    font-weight: 700;
+    padding: 0 .45rem;
+    min-width: 1.3rem;
+    text-align: center;
+    line-height: 1.4;
+  }
+  .filter-estado-btn.active .estado-count {
+    background: rgba(255,255,255,.25);
+    color: var(--white);
+  }
+  .filter-estado-btn.active:hover .estado-count {
+    background: rgba(11,37,69,.12);
+    color: var(--navy);
+  }
+
   /* Selector de categoría en tabla */
   .cajon-cell {
     position: relative;
@@ -4341,6 +4462,30 @@
     border-radius: 6px;
     border: 1px dashed #d1d5db;
   }
+  .addapp-activa-box {
+    display: flex;
+    align-items: flex-start;
+    gap: .5rem;
+    margin: .65rem 0 .2rem;
+    padding: .6rem;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px dashed #d1d5db;
+    font-size: .8rem;
+    color: var(--muted);
+    line-height: 1.45;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .addapp-activa-box input[type=checkbox] {
+    width: 17px; height: 17px;
+    accent-color: var(--navy);
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .addapp-activa-box strong { color: var(--text); }
   @media (max-width: 480px) {
     .addapp-profiles { grid-template-columns: 1fr; }
   }
@@ -4969,6 +5114,11 @@
             <button class="filter-sub-btn" data-category="ia" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('ia')">🤖 IA</button>
             <button class="filter-sub-btn" data-category="utilidades" onclick="event.stopPropagation(); tecdea.toggleCajonCategory('utilidades')">🔧 Utilidades</button>
           </span>
+
+          <span class="filter-estado-sep" aria-hidden="true"></span>
+          <span class="filter-label">Estado:</span>
+          <button type="button" class="filter-estado-btn" id="filtroActivasBtn" data-estado="activas" onclick="tecdea.setAppsEstadoFilter('activas')" aria-pressed="false" title="Mostrar solo las aplicaciones activas (visibles en los perfiles)">✅ Activas <span class="estado-count" id="filtroActivasCount">0</span></button>
+          <button type="button" class="filter-estado-btn" id="filtroInactivasBtn" data-estado="inactivas" onclick="tecdea.setAppsEstadoFilter('inactivas')" aria-pressed="false" title="Mostrar solo las aplicaciones desactivadas (ocultas en los perfiles)">⛔ Inactivas <span class="estado-count" id="filtroInactivasCount">0</span></button>
         </div>
         <div class="tbl-wrap">
           <table id="appsTable">
@@ -5251,6 +5401,12 @@
           <option value="utilidades">🔧 Utilidades</option>
         </select>
       </div>
+
+      <div class="fi-label">Estado</div>
+      <label class="addapp-activa-box">
+        <input type="checkbox" id="addAppActiva" checked onchange="tecdea.addAppFormChanged()">
+        <span><strong>Activa</strong>: la aplicación se mostrará en los perfiles. Desmárcala para crearla oculta: quedará solo como fila atenuada en Configuración (podrás activarla después desde la columna «Act.»).</span>
+      </label>
 
       <div id="addAppError" class="modal-error"></div>
       <div class="modal-actions">
