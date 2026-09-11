@@ -3142,14 +3142,27 @@
     showLoginModal();
   }
 
-  // ── Task 19: tutorial desplegable de la pantalla Home ──
+  // ── Task 19/21: tutorial en ventana emergente (botón en la cabecera) ──
+  // El tutorial es un modal global: se abre y se cierra desde cualquier vista.
   function toggleTutorial() {
     const panel = document.getElementById('tutorialPanel');
     const btn = document.getElementById('tutorialBtn');
     if (!panel || !btn) return;
     const nowHidden = panel.classList.toggle('hidden');
-    btn.classList.toggle('open', !nowHidden);
     btn.setAttribute('aria-expanded', String(!nowHidden));
+  }
+
+  // Task 21: cerrar el modal con la cruz ✕ de la esquina
+  function closeTutorial() {
+    const panel = document.getElementById('tutorialPanel');
+    const btn = document.getElementById('tutorialBtn');
+    if (panel) panel.classList.add('hidden');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+
+  // Task 21: pulsar fuera del modal (sobre el fondo oscuro) también lo cierra
+  function tutorialOverlayClick(ev) {
+    if (ev && ev.target === ev.currentTarget) closeTutorial();
   }
 
 
@@ -3157,8 +3170,9 @@
   window.tecdea = {
     requestGroupAccess, closeGroupPassModal, doGroupLogin,
     passwordSession, // Task 18: estado de sesión de contraseñas (diagnóstico/tests)
-    // Task 19: cambio de sesión + tutorial
+    // Task 19/21: cambio de sesión + tutorial (modal)
     resetPasswordSession, configBtnClick, startSessionResetHold, cancelSessionResetHold, toggleTutorial,
+    closeTutorial, tutorialOverlayClick,
     showGroup, showCajonDeSastreMenu, goBackFromGroup,
     showLoginModal, closeLoginModal, doLogin,
     showAboutModal, closeAboutModal,
@@ -3392,50 +3406,25 @@
     transform: scale(.96);
   }
 
-  /* Task 19: tutorial desplegable en la pantalla Home */
-  .tutorial-wrap {
-    margin-top: 1.4rem;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  .tutorial-btn {
+  /* Task 20: botón del tutorial en la cabecera (icono ❓, gemelo de ⚠️) */
+  .btn-tutorial {
     background: transparent;
-    border: 1.5px solid var(--navy);
-    color: var(--navy);
-    padding: .55rem 1.15rem;
-    border-radius: 10px;
+    border: 1.5px solid var(--gold);
+    color: var(--gold2);
+    width: 40px; height: 40px;
+    padding: 0;
+    border-radius: 50%;
     cursor: pointer;
-    font-size: .85rem;
-    font-weight: 600;
-    letter-spacing: .02em;
-    display: inline-flex;
-    align-items: center;
-    gap: .5rem;
-    transition: background .2s, color .2s;
+    font-size: 1rem;
+    line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background .2s, transform .2s;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+    flex-shrink: 0;
   }
-  .tutorial-btn:hover { background: var(--navy); color: var(--gold2); }
-  .tut-chevron { display: inline-block; font-size: .7rem; transition: transform .2s; }
-  .tutorial-btn.open .tut-chevron { transform: rotate(90deg); }
-  .tutorial-panel {
-    width: 100%;
-    max-width: 620px;
-    margin-top: .9rem;
-    background: var(--white);
-    border: 1.5px solid var(--navy);
-    border-radius: var(--radius);
-    box-shadow: 0 4px 18px rgba(11, 37, 69, .12);
-    padding: 1rem 1.1rem;
-    text-align: left;
-  }
-  .tutorial-panel h3 {
-    color: var(--navy);
-    font-size: .95rem;
-    margin-bottom: .35rem;
-  }
+  .btn-tutorial:hover  { background: var(--gold); transform: scale(1.05); }
+  .btn-tutorial:active { background: var(--gold); transform: scale(.94); }
   .tutorial-step {
     display: flex;
     gap: .7rem;
@@ -4551,6 +4540,33 @@
   .modal-error { color: var(--danger); font-size: .82rem; min-height: 1.2rem; margin-bottom: .5rem; }
   .modal-actions { display: flex; gap: .7rem; justify-content: flex-end; margin-top: .5rem; }
 
+  /* Task 21: modal del tutorial (ancho propio y cruz de cierre en la esquina) */
+  .tutorial-modal {
+    position: relative;
+    width: min(520px, 100%);
+  }
+  .tutorial-modal h2 { padding-right: 2.6rem; }
+  .tutorial-close {
+    position: absolute;
+    top: .7rem; right: .7rem;
+    width: 34px; height: 34px;
+    padding: 0;
+    border: 1.5px solid var(--navy);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--navy);
+    font-size: .95rem;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background .2s, color .2s, transform .2s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    flex-shrink: 0;
+  }
+  .tutorial-close:hover  { background: var(--navy); color: var(--white); transform: scale(1.06); }
+  .tutorial-close:active { background: var(--navy); color: var(--white); transform: scale(.94); }
+
   /* Contenido del modal «Sobre esta app» */
   .about-body {
     font-size: .92rem;
@@ -5159,6 +5175,8 @@
     <button class="btn-about" type="button" aria-label="Información sobre esta aplicación"
             title="Información sobre esta app (Vibe Coding · reportar errores)"
             onclick="tecdea.showAboutModal()">⚠️</button>
+    <button class="btn-tutorial" type="button" id="tutorialBtn" onclick="tecdea.toggleTutorial()" aria-expanded="false" aria-controls="tutorialPanel"
+            title="Tutorial: cómo funciona TecDeA">❓</button>
     <button class="btn-config" onclick="tecdea.configBtnClick()" title="Mantén pulsado para cambiar de sesión: se volverán a pedir las contraseñas">⚙ Configuración</button>
   </div>
 </header>
@@ -5190,21 +5208,6 @@
       </button>
     </div>
 
-    <!-- Task 19: tutorial desplegable -->
-    <div class="tutorial-wrap">
-      <button class="tutorial-btn" id="tutorialBtn" onclick="tecdea.toggleTutorial()" aria-expanded="false" aria-controls="tutorialPanel">
-        <span class="tut-chevron">▶</span> ❓ Cómo funciona
-      </button>
-      <div id="tutorialPanel" class="tutorial-panel hidden">
-        <h3>📖 Tutorial rápido de TecDeA</h3>
-        <div class="tutorial-step"><span class="tut-icon">🏠</span><div class="tut-body"><span class="tut-title">Pantalla principal</span><p>Elige un perfil: <b>TecnoApps</b>, <b>Herramientas Tecno</b>, <b>Departamento</b> o <b>Cajón de sastre</b>. Cada uno agrupa sus propias aplicaciones.</p></div></div>
-        <div class="tutorial-step"><span class="tut-icon">🔐</span><div class="tut-body"><span class="tut-title">Contraseñas</span><p>Si un perfil tiene contraseña, se pedirá solo la primera vez. Hasta que se reinicie la app (o hagas un cambio de sesión) no volverá a pedírtela.</p></div></div>
-        <div class="tutorial-step"><span class="tut-icon">📦</span><div class="tut-body"><span class="tut-title">Cajón de sastre</span><p>Dentro encontrarás subcategorías: Matemáticas, Física, Química, IA y Utilidades. Una sola contraseña abre todas.</p></div></div>
-        <div class="tutorial-step"><span class="tut-icon">🚀</span><div class="tut-body"><span class="tut-title">Abrir una aplicación</span><p>Pulsa su tarjeta para abrirla en una pestaña nueva. Si tiene descripción, la verás al pasar el ratón o mantener el dedo sobre ella.</p></div></div>
-        <div class="tutorial-step"><span class="tut-icon">⚙️</span><div class="tut-body"><span class="tut-title">Configuración (solo administradores)</span><p>Añade, edita o desactiva aplicaciones, gestiona contraseñas de perfiles y administradores, y exporta/importa datos. Todo se guarda automáticamente en Firebase.</p></div></div>
-        <div class="tutorial-step"><span class="tut-icon">🔄</span><div class="tut-body"><span class="tut-title">Cambio de sesión</span><p>Mantén pulsado el botón ⚙️ Configuración durante 1,5 segundos para reiniciar la sesión: se volverán a pedir todas las contraseñas.</p></div></div>
-      </div>
-    </div>
   </section>
 
   <!-- Vista: GRUPO -->
@@ -5540,6 +5543,20 @@
     <div class="modal-actions">
       <button type="button" class="btn btn-primary" onclick="tecdea.closeAboutModal()">Entendido</button>
     </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL TUTORIAL (cómo funciona TecDeA) ═════ -->
+<div id="tutorialPanel" class="modal-bg hidden" onclick="tecdea.tutorialOverlayClick(event)">
+  <div class="modal tutorial-modal" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
+    <button type="button" class="tutorial-close" aria-label="Cerrar el tutorial" title="Cerrar" onclick="tecdea.closeTutorial()">✕</button>
+    <h2 id="tutorialTitle">📖 Tutorial rápido de TecDeA</h2>
+        <div class="tutorial-step"><span class="tut-icon">🏠</span><div class="tut-body"><span class="tut-title">Pantalla principal</span><p>Elige un perfil: <b>TecnoApps</b>, <b>Herramientas Tecno</b>, <b>Departamento</b> o <b>Cajón de sastre</b>. Cada uno agrupa sus propias aplicaciones.</p></div></div>
+        <div class="tutorial-step"><span class="tut-icon">🔐</span><div class="tut-body"><span class="tut-title">Contraseñas</span><p>Si un perfil tiene contraseña, se pedirá solo la primera vez. Hasta que se reinicie la app (o hagas un cambio de sesión) no volverá a pedírtela.</p></div></div>
+        <div class="tutorial-step"><span class="tut-icon">📦</span><div class="tut-body"><span class="tut-title">Cajón de sastre</span><p>Dentro encontrarás subcategorías: Matemáticas, Física, Química, IA y Utilidades. Una sola contraseña abre todas.</p></div></div>
+        <div class="tutorial-step"><span class="tut-icon">🚀</span><div class="tut-body"><span class="tut-title">Abrir una aplicación</span><p>Pulsa su tarjeta para abrirla en una pestaña nueva. Si tiene descripción, la verás al pasar el ratón o mantener el dedo sobre ella.</p></div></div>
+        <div class="tutorial-step"><span class="tut-icon">⚙️</span><div class="tut-body"><span class="tut-title">Configuración (solo administradores)</span><p>Añade, edita o desactiva aplicaciones, gestiona contraseñas de perfiles y administradores, y exporta/importa datos. Todo se guarda automáticamente en Firebase.</p></div></div>
+        <div class="tutorial-step"><span class="tut-icon">🔄</span><div class="tut-body"><span class="tut-title">Cambio de sesión</span><p>Mantén pulsado el botón ⚙️ Configuración durante 1,5 segundos para reiniciar la sesión: se volverán a pedir todas las contraseñas.</p></div></div>
   </div>
 </div>
 
