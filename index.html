@@ -3098,10 +3098,67 @@
     }
   }
 
+  // ── Task 19: cambio de sesión (mantener pulsado ⚙ Configuración) ──
+  // Mantener pulsado ⚙ durante 1,5 s reinicia la sesión de contraseñas:
+  // vacía passwordSession, vuelve a la Home y avisa con un toast. El click
+  // que genera esa pulsación larga se consume para no abrir Configuración.
+  let _sessionResetTimer = null;
+  let _sessionResetConsumed = false;
+  const SESSION_RESET_HOLD_MS = 1500;
+
+  function resetPasswordSession() {
+    passwordSession.admin = false;
+    passwordSession.groups = {};
+    console.log('[TecDeA] Cambio de sesión: contraseñas reiniciadas (se volverán a pedir)');
+    showToast('Sesión reiniciada: se volverán a pedir las contraseñas.', 'ok', 4500);
+    renderHome();
+  }
+
+  function startSessionResetHold() {
+    const btn = document.querySelector('.btn-config');
+    if (!btn || btn.classList.contains('hidden')) return;
+    _sessionResetConsumed = false;
+    btn.classList.add('hold-reset');
+    clearTimeout(_sessionResetTimer);
+    _sessionResetTimer = setTimeout(() => {
+      _sessionResetTimer = null;
+      _sessionResetConsumed = true;
+      btn.classList.remove('hold-reset');
+      resetPasswordSession();
+    }, SESSION_RESET_HOLD_MS);
+  }
+
+  function cancelSessionResetHold() {
+    if (_sessionResetTimer) {
+      clearTimeout(_sessionResetTimer);
+      _sessionResetTimer = null;
+      document.querySelector('.btn-config')?.classList.remove('hold-reset');
+    }
+  }
+
+  function configBtnClick() {
+    // Tras un cambio de sesión, el click de la pulsación larga se consume
+    if (_sessionResetConsumed) { _sessionResetConsumed = false; return; }
+    showLoginModal();
+  }
+
+  // ── Task 19: tutorial desplegable de la pantalla Home ──
+  function toggleTutorial() {
+    const panel = document.getElementById('tutorialPanel');
+    const btn = document.getElementById('tutorialBtn');
+    if (!panel || !btn) return;
+    const nowHidden = panel.classList.toggle('hidden');
+    btn.classList.toggle('open', !nowHidden);
+    btn.setAttribute('aria-expanded', String(!nowHidden));
+  }
+
+
   // ── Exponemos al HTML ──────────────────────────────────
   window.tecdea = {
     requestGroupAccess, closeGroupPassModal, doGroupLogin,
     passwordSession, // Task 18: estado de sesión de contraseñas (diagnóstico/tests)
+    // Task 19: cambio de sesión + tutorial
+    resetPasswordSession, configBtnClick, startSessionResetHold, cancelSessionResetHold, toggleTutorial,
     showGroup, showCajonDeSastreMenu, goBackFromGroup,
     showLoginModal, closeLoginModal, doLogin,
     showAboutModal, closeAboutModal,
@@ -3133,6 +3190,17 @@
   };
 
   // ── Arranque ──────────────────────────────────────────
+
+  // Task 19: pulsación larga en ⚙ Configuración → cambio de sesión
+  const _cfgBtn = document.querySelector('.btn-config');
+  if (_cfgBtn) {
+    _cfgBtn.addEventListener('pointerdown', startSessionResetHold);
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev =>
+      _cfgBtn.addEventListener(ev, cancelSessionResetHold));
+    // Evita el menú contextual del navegador en la pulsación larga táctil
+    _cfgBtn.addEventListener('contextmenu', e => e.preventDefault());
+  }
+
   loadData();
 
   ['passTecnoApps', 'passHerramientasTecno', 'passDepartamento', 'passCajonDeSastre'].forEach(id => {
@@ -3310,6 +3378,75 @@
   }
   .btn-config:hover { background: var(--gold); color: var(--navy); }
   .btn-config:active { background: var(--gold); color: var(--navy); transform: scale(.96); }
+
+  /* Task 19: feedback visual del cambio de sesión (mantener pulsado ⚙) */
+  .btn-config {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .btn-config.hold-reset {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+    transform: scale(.96);
+  }
+
+  /* Task 19: tutorial desplegable en la pantalla Home */
+  .tutorial-wrap {
+    margin-top: 1.4rem;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .tutorial-btn {
+    background: transparent;
+    border: 1.5px solid var(--navy);
+    color: var(--navy);
+    padding: .55rem 1.15rem;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: .85rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    transition: background .2s, color .2s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .tutorial-btn:hover { background: var(--navy); color: var(--gold2); }
+  .tut-chevron { display: inline-block; font-size: .7rem; transition: transform .2s; }
+  .tutorial-btn.open .tut-chevron { transform: rotate(90deg); }
+  .tutorial-panel {
+    width: 100%;
+    max-width: 620px;
+    margin-top: .9rem;
+    background: var(--white);
+    border: 1.5px solid var(--navy);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 18px rgba(11, 37, 69, .12);
+    padding: 1rem 1.1rem;
+    text-align: left;
+  }
+  .tutorial-panel h3 {
+    color: var(--navy);
+    font-size: .95rem;
+    margin-bottom: .35rem;
+  }
+  .tutorial-step {
+    display: flex;
+    gap: .7rem;
+    align-items: flex-start;
+    padding: .5rem 0;
+  }
+  .tutorial-step + .tutorial-step { border-top: 1px dashed rgba(11, 37, 69, .15); }
+  .tut-icon { font-size: 1.05rem; line-height: 1.25; flex-shrink: 0; }
+  .tut-title { color: var(--navy); display: block; font-size: .85rem; font-weight: 700; }
+  .tut-body p { font-size: .78rem; color: var(--text); line-height: 1.5; margin-top: 1px; }
+  .tut-body p b { color: var(--navy); }
 
   /* Botón ⚠ de información junto a «Configuración» */
   .header-actions {
@@ -5022,7 +5159,7 @@
     <button class="btn-about" type="button" aria-label="Información sobre esta aplicación"
             title="Información sobre esta app (Vibe Coding · reportar errores)"
             onclick="tecdea.showAboutModal()">⚠️</button>
-    <button class="btn-config" onclick="tecdea.showLoginModal()">⚙ Configuración</button>
+    <button class="btn-config" onclick="tecdea.configBtnClick()" title="Mantén pulsado para cambiar de sesión: se volverán a pedir las contraseñas">⚙ Configuración</button>
   </div>
 </header>
 
@@ -5051,6 +5188,22 @@
       <button class="main-btn" onclick="tecdea.showCajonDeSastreMenu()">
         <span class="btn-icon"><svg viewBox="0 0 64 64" width="48" height="48" style="display:inline-block;vertical-align:middle"><defs><linearGradient id="boxGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#E8943A"/><stop offset="100%" stop-color="#c77a28"/></linearGradient></defs><rect x="6" y="16" width="52" height="42" rx="4" fill="url(#boxGrad)" stroke="#1A3A8E" stroke-width="2.5"/><rect x="11" y="21" width="42" height="31" rx="2" fill="#1A3A8E" opacity="0.9"/><path d="M20,30 L28,30 L24,38 Z" fill="#1E7A3D" stroke="#E8943A" stroke-width="1"/><circle cx="40" cy="33" r="6" fill="#1E7A3D" stroke="#E8943A" stroke-width="1.5"/><path d="M37,33 L39,35 L43,31" stroke="#F5E6A3" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><line x1="15" y1="44" x2="30" y2="44" stroke="#F5E6A3" stroke-width="2" stroke-linecap="round"/><line x1="34" y1="44" x2="49" y2="44" stroke="#F5E6A3" stroke-width="2" stroke-linecap="round"/></svg></span>Cajón de sastre
       </button>
+    </div>
+
+    <!-- Task 19: tutorial desplegable -->
+    <div class="tutorial-wrap">
+      <button class="tutorial-btn" id="tutorialBtn" onclick="tecdea.toggleTutorial()" aria-expanded="false" aria-controls="tutorialPanel">
+        <span class="tut-chevron">▶</span> ❓ Cómo funciona
+      </button>
+      <div id="tutorialPanel" class="tutorial-panel hidden">
+        <h3>📖 Tutorial rápido de TecDeA</h3>
+        <div class="tutorial-step"><span class="tut-icon">🏠</span><div class="tut-body"><span class="tut-title">Pantalla principal</span><p>Elige un perfil: <b>TecnoApps</b>, <b>Herramientas Tecno</b>, <b>Departamento</b> o <b>Cajón de sastre</b>. Cada uno agrupa sus propias aplicaciones.</p></div></div>
+        <div class="tutorial-step"><span class="tut-icon">🔐</span><div class="tut-body"><span class="tut-title">Contraseñas</span><p>Si un perfil tiene contraseña, se pedirá solo la primera vez. Hasta que se reinicie la app (o hagas un cambio de sesión) no volverá a pedírtela.</p></div></div>
+        <div class="tutorial-step"><span class="tut-icon">📦</span><div class="tut-body"><span class="tut-title">Cajón de sastre</span><p>Dentro encontrarás subcategorías: Matemáticas, Física, Química, IA y Utilidades. Una sola contraseña abre todas.</p></div></div>
+        <div class="tutorial-step"><span class="tut-icon">🚀</span><div class="tut-body"><span class="tut-title">Abrir una aplicación</span><p>Pulsa su tarjeta para abrirla en una pestaña nueva. Si tiene descripción, la verás al pasar el ratón o mantener el dedo sobre ella.</p></div></div>
+        <div class="tutorial-step"><span class="tut-icon">⚙️</span><div class="tut-body"><span class="tut-title">Configuración (solo administradores)</span><p>Añade, edita o desactiva aplicaciones, gestiona contraseñas de perfiles y administradores, y exporta/importa datos. Todo se guarda automáticamente en Firebase.</p></div></div>
+        <div class="tutorial-step"><span class="tut-icon">🔄</span><div class="tut-body"><span class="tut-title">Cambio de sesión</span><p>Mantén pulsado el botón ⚙️ Configuración durante 1,5 segundos para reiniciar la sesión: se volverán a pedir todas las contraseñas.</p></div></div>
+      </div>
     </div>
   </section>
 
