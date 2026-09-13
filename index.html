@@ -425,6 +425,10 @@
         }
       });
     }
+
+    // Task 22: descripción al pasar el ratón (PC) o mantener pulsada la
+    // tarjeta (móvil). Las tarjetas sin descripción no se cablean.
+    grid.querySelectorAll(".app-card").forEach(card => wireAppCardDesc(card));
   }
 
   function groupLabel(g) {
@@ -533,8 +537,12 @@
     const fbAttr = rest.length
       ? ` data-fb="${escHtml(JSON.stringify(rest))}"`
       : "";
+    // Task 22: la descripción viaja en data-desc (hover en PC / pulsación larga en móvil)
+    const descAttr = (a.desc && String(a.desc).trim())
+      ? ` data-desc="${escHtml(a.desc)}"`
+      : "";
     return `
-      <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="app-card">
+      <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="app-card"${descAttr}>
         <div class="app-card-icon-wrap">
           <img src="${first}" alt="" loading="lazy"${fbAttr}
                data-app-url="${safeUrl}"
@@ -2915,6 +2923,62 @@
     }, 180);
   }
 
+  // ── Task 22: descripción en las tarjetas de apps ──────
+  // Ordenador: se muestra al pasar el ratón por la tarjeta del icono.
+  // Móvil: se muestra al mantener pulsada la tarjeta (600 ms); la pulsación
+  // larga NO abre la app y cualquier tap posterior cierra el modal.
+  const APP_DESC_LONGPRESS_MS = 600;
+  let _appDescLongPressFired = false;
+
+  function wireAppCardDesc(card) {
+    const desc = card.getAttribute("data-desc") || "";
+    if (!desc.trim()) return; // apps sin descripción: sin comportamiento
+
+    // ── Ordenador: hover sobre la tarjeta ──
+    card.addEventListener("mouseenter", () => {
+      if (window.matchMedia("(hover: hover)").matches) showDescModal(desc);
+    });
+    card.addEventListener("mouseleave", () => {
+      // Guarda hover: solo en dispositivos con ratón (el touchend sintético
+      // de los móviles dispara mouseleave y NO debe cerrar el modal)
+      if (window.matchMedia("(hover: hover)").matches) hideDescModal();
+    });
+
+    // ── Móvil: pulsación larga ──
+    let lpTimer = null;
+    const cancelLongPress = () => { clearTimeout(lpTimer); lpTimer = null; };
+    card.addEventListener("touchstart", () => {
+      _appDescLongPressFired = false;
+      lpTimer = setTimeout(() => {
+        lpTimer = null;
+        _appDescLongPressFired = true;
+        showDescModal(desc);
+        if (navigator.vibrate) { try { navigator.vibrate(30); } catch (err) {} }
+      }, APP_DESC_LONGPRESS_MS);
+    }, { passive: true });
+    ["touchmove", "touchend", "touchcancel"].forEach(ev =>
+      card.addEventListener(ev, cancelLongPress, { passive: true }));
+
+    // El click tras una pulsación larga no abre la app; y con el modal de
+    // descripción abierto en móvil, un tap sobre una tarjeta solo lo cierra.
+    card.addEventListener("click", (e) => {
+      if (_appDescLongPressFired) {
+        e.preventDefault();
+        e.stopPropagation();
+        _appDescLongPressFired = false;
+        return;
+      }
+      const dm = document.getElementById("descModal");
+      if (dm && !dm.classList.contains("hidden") && window.innerWidth < 768) {
+        e.preventDefault();
+        hideDescModal(true);
+      }
+    });
+
+    // Sin menú contextual del navegador durante la pulsación larga
+    card.addEventListener("contextmenu", (e) => e.preventDefault());
+  }
+
   document.addEventListener("click", (e) => {
     if (window.innerWidth < 768 && !e.target.closest(".desc-modal-box") && !e.target.closest(".desc-fi")) {
       const dm = document.getElementById("descModal");
@@ -3182,7 +3246,7 @@
     addAppNameInput, addAppFormChanged, addAppCajonChanged,
     addAdminRow, saveAdminsConfig,
     saveGroupPasswordsConfig,
-    hideDescModal, iconFallback,
+    hideDescModal, wireAppCardDesc, iconFallback, // Task 22: descripción en tarjetas
     sortApps,
     exportData,
     toggleAccordion,
@@ -3790,6 +3854,7 @@
     border: 1.5px solid transparent;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+    -webkit-touch-callout: none; /* Task 22: sin previsualización al mantener pulsado (iOS) */
     min-height: 0;
   }
   .app-card:hover {
