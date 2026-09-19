@@ -239,9 +239,27 @@
       renderHome();
     }
 
+    // Task 23 · Diagnóstico del fallo de lectura: se distingue una base de
+    // datos que DENIEGA el acceso (reglas de Firebase) de un fallo de
+    // conexión, y se registra en consola el motivo de cada ruta rechazada.
     const errs = results.filter(r => r.status === "rejected");
     if (errs.length > 0) {
-      showToast(`Aviso: ${errs.length} ruta(s) de Firebase no se pudieron leer.`, "err", 7000);
+      const routeNames = ["apps", "admins", "groupPasswords", "admin (legacy)"];
+      results.forEach((r, i) => {
+        if (r.status === "rejected") {
+          console.error(`[TecDeA] Firebase: no se pudo leer "${routeNames[i]}":`, r.reason);
+        }
+      });
+      const denied = errs.some(r => {
+        const code = (r.reason && r.reason.code) || "";
+        const msg = (r.reason && r.reason.message) || "";
+        return code === "permission_denied" || /permission/i.test(code) || /permission/i.test(msg);
+      });
+      if (denied) {
+        showToast(`Aviso: ${errs.length} ruta(s) sin acceso — la base de datos deniega la lectura. Revisa las REGLAS de la base de datos en Firebase Console.`, "err", 9000);
+      } else {
+        showToast(`Aviso: ${errs.length} ruta(s) de Firebase no se pudieron leer (sin conexión con la base de datos).`, "err", 7000);
+      }
     }
   }
 
