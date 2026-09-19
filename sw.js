@@ -2,7 +2,7 @@
 //  SERVICE WORKER - TECDEA PORTAL PWA
 // ════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'tecdea-portal-v42';
+const CACHE_NAME = 'tecdea-portal-v46';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -50,6 +50,7 @@ self.addEventListener('fetch', (event) => {
 
   // No cachear peticiones a Firebase (API)
   if (event.request.url.includes('firebaseio.com') || 
+      event.request.url.includes('firebasedatabase.app') ||
       event.request.url.includes('googleapis.com')) {
     return;
   }
