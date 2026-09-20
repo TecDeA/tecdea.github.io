@@ -3028,9 +3028,18 @@
 
     // Cerrar todos los acordeones
     document.querySelectorAll('.accordion-item').forEach(acc => {
+      const c = acc.querySelector('.accordion-content');
+      if (c.classList.contains('open')) {
+        // Task 24 · Congelar la altura actual para que la animación de
+        // cierre parta de la altura real (con max-height:'none' la
+        // transición no podría animar hacia 0).
+        c.style.maxHeight = c.scrollHeight + 'px';
+        void c.offsetHeight; // forzar reflow antes de colapsar
+      }
       acc.querySelector('.accordion-header').classList.remove('active');
       acc.querySelector('.accordion-header').setAttribute('aria-expanded', 'false');
-      acc.querySelector('.accordion-content').classList.remove('open');
+      c.classList.remove('open');
+      c.style.maxHeight = '';
     });
 
     // Abrir el clickeado si estaba cerrado
@@ -3038,6 +3047,26 @@
       headerBtn.classList.add('active');
       headerBtn.setAttribute('aria-expanded', 'true');
       content.classList.add('open');
+      // Task 24 · Animar la apertura con la altura REAL del contenido: el
+      // límite fijo de 3000px del CSS (que queda como fallback si JS no
+      // se ejecutara) recortaba las listas largas —p. ej. la tabla de
+      // gestión de apps en móvil— sin scroll y daba la impresión de que
+      // «faltaban aplicaciones». Al terminar la transición, max-height
+      // se libera ('none') para que el contenido crezca sin cortarse.
+      content.style.maxHeight = content.scrollHeight + 'px';
+      const releaseMaxHeight = (e) => {
+        if (e.propertyName !== 'max-height') return;
+        if (content.classList.contains('open')) content.style.maxHeight = 'none';
+        content.removeEventListener('transitionend', releaseMaxHeight);
+      };
+      content.addEventListener('transitionend', releaseMaxHeight);
+      // Red de seguridad: si transitionend no llega (pestaña en segundo
+      // plano, interrupciones), liberar igualmente tras la transición.
+      setTimeout(() => {
+        if (content.classList.contains('open') && content.style.maxHeight !== 'none') {
+          content.style.maxHeight = 'none';
+        }
+      }, 500);
 
       // Al abrir el acordeón de Exportar, refrescar el panel de selección de aplicaciones
       if (item.querySelector('#appSelPanel')) {
