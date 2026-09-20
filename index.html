@@ -3357,6 +3357,9 @@
       const action = needsCat
         ? `<button class="btn btn-gold" onclick="tecdea.toggleRestoreCatPick(${ri})">📂 Elegir categoría…</button>`
         : `<button class="btn btn-primary" onclick="tecdea.confirmRestoreApp(${ri})">♻️ Restaurar</button>`;
+      // Task 27 · Borrado definitivo: disponible en TODAS las filas, con
+      // o sin selector de categoría (sale de la papelera y de la BD).
+      const delBtn = `<button class="btn btn-del-forever" onclick="tecdea.confirmDeleteForever(${ri})" title="Elimina la aplicación de la papelera y de la base de datos. Acción irreversible">🗑️ Borrar definitivamente</button>`;
       const picker = needsCat ? `
         <div class="restore-cat-pick hidden" id="restoreCatPick_${ri}">
           <div class="fi-label">Perfiles <span class="req">*</span></div>
@@ -3388,7 +3391,7 @@
           <div class="restore-app-name">${nameHtml}</div>
           <div class="restore-app-meta">${meta}${url}</div>
         </div>
-        <div class="restore-row-actions">${action}</div>
+        <div class="restore-row-actions">${action}${delBtn}</div>
         ${picker}
       </div>`;
     }).join("");
@@ -3462,6 +3465,31 @@
     }
   }
 
+  // ══ Task 27 · Borrado definitivo desde la papelera ════════════════
+  // Quita la app de deletedApps y de la base de datos. Es irreversible:
+  // el confirm lo advierte expresamente. Si el guardado falla, la app
+  // ya se quitó de la pantalla pero la BD la conserva (mismo enfoque
+  // tolerante que _delApp): el toast lo explica y al recargar volverá a
+  // aparecer en la papelera.
+  function confirmDeleteForever(ri) {
+    const a = deletedApps[ri];
+    if (!a) return;
+    const label = a.name && a.name.trim() ? `«${a.name.trim()}»` : "esta aplicación";
+    if (!window.confirm(`¿Eliminar DEFINITIVAMENTE la aplicación ${label}? Se borrará de la papelera y de la base de datos. Esta acción es irreversible: no podrás recuperarla.`)) return;
+    doDeleteForeverApp(ri, a);
+  }
+
+  async function doDeleteForeverApp(ri, a) {
+    deletedApps.splice(ri, 1);
+    renderRestoreList();
+    const ok = await saveDeletedApps();
+    if (ok) {
+      showToast(`🗑️ «${a.name}» eliminada definitivamente`, "ok", 3500);
+    } else {
+      showToast("Aplicación eliminada de la papelera, pero no se pudo guardar en Firebase: al recargar volverá a aparecer.", "err", 6000);
+    }
+  }
+
   window.tecdea = {
     requestGroupAccess, closeGroupPassModal, doGroupLogin,
     passwordSession, // Task 18: estado de sesión de contraseñas (diagnóstico/tests)
@@ -3476,7 +3504,7 @@
     showAddAppModal, closeAddAppModal, confirmAddApp,
     // Task 26: papelera de restauración de apps borradas
     showRestoreModal: openRestoreModal, closeRestoreModal, confirmRestoreApp,
-    toggleRestoreCatPick, confirmRestoreWithCategory, restoreCajonChanged,
+    toggleRestoreCatPick, confirmRestoreWithCategory, restoreCajonChanged, confirmDeleteForever,
     deletedApps, // papelera en memoria (diagnóstico/tests)
     addAppNameInput, addAppFormChanged, addAppCajonChanged,
     addAdminRow, saveAdminsConfig,
@@ -4348,7 +4376,16 @@
     font-size: .68rem; font-weight: 700; color: #64748b; background: #e2e8f0;
     border-radius: 999px; padding: .1rem .45rem; vertical-align: middle;
   }
-  .restore-row-actions { margin-top: .45rem; display: flex; justify-content: flex-end; }
+  .restore-row-actions {
+    margin-top: .45rem; display: flex; justify-content: flex-end;
+    gap: .4rem; flex-wrap: wrap;
+  }
+  /* Task 27: borrado definitivo (rojo fantasma; irreversibilidad) */
+  .btn-del-forever {
+    background: var(--white); color: #c0392b;
+    border: 1px solid rgba(192,57,43,.45);
+  }
+  .btn-del-forever:hover { background: rgba(192,57,43,.08); }
   .restore-cat-pick {
     margin-top: .6rem; padding: .6rem; background: #f8f9fa;
     border: 1px dashed #d1d5db; border-radius: 8px;
@@ -5601,7 +5638,7 @@
           Los filtros de la barra («TecnoApps», «Herramientas Tecno», «Departamento», «Cajón de sastre» y «Estado») son <b>combinables</b>: márcalos a la vez para afinar la búsqueda (p. ej. TecnoApps + Inactivas).<br>
           La URL base fija es <code>https://tecdea.github.io/</code>. Añade el path final de cada aplicación (ejemplo: <code>miapp/</code>).
           Si la aplicación no está en el dominio <code>https://tecdea.github.io</code>, introduce la ruta completa de la PWA.<br>
-          Las aplicaciones eliminadas <b>no se pierden</b>: quedan en la papelera de la base de datos y puedes recuperarlas con el botón «♻️ Restaurar aplicaciones borradas».
+          Las aplicaciones eliminadas <b>no se pierden</b>: quedan en la papelera de la base de datos y puedes recuperarlas con el botón «♻️ Restaurar aplicaciones borradas». Desde ese mismo listado también puedes borrarlas <b>definitivamente</b>.
         </p>
         <div class="actions" style="margin-bottom:1rem">
           <button class="btn btn-gold" onclick="tecdea.showAddAppModal()">＋ Añadir aplicación</button>
@@ -5893,7 +5930,7 @@
         <div class="tutorial-step"><span class="tut-icon">🚀</span><div class="tut-body"><span class="tut-title">Abrir una aplicación</span><p>Pulsa su tarjeta para abrirla en una pestaña nueva. Si tiene descripción, la verás al pasar el ratón o mantener el dedo sobre ella.</p></div></div>
         <div class="tutorial-step"><span class="tut-icon">⚙️</span><div class="tut-body"><span class="tut-title">Configuración (solo administradores)</span><p>Añade, edita o desactiva aplicaciones, recupera las que hayas borrado (papelera de restauración), gestiona contraseñas de perfiles y administradores, y exporta/importa datos. Todo se guarda automáticamente en Firebase.</p></div></div>
         <div class="tutorial-step"><span class="tut-icon">🔄</span><div class="tut-body"><span class="tut-title">Cambio de sesión</span><p>Mantén pulsado el botón ⚙️ Configuración durante 1,5 segundos para reiniciar la sesión: se volverán a pedir todas las contraseñas.</p></div></div>
-        <div class="tutorial-step"><span class="tut-icon">♻️</span><div class="tut-body"><span class="tut-title">Restaurar aplicaciones borradas</span><p>Al eliminar una aplicación no se pierde: queda en la papelera de la base de datos. En Configuración › Aplicaciones, el botón «♻️ Restaurar aplicaciones borradas» muestra el listado para recuperarla (si carecía de categoría, se te pedirá asignarle una).</p></div></div>
+        <div class="tutorial-step"><span class="tut-icon">♻️</span><div class="tut-body"><span class="tut-title">Restaurar aplicaciones borradas</span><p>Al eliminar una aplicación no se pierde: queda en la papelera de la base de datos. En Configuración › Aplicaciones, el botón «♻️ Restaurar aplicaciones borradas» muestra el listado para recuperarla (si carecía de categoría, se te pedirá asignarle una). Desde ese mismo listado también puedes eliminarla para siempre con «🗑️ Borrar definitivamente», una acción irreversible que la borra de la base de datos.</p></div></div>
   </div>
 </div>
 
@@ -5951,7 +5988,7 @@
 <div id="restoreModal" class="modal-bg hidden">
   <div class="modal">
     <h2>♻️ Restaurar aplicaciones borradas</h2>
-    <p class="hint" style="margin-top:0">Estas aplicaciones no se han perdido: siguen guardadas en la base de datos aunque no aparezcan en la lista principal. Restáuralas para volver a verlas en sus perfiles.</p>
+    <p class="hint" style="margin-top:0">Estas aplicaciones no se han perdido: siguen guardadas en la base de datos aunque no aparezcan en la lista principal. Restáuralas para volver a verlas en sus perfiles. Si alguna ya no te hace falta ni para recuperarla, puedes eliminarla de la base de datos con «🗑️ Borrar definitivamente»: esta acción es irreversible.</p>
     <div id="restoreList" class="restore-list"></div>
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" onclick="tecdea.closeRestoreModal()">Cerrar</button>
