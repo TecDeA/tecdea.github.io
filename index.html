@@ -5586,6 +5586,9 @@
         </div>
       </div>
     </div>
+
+    <!-- Task 25 · Versión REAL en ejecución (la pinta updateVersionTag()) -->
+    <p class="hint" id="appVersionTag" style="text-align:center;opacity:.65;font-size:.72rem;margin:1.2rem 0 0">TecDeA · versión <span id="appVersionNum">…</span></p>
     
     <div class="back-row">
       <button class="back-btn" onclick="tecdea.renderHome()">Volver</button>
@@ -5757,7 +5760,7 @@
     if (!('serviceWorker' in navigator)) return;
     if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
 
-    navigator.serviceWorker.register('sw.js', { scope: './' })
+    navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' })
       .then((reg) => {
         console.log('[PWA] Service Worker registrado con scope:', reg.scope);
 
@@ -5766,7 +5769,9 @@
           if (!newWorker) return;
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('[PWA] Nueva versión disponible. Recarga para aplicar.');
+              // El propio sw.js hace skipWaiting: el listener de
+              // controllerchange (más abajo) recarga la página sola.
+              console.log('[PWA] Nueva versión instalándose; se aplicará sola.');
             }
           });
         });
@@ -5775,14 +5780,40 @@
         console.warn('[PWA] Error al registrar el Service Worker:', err);
       });
 
+    // Task 25 · Etiqueta de versión (al pie de Configuración): pregunta
+    // al SW que CONTROLA la página qué caché está gestionando.
+    updateVersionTag();
+
     if (navigator.serviceWorker.controller) {
+      // Task 25 · Cuando el SW recién instalado toma el control
+      // (skipWaiting en sw.js), recargar UNA sola vez: el usuario recibe
+      // la versión nueva sin tener que cerrar y reabrir la PWA. El guard
+      // evita bucles (tras recargar, el controlador ya no «cambia»).
+      let swRefreshing = false;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!window._swReloaded) {
-          window._swReloaded = true;
-        }
+        if (swRefreshing) return;
+        swRefreshing = true;
+        console.log('[PWA] Nueva versión activa. Recargando…');
+        location.reload();
       });
     }
   });
+
+  // Task 25 · Pinta «TecDeA · versión vX» en Configuración con la versión
+  // del SW que CONTROLA la página (no la del HTML): así se puede verificar
+  // en el móvil qué versión se está ejecutando de verdad.
+  function updateVersionTag() {
+    const el = document.getElementById('appVersionNum');
+    if (!el) return;
+    if (!navigator.serviceWorker.controller) { el.textContent = 'sin PWA'; return; }
+    const ch = new MessageChannel();
+    ch.port1.onmessage = (ev) => {
+      const v = (ev.data && ev.data.version) || '';
+      const m = String(v).match(/v(\d+)/);
+      el.textContent = m ? 'v' + m[1] : (v || 'desconocida');
+    };
+    navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' }, [ch.port2]);
+  }
 </script>
 
 </body>
