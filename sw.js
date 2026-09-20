@@ -2,7 +2,7 @@
 //  SERVICE WORKER - TECDEA PORTAL PWA
 // ════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'tecdea-portal-v48';
+const CACHE_NAME = 'tecdea-portal-v49';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -43,7 +43,14 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Estrategia: Cache First, fallback a Network
+// Estrategia:
+//  · Navegaciones (HTML): Network First — el PWA recibe SIEMPRE la
+//    versión publicada mientras haya red; la caché solo entra si la
+//    red falla. Antes (Cache First) el móvil quedaba pegado a la copia
+//    antigua de index.html y las correcciones «no llegaban».
+//  · Resto de GETs: Cache First + refresco en segundo plano
+//    GARANTIZADO con event.waitUntil (antes el SW podía morir antes
+//    de actualizar la caché, sobre todo en móvil).
 self.addEventListener('fetch', (event) => {
   // Solo interceptar peticiones GET
   if (event.request.method !== 'GET') return;
@@ -60,23 +67,36 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // ── Navegaciones (HTML): red primero, caché solo si la red falla ──
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.ok) {
+            // Copia fresca a la caché (clave canónica) para poder
+            // abrir la app aunque luego no haya conexión.
+            event.waitUntil(
+              caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', response.clone()))
+            );
+          }
+          return response;
+        })
+        .catch(() => caches.match('/index.html')
+          .then((r) => r || caches.match(event.request)))
+    );
+    return;
+  }
+
+  // ── Resto de GETs: caché primero + refresco GARANTIZADO ──
   event.respondWith(
     caches.match(event.request)
       .then((cachedResponse) => {
-        if (cachedResponse) {
-          // Devolver del cache y actualizar en background
-          fetchAndCache(event.request);
-          return cachedResponse;
-        }
-
-        // No está en cache → ir a la red
-        return fetchAndCache(event.request);
+        const refresh = fetchAndCache(event.request);
+        event.waitUntil(refresh);
+        return cachedResponse || refresh;
       })
       .catch(() => {
-        // Si falla todo, devolver página offline si es navegación
-        if (event.request.mode === 'navigate') {
-          return caches.match('/index.html');
-        }
+        // Si falla todo (las navegaciones ya se gestionaron arriba)
         return new Response('Offline', { status: 503, statusText: 'Sin conexión' });
       })
   );
