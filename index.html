@@ -155,6 +155,10 @@
   let admins = [{ user: "admin", pass: "admin" }];
   let groupPasswords = { tecnoApps: "", herramientasTecno: "", departamento: "", cajonDeSastre: "" };
   let pendingGroup = null;
+  // Task 26 · Papelera de restauración: aplicaciones eliminadas de la
+  // lista principal que siguen guardadas en la BD (ruta deletedApps)
+  // para poder restaurarlas después.
+  let deletedApps = [];
   // Task 18 · Sesión de contraseñas: una vez validada la contraseña de un
   // ámbito (admin o perfil/grupo), NO se vuelve a pedir hasta que se reinicie
   // la app (variable en memoria: se limpia al recargar o reiniciar la aplicación).
@@ -172,6 +176,7 @@
   const adminsRef = ref(db, `${ROOT}/admins`);
   const groupPassRef = ref(db, `${ROOT}/groupPasswords`);
   const legacyAdminRef = ref(db, `${ROOT}/admin`);
+  const deletedAppsRef = ref(db, `${ROOT}/deletedApps`); // Task 26: papelera
 
   // ── Normalización de datos desde Firebase ─────────────
   function normalizeList(v) {
@@ -186,7 +191,8 @@
       get(appsRef),
       get(adminsRef),
       get(groupPassRef),
-      get(legacyAdminRef)
+      get(legacyAdminRef),
+      get(deletedAppsRef) // Task 26: papelera de restauración
     ]);
 
     if (results[0].status === "fulfilled") {
@@ -226,8 +232,19 @@
       }
     }
 
+    // Task 26 · Papelera de restauración: apps borradas que siguen en la BD.
+    // Solo se admiten con nombre (las filas sin nombre se descartan al borrar).
+    if (results[4].status === "fulfilled") {
+      const snap = results[4].value;
+      if (snap.exists()) {
+        deletedApps = normalizeList(snap.val())
+          .filter(a => a && typeof a === 'object' && a.name && a.name.trim());
+      }
+    }
+
     // Estado inicial conocido: evita un guardado/toast fantasma al primer blur
     markAppsAsSaved(apps); // lo cargado de la BD es residente desde el principio
+    markAppsAsSaved(deletedApps); // Task 26: la papelera cargada también es residente
     _lastSavedAppsJson = JSON.stringify(apps);
 
     const configView = document.getElementById("view-config");
@@ -244,7 +261,7 @@
     // conexión, y se registra en consola el motivo de cada ruta rechazada.
     const errs = results.filter(r => r.status === "rejected");
     if (errs.length > 0) {
-      const routeNames = ["apps", "admins", "groupPasswords", "admin (legacy)"];
+      const routeNames = ["apps", "admins", "groupPasswords", "admin (legacy)", "deletedApps"];
       results.forEach((r, i) => {
         if (r.status === "rejected") {
           console.error(`[TecDeA] Firebase: no se pudo leer "${routeNames[i]}":`, r.reason);
@@ -295,6 +312,11 @@
   async function saveGroupPasswords() {
     try { await set(groupPassRef, groupPasswords); return true; }
     catch(e) { console.error("Error guardando groupPasswords:", e); return false; }
+  }
+  // Task 26 · Papelera de restauración: persiste la lista de apps borradas
+  async function saveDeletedApps() {
+    try { await withTimeout(set(deletedAppsRef, deletedApps), 5000); return true; }
+    catch(e) { console.error("Error guardando la papelera de apps:", e); return false; }
   }
 
   // ══════════════════════════════════════════════════════
@@ -1634,9 +1656,19 @@
     const a = apps[i];
     const label = a && a.name && a.name.trim() ? `«${a.name.trim()}»`
                 : (a && a.url ? `«${a.url}»` : 'la fila vacía');
-    if (!window.confirm(`¿Eliminar la aplicación ${label}? Se quitará de la tabla y el cambio se guardará en la base de datos.`)) return;
+    if (!window.confirm(`¿Eliminar la aplicación ${label}? Se quitará de la lista, quedará en la papelera de restauración y el cambio se guardará en la base de datos.`)) return;
     collectTableData();
     apps.splice(i, 1);
+    // Task 26 · Papelera: las apps CON NOMBRE no se pierden, van a
+    // deletedApps (y a la BD) para poder restaurarlas. Las filas sin
+    // nombre (vacías) se descartan como antes.
+    if (a && a.name && a.name.trim()) {
+      deletedApps.push(a);
+      saveDeletedApps().then(ok => {
+        if (!ok) showToast("La app se eliminó de la lista, pero no se pudo guardar la papelera en Firebase.", "err", 6000);
+      });
+      showToast(`🗑️ «${a.name.trim()}» enviada a la papelera de restauración`, "ok", 3500);
+    }
     buildConfigTable();
     debouncedAutoSaveApps(); // persistir el borrado como cualquier otra edición
   };
@@ -3278,6 +3310,158 @@
 
 
   // ── Exponemos al HTML ──────────────────────────────────
+  // ══ Task 26 · Papelera de restauración de aplicaciones borradas ══
+  const RESTORE_CAJON_LABELS = {
+    matematicas: "📐 Matemáticas", fisica: "⚛️ Física", quimica: "🧪 Química",
+    ia: "🤖 IA", utilidades: "🔧 Utilidades"
+  };
+
+  function openRestoreModal() {
+    renderRestoreList();
+    document.getElementById("restoreModal").classList.remove("hidden");
+  }
+  function closeRestoreModal() {
+    document.getElementById("restoreModal").classList.add("hidden");
+  }
+
+  function restoreProfileChips(a) {
+    const chips = [];
+    if (a.tecnoApps) chips.push("📱 TecnoApps");
+    if (a.herramientasTecno) chips.push("🔧 Herr. Tecno");
+    if (a.departamento) chips.push("🏫 Departamento");
+    if (a.cajonDeSastre && a.category && a.category.trim()) {
+      chips.push(`🧰 Cajón de sastre · ${RESTORE_CAJON_LABELS[a.category] || a.category}`);
+    }
+    return chips;
+  }
+
+  // Listado de la papelera. Las apps sin categoría válida muestran un
+  // selector inline de perfiles (la restauración exige categoría, igual
+  // que el alta: ≥1 perfil y, si Cajón de sastre, subcategoría).
+  function renderRestoreList() {
+    const wrap = document.getElementById("restoreList");
+    if (!wrap) return;
+    if (deletedApps.length === 0) {
+      wrap.innerHTML = `<p class="restore-empty">No hay aplicaciones borradas. Todo está en su sitio. 🎉</p>`;
+      return;
+    }
+    wrap.innerHTML = deletedApps.map((a, ri) => {
+      const named = a.name && a.name.trim();
+      const needsCat = named && isAppUncategorized(a);
+      const chips = restoreProfileChips(a);
+      const meta = chips.length
+        ? chips.map(c => `<span class="restore-chip">${c}</span>`).join("")
+        : `<span class="restore-chip restore-chip-warn">⚠️ Sin categoría</span>`;
+      const url = a.url ? `<span class="restore-url">${escHtml(a.url)}</span>` : "";
+      const nameHtml = `${named ? escHtml(a.name) : "(sin nombre)"}${!isAppActive(a) ? ' <span class="restore-inactive-tag">inactiva</span>' : ""}`;
+      const action = needsCat
+        ? `<button class="btn btn-gold" onclick="tecdea.toggleRestoreCatPick(${ri})">📂 Elegir categoría…</button>`
+        : `<button class="btn btn-primary" onclick="tecdea.confirmRestoreApp(${ri})">♻️ Restaurar</button>`;
+      const picker = needsCat ? `
+        <div class="restore-cat-pick hidden" id="restoreCatPick_${ri}">
+          <div class="fi-label">Perfiles <span class="req">*</span></div>
+          <div class="addapp-profiles">
+            <label><input type="checkbox" class="restore-prof" data-ri="${ri}" value="tecnoApps" ${a.tecnoApps ? "checked" : ""}> 📱 TecnoApps</label>
+            <label><input type="checkbox" class="restore-prof" data-ri="${ri}" value="herramientasTecno" ${a.herramientasTecno ? "checked" : ""}> 🔧 Herr. Tecno</label>
+            <label><input type="checkbox" class="restore-prof" data-ri="${ri}" value="departamento" ${a.departamento ? "checked" : ""}> 🏫 Departamento</label>
+            <label><input type="checkbox" class="restore-prof" data-ri="${ri}" value="cajonDeSastre" ${a.cajonDeSastre ? "checked" : ""} onchange="tecdea.restoreCajonChanged(${ri}, this)"> 🧰 Cajón de sastre</label>
+          </div>
+          <div id="restoreCajonWrap_${ri}" class="addapp-cajon-box ${a.cajonDeSastre ? "" : "hidden"}">
+            <small style="color:var(--navy);font-weight:600;display:block;margin-bottom:4px">📂 Subcategoría (obligatoria para Cajón de sastre):</small>
+            <select id="restoreCategory_${ri}" class="fi" style="max-width:none;width:100%">
+              <option value="">Seleccionar categoría...</option>
+              <option value="matematicas">📐 Matemáticas</option>
+              <option value="fisica">⚛️ Física</option>
+              <option value="quimica">🧪 Química</option>
+              <option value="ia">🤖 IA</option>
+              <option value="utilidades">🔧 Utilidades</option>
+            </select>
+          </div>
+          <div id="restoreCatError_${ri}" class="modal-error"></div>
+          <div class="restore-cat-actions">
+            <button class="btn btn-primary" onclick="tecdea.confirmRestoreWithCategory(${ri})">✓ Restaurar con esta categoría</button>
+          </div>
+        </div>` : "";
+      return `
+      <div class="restore-row" data-ri="${ri}">
+        <div class="restore-row-main">
+          <div class="restore-app-name">${nameHtml}</div>
+          <div class="restore-app-meta">${meta}${url}</div>
+        </div>
+        <div class="restore-row-actions">${action}</div>
+        ${picker}
+      </div>`;
+    }).join("");
+  }
+
+  function toggleRestoreCatPick(ri) {
+    const box = document.getElementById(`restoreCatPick_${ri}`);
+    if (box) box.classList.toggle("hidden");
+  }
+
+  function restoreCajonChanged(ri, chk) {
+    const wrap = document.getElementById(`restoreCajonWrap_${ri}`);
+    if (wrap) wrap.classList.toggle("hidden", !chk.checked);
+  }
+
+  function confirmRestoreApp(ri) {
+    const a = deletedApps[ri];
+    if (!a) return;
+    doRestoreApp(ri, a);
+  }
+
+  function confirmRestoreWithCategory(ri) {
+    const a = deletedApps[ri];
+    if (!a) return;
+    const errBox = document.getElementById(`restoreCatError_${ri}`);
+    if (errBox) errBox.textContent = "";
+    const picks = Array.from(document.querySelectorAll(`.restore-prof[data-ri="${ri}"]`))
+      .filter(c => c.checked).map(c => c.value);
+    if (picks.length === 0) {
+      if (errBox) errBox.textContent = "Marca al menos un perfil para restaurar la aplicación.";
+      return;
+    }
+    const caj = picks.includes("cajonDeSastre");
+    let cat = "";
+    if (caj) {
+      const sel = document.getElementById(`restoreCategory_${ri}`);
+      cat = sel ? (sel.value || "").trim() : "";
+      if (!cat) {
+        if (errBox) errBox.textContent = "Cajón de sastre requiere una subcategoría.";
+        return;
+      }
+    }
+    a.tecnoApps = picks.includes("tecnoApps");
+    a.herramientasTecno = picks.includes("herramientasTecno");
+    a.departamento = picks.includes("departamento");
+    a.cajonDeSastre = caj;
+    a.category = caj ? cat : "";
+    doRestoreApp(ri, a);
+  }
+
+  // Sacar la app de la papelera y devolverla a la lista principal.
+  // Refresca papelera, tabla de gestión y Home, y persiste ambas rutas.
+  async function doRestoreApp(ri, a) {
+    deletedApps.splice(ri, 1);
+    apps.push(a);
+    markAppsAsSaved([a]); // vuelve a ser residente en la BD
+    renderRestoreList();
+    buildConfigTable();
+    // La vista activa durante una restauración es Configuración:
+    // refrescar la Home SOLO si es la vista visible (renderHome cambia
+    // de vista y sacaría al usuario de Configuración a mitad de la
+    // operación). Al volver a la Home se re-renderiza de todos modos.
+    const cfgView = document.getElementById("view-config");
+    if (!cfgView || cfgView.classList.contains("hidden")) renderHome();
+    const results = await Promise.all([saveDeletedApps(), persistAppsChanges()]);
+    const ok = results[0] && results[1] && results[1].ok;
+    if (ok) {
+      showToast(`✓ Aplicación «${a.name}» restaurada`, "ok", 3500);
+    } else {
+      showToast("Aplicación restaurada en la app, pero no se pudo guardar en Firebase.", "err", 6000);
+    }
+  }
+
   window.tecdea = {
     requestGroupAccess, closeGroupPassModal, doGroupLogin,
     passwordSession, // Task 18: estado de sesión de contraseñas (diagnóstico/tests)
@@ -3290,6 +3474,10 @@
     renderHome, renderConfig, saveConfig,
     // Alta de aplicaciones vía modal
     showAddAppModal, closeAddAppModal, confirmAddApp,
+    // Task 26: papelera de restauración de apps borradas
+    showRestoreModal: openRestoreModal, closeRestoreModal, confirmRestoreApp,
+    toggleRestoreCatPick, confirmRestoreWithCategory, restoreCajonChanged,
+    deletedApps, // papelera en memoria (diagnóstico/tests)
     addAppNameInput, addAppFormChanged, addAppCajonChanged,
     addAdminRow, saveAdminsConfig,
     saveGroupPasswordsConfig,
@@ -4136,6 +4324,37 @@
   }
   .btn-del:hover { transform: scale(1.3); background: rgba(192,57,43,.08); }
   .btn-del:active { transform: scale(1.1); }
+
+  /* ══ Task 26: Papelera de restauración ═════════════════ */
+  .restore-list {
+    max-height: 50vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    display: flex; flex-direction: column; gap: .6rem;
+    margin: .5rem 0 1rem; text-align: left;
+  }
+  .restore-row {
+    border: 1px solid rgba(11,37,69,.12); border-radius: 10px;
+    padding: .6rem .75rem; background: var(--white);
+  }
+  .restore-row-main { display: flex; flex-direction: column; gap: .25rem; }
+  .restore-app-name { font-weight: 700; color: var(--navy); font-size: .95rem; }
+  .restore-app-meta { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+  .restore-chip {
+    background: #eef2ff; color: #3730a3; font-size: .72rem; font-weight: 600;
+    padding: .15rem .5rem; border-radius: 999px;
+  }
+  .restore-chip-warn { background: #fef3c7; color: #92400e; }
+  .restore-url { font-size: .72rem; color: var(--muted); word-break: break-all; }
+  .restore-inactive-tag {
+    font-size: .68rem; font-weight: 700; color: #64748b; background: #e2e8f0;
+    border-radius: 999px; padding: .1rem .45rem; vertical-align: middle;
+  }
+  .restore-row-actions { margin-top: .45rem; display: flex; justify-content: flex-end; }
+  .restore-cat-pick {
+    margin-top: .6rem; padding: .6rem; background: #f8f9fa;
+    border: 1px dashed #d1d5db; border-radius: 8px;
+  }
+  .restore-cat-actions { margin-top: .6rem; display: flex; justify-content: flex-end; }
+  .restore-empty { text-align: center; color: var(--muted); font-style: italic; padding: 1rem 0; }
 
   .desc-cell { min-width: 160px; }
   .desc-fi    { cursor: help; }
@@ -5381,10 +5600,12 @@
           La casilla <b>Act.</b> activa o desactiva cada aplicación: desmarcada, la app deja de mostrarse en los perfiles sin llegar a eliminarse (la fila aparece atenuada).<br>
           Los filtros de la barra («TecnoApps», «Herramientas Tecno», «Departamento», «Cajón de sastre» y «Estado») son <b>combinables</b>: márcalos a la vez para afinar la búsqueda (p. ej. TecnoApps + Inactivas).<br>
           La URL base fija es <code>https://tecdea.github.io/</code>. Añade el path final de cada aplicación (ejemplo: <code>miapp/</code>).
-          Si la aplicación no está en el dominio <code>https://tecdea.github.io</code>, introduce la ruta completa de la PWA.
+          Si la aplicación no está en el dominio <code>https://tecdea.github.io</code>, introduce la ruta completa de la PWA.<br>
+          Las aplicaciones eliminadas <b>no se pierden</b>: quedan en la papelera de la base de datos y puedes recuperarlas con el botón «♻️ Restaurar aplicaciones borradas».
         </p>
         <div class="actions" style="margin-bottom:1rem">
           <button class="btn btn-gold" onclick="tecdea.showAddAppModal()">＋ Añadir aplicación</button>
+          <button class="btn btn-ghost" onclick="tecdea.showRestoreModal()" title="Las apps borradas siguen en la base de datos: recupéralas aquí">♻️ Restaurar aplicaciones borradas</button>
           <button class="btn btn-ghost" onclick="tecdea.sortApps('name')">↕ Ordenar por nombre</button>
           <button class="btn btn-ghost" onclick="tecdea.sortApps('url')">↕ Ordenar por URL</button>
           <button class="btn btn-primary" onclick="tecdea.saveConfig()">💾 Guardar aplicaciones</button>
@@ -5670,8 +5891,9 @@
         <div class="tutorial-step"><span class="tut-icon">🔐</span><div class="tut-body"><span class="tut-title">Contraseñas</span><p>Si un perfil tiene contraseña, se pedirá solo la primera vez. Hasta que se reinicie la app (o hagas un cambio de sesión) no volverá a pedírtela.</p></div></div>
         <div class="tutorial-step"><span class="tut-icon">📦</span><div class="tut-body"><span class="tut-title">Cajón de sastre</span><p>Dentro encontrarás subcategorías: Matemáticas, Física, Química, IA y Utilidades. Una sola contraseña abre todas.</p></div></div>
         <div class="tutorial-step"><span class="tut-icon">🚀</span><div class="tut-body"><span class="tut-title">Abrir una aplicación</span><p>Pulsa su tarjeta para abrirla en una pestaña nueva. Si tiene descripción, la verás al pasar el ratón o mantener el dedo sobre ella.</p></div></div>
-        <div class="tutorial-step"><span class="tut-icon">⚙️</span><div class="tut-body"><span class="tut-title">Configuración (solo administradores)</span><p>Añade, edita o desactiva aplicaciones, gestiona contraseñas de perfiles y administradores, y exporta/importa datos. Todo se guarda automáticamente en Firebase.</p></div></div>
+        <div class="tutorial-step"><span class="tut-icon">⚙️</span><div class="tut-body"><span class="tut-title">Configuración (solo administradores)</span><p>Añade, edita o desactiva aplicaciones, recupera las que hayas borrado (papelera de restauración), gestiona contraseñas de perfiles y administradores, y exporta/importa datos. Todo se guarda automáticamente en Firebase.</p></div></div>
         <div class="tutorial-step"><span class="tut-icon">🔄</span><div class="tut-body"><span class="tut-title">Cambio de sesión</span><p>Mantén pulsado el botón ⚙️ Configuración durante 1,5 segundos para reiniciar la sesión: se volverán a pedir todas las contraseñas.</p></div></div>
+        <div class="tutorial-step"><span class="tut-icon">♻️</span><div class="tut-body"><span class="tut-title">Restaurar aplicaciones borradas</span><p>Al eliminar una aplicación no se pierde: queda en la papelera de la base de datos. En Configuración › Aplicaciones, el botón «♻️ Restaurar aplicaciones borradas» muestra el listado para recuperarla (si carecía de categoría, se te pedirá asignarle una).</p></div></div>
   </div>
 </div>
 
@@ -5722,6 +5944,18 @@
         <button type="submit" class="btn btn-primary" id="addAppConfirmBtn">＋ Añadir aplicación</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL RESTAURAR APPS BORRADAS (Task 26) ════ -->
+<div id="restoreModal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>♻️ Restaurar aplicaciones borradas</h2>
+    <p class="hint" style="margin-top:0">Estas aplicaciones no se han perdido: siguen guardadas en la base de datos aunque no aparezcan en la lista principal. Restáuralas para volver a verlas en sus perfiles.</p>
+    <div id="restoreList" class="restore-list"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="tecdea.closeRestoreModal()">Cerrar</button>
+    </div>
   </div>
 </div>
 
