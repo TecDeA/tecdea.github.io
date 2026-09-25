@@ -1772,12 +1772,17 @@
   }
 
   // ── Gestión de administradores (CRUD multi-admin) ─────
+  // Task 28: las contraseñas NO se editan en la tabla (mecanismo único: el modal
+  // «Cambiar contraseña»). La celda las muestra ocultas y el botón 🔑 abre el
+  // modal para ese administrador.
   function buildAdminsTable() {
     const tbody = document.querySelector("#adminsTable tbody");
     tbody.innerHTML = admins.map((a, i) => `
       <tr data-i="${i}">
         <td data-label="Usuario"><input type="text" class="fi" value="${escHtml(a.user)}" placeholder="usuario" data-af="user" autocomplete="off"></td>
-        <td data-label="Contraseña"><input type="text" class="fi" value="${escHtml(a.pass)}" placeholder="contraseña" data-af="pass" autocomplete="off"></td>
+        <td data-label="Contraseña" class="cell-pass">${a.pass
+          ? '<span class="pass-mask" title="Oculta por seguridad">••••••</span>'
+          : '<span class="pass-none">sin contraseña</span>'}<button class="btn-pass" onclick="window._changeAdminPass(${i})" title="Cambiar la contraseña de este administrador">🔑</button></td>
         <td data-label="" class="chk"><button class="btn-del" onclick="window._delAdmin(${i})" title="Eliminar">✕</button></td>
       </tr>`).join("");
 
@@ -1812,8 +1817,14 @@
     _isSavingAdmins = true;
     
     try {
-      const hasEmpty = admins.some(a => !a.user || !a.pass);
-      if (hasEmpty) return;
+      const incomplete = admins.find(a => !a.user || !a.pass);
+      if (incomplete) {
+        // Task 28: la contraseña ya no se escribe en la tabla; se asigna con 🔑
+        if (incomplete.user && !incomplete.pass) {
+          showToast(`Falta la contraseña de «${incomplete.user}»: pulsa 🔑 en su fila para asignarla.`, "err", 4500);
+        }
+        return;
+      }
       const users = admins.map(a => a.user);
       const hasDup = new Set(users).size !== users.length;
       if (hasDup) return;
@@ -1846,6 +1857,11 @@
     autoSaveAdmins();
   };
 
+  // Task 28: botón 🔑 de la tabla → abre el modal de cambio para esa fila
+  window._changeAdminPass = function(i) {
+    showChangePassModal(i);
+  };
+
   async function saveAdminsConfig() {
     collectAdminsData();
     const cleaned = admins.filter(a => a.user && a.pass);
@@ -1876,20 +1892,34 @@
     buildAdminsTable();
   }
 
-  // ── Task 27 · Cambio de contraseña del administrador conectado ──
-  // Devuelve el administrador que validó credenciales en esta sesión
-  // (o el primero de la lista, como respaldo defensivo).
+  // ── Task 27/28 · Cambio de contraseña (mecanismo ÚNICO) ──
+  // Toda modificación de contraseñas de administrador pasa por este modal:
+  // pide la contraseña del administrador conectado (reconfirmación de sesión)
+  // y la nueva dos veces. Sin argumento apunta al administrador conectado;
+  // con un índice, al administrador de esa fila de la tabla.
   function currentAdmin() {
     return admins.find(a => a.user === passwordSession.adminUser) || admins[0] || null;
   }
 
-  function showChangePassModal() {
-    const target = currentAdmin();
-    if (!target || !target.user) {
+  let _changePassTarget = null; // administrador cuya contraseña se va a cambiar
+
+  function showChangePassModal(index) {
+    const session = currentAdmin();
+    if (!session || !session.user) {
       showToast("No se ha identificado el administrador de la sesión.", "err", 5000);
       return;
     }
-    document.getElementById("changePassFor").textContent = target.user;
+    _changePassTarget = (typeof index === "number" && admins[index]) ? admins[index] : session;
+    if (!_changePassTarget.user) {
+      showToast("Escribe primero el nombre de usuario en la tabla y vuelve a pulsar 🔑.", "err", 4500);
+      _changePassTarget = null;
+      return;
+    }
+    document.getElementById("changePassFor").textContent = _changePassTarget.user;
+    document.getElementById("chgCurLabel").textContent =
+      _changePassTarget.user === session.user
+        ? "Contraseña actual"
+        : `Tu contraseña actual (${session.user})`;
     document.getElementById("chgCurPass").value = "";
     document.getElementById("chgNewPass").value = "";
     document.getElementById("chgNewPass2").value = "";
@@ -1905,18 +1935,20 @@
   async function doChangePassword() {
     const errEl = document.getElementById("changePassError");
     errEl.textContent = "";
-    const target = currentAdmin();
-    if (!target) {
+    const session = currentAdmin();
+    if (!session) {
       errEl.textContent = "No se ha identificado el administrador de la sesión.";
       return;
     }
+    const target = _changePassTarget || session;
 
     const cur = document.getElementById("chgCurPass").value;
     const n1  = document.getElementById("chgNewPass").value;
     const n2  = document.getElementById("chgNewPass2").value;
 
-    if (cur !== target.pass) {
-      errEl.textContent = "La contraseña actual no es correcta.";
+    // Reconfirmación: siempre la contraseña del administrador conectado
+    if (cur !== session.pass) {
+      errEl.textContent = "Tu contraseña actual no es correcta.";
       return;
     }
     if (!n1.trim()) {
@@ -1928,14 +1960,14 @@
       return;
     }
 
-    target.pass = n1.trim(); // mismo criterio que la tabla de administradores (sin espacios en los extremos)
+    target.pass = n1.trim(); // sin espacios en los extremos, como el resto de campos
     const ok = await saveAdmins();
     if (!ok) {
       showToast("Error al guardar la nueva contraseña en Firebase.", "err", 7000);
       return;
     }
     closeChangePassModal();
-    buildAdminsTable(); // reflejar la nueva contraseña en la tabla de administradores
+    buildAdminsTable(); // refrescar los botones 🔑 de la tabla
     showToast(`Contraseña de «${target.user}» actualizada en la base de datos Firebase.`, "ok", 4500);
   }
 
@@ -3597,7 +3629,7 @@
     deletedApps, // papelera en memoria (diagnóstico/tests)
     addAppNameInput, addAppFormChanged, addAppCajonChanged,
     addAdminRow, saveAdminsConfig,
-    showChangePassModal, closeChangePassModal, doChangePassword, // Task 27: cambio de contraseña del admin conectado
+    showChangePassModal, closeChangePassModal, doChangePassword, // Task 27/28: cambio de contraseña unificado (modal)
     saveGroupPasswordsConfig,
     hideDescModal, wireAppCardDesc, iconFallback, // Task 22: descripción en tarjetas
     sortApps,
@@ -4442,6 +4474,23 @@
   }
   .btn-del:hover { transform: scale(1.3); background: rgba(192,57,43,.08); }
   .btn-del:active { transform: scale(1.1); }
+
+  /* Task 28: celda de contraseña en la tabla de administradores
+     (oculta + botón 🔑 que abre el modal de cambio) */
+  .cell-pass { white-space: nowrap; }
+  .pass-mask { letter-spacing: 2px; color: var(--muted); margin-right: 6px; }
+  .pass-none { color: var(--muted); font-style: italic; font-size: .8rem; margin-right: 6px; }
+  .btn-pass {
+    background: none; border: none; cursor: pointer;
+    font-size: 1.05rem; transition: transform .15s;
+    min-width: 40px; min-height: 40px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+    -webkit-tap-highlight-color: transparent;
+    vertical-align: middle;
+  }
+  .btn-pass:hover { transform: scale(1.15); background: rgba(200,168,75,.12); }
+  .btn-pass:active { transform: scale(1.05); }
 
   /* ══ Task 26: Papelera de restauración ═════════════════ */
   .restore-list {
@@ -5820,7 +5869,7 @@
       </button>
       <div class="accordion-content">
         <p class="hint">Gestiona los usuarios con permiso para acceder a esta pantalla de Configuración. Debe existir al menos uno; no se permiten usuarios duplicados.<br>
-        Para cambiar tu propia contraseña usa el botón «🔑 Cambiar mi contraseña»: pedirá la contraseña actual y la nueva dos veces, y la guardará en la base de datos.</p>
+        Las contraseñas <b>no se escriben directamente en la tabla</b> (así nunca quedan visibles ni editables en plano): pulsa el botón 🔑 de cada fila —o «🔑 Cambiar mi contraseña» para la tuya—. El cambio pide tu contraseña actual y la nueva dos veces, y se guarda en la base de datos.</p>
         <p class="hint hint-warning" style="background:#fff8e6;border-left:4px solid #f59e0b;padding:.7rem .9rem;margin:.8rem 0;border-radius:8px;font-size:.82rem;">
           🔒 <strong>Nota importante:</strong> Las contraseñas de los administradores se incluirán en la exportación a Excel/PDF. Asegúrate de proteger el archivo exportado.
         </p>
@@ -5837,7 +5886,7 @@
           </table>
         </div>
         <div class="actions">
-          <button class="btn btn-ghost" onclick="tecdea.showChangePassModal()" title="Cambia la contraseña del administrador conectado: pide la actual y la nueva dos veces">🔑 Cambiar mi contraseña</button>
+          <button class="btn btn-ghost" onclick="tecdea.showChangePassModal()" title="Cambia tu contraseña: pide la actual y la nueva dos veces">🔑 Cambiar mi contraseña</button>
           <button class="btn btn-gold" onclick="tecdea.addAdminRow()">＋ Añadir administrador</button>
           <button class="btn btn-primary" onclick="tecdea.saveAdminsConfig()">💾 Guardar administradores</button>
         </div>
@@ -5973,7 +6022,7 @@
     <h2>🔑 Cambiar contraseña</h2>
     <form onsubmit="event.preventDefault(); tecdea.doChangePassword()" autocomplete="off">
       <p class="hint" style="margin:0 0 .6rem">Administrador: <b id="changePassFor"></b></p>
-      <div class="fi-label">Contraseña actual</div>
+      <div class="fi-label" id="chgCurLabel">Contraseña actual</div>
       <input type="password" id="chgCurPass" class="fi" placeholder="••••••" autocomplete="current-password"
              onkeydown="if(event.key==='Enter') document.getElementById('chgNewPass').focus()">
       <div class="fi-label" style="margin-top:.5rem">Contraseña nueva</div>
