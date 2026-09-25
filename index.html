@@ -152,7 +152,7 @@
 
   // ── Estado global ──────────────────────────────────────
   let apps = [];
-  let admins = [{ user: "admin", pass: "admin" }];
+  let admins = []; // Task 28: sin credenciales por defecto en el código — los administradores viven solo en la base de datos
   let groupPasswords = { tecnoApps: "", herramientasTecno: "", departamento: "", cajonDeSastre: "" };
   let pendingGroup = null;
   // Task 26 · Papelera de restauración: aplicaciones eliminadas de la
@@ -162,7 +162,7 @@
   // Task 18 · Sesión de contraseñas: una vez validada la contraseña de un
   // ámbito (admin o perfil/grupo), NO se vuelve a pedir hasta que se reinicie
   // la app (variable en memoria: se limpia al recargar o reiniciar la aplicación).
-  const passwordSession = { admin: false, groups: {} };
+  const passwordSession = { admin: false, adminUser: null, groups: {} };
   let appsProfileFilters = []; // Perfiles activos (COMBINABLES): p. ej. ['tecnoApps','departamento']
   let appsEstadoFilter = 'all'; // Filtro de estado: 'all' | 'activas' | 'inactivas'
   let appsSort = { field: 'name', direction: 'asc' };
@@ -186,6 +186,10 @@
   }
 
   // ── Carga inicial ──────────────────────────────────────
+  // Task 28: marca el fin de la carga inicial; evita un falso «sin administradores»
+  // mientras Firebase aún no ha respondido.
+  let dataLoadFinished = false;
+
   async function loadData() {
     const results = await Promise.allSettled([
       get(appsRef),
@@ -210,14 +214,16 @@
       if (list.length > 0) admins = list;
     }
 
+    // Task 28 · Sin contraseñas en el código: las credenciales se leen únicamente
+    // de la base de datos. El nodo legado `admin` solo se admite si trae usuario
+    // Y contraseña completos (nunca se rellenan valores por defecto).
     if (admins.length === 0 && results[3].status === "fulfilled") {
       const snap = results[3].value;
       if (snap.exists()) {
         const a = snap.val();
-        admins = [{ user: a.user || "admin", pass: a.pass || "admin" }];
+        if (a && a.user && a.pass) admins = [{ user: a.user, pass: a.pass }];
       }
     }
-    if (admins.length === 0) admins = [{ user: "admin", pass: "admin" }];
 
     if (results[2].status === "fulfilled") {
       const snap = results[2].value;
@@ -278,6 +284,8 @@
         showToast(`Aviso: ${errs.length} ruta(s) de Firebase no se pudieron leer (sin conexión con la base de datos).`, "err", 7000);
       }
     }
+
+    dataLoadFinished = true;
   }
 
   // ── Persistencia ──────────────────────────────────────
@@ -855,7 +863,10 @@
       return;
     }
 
-    document.getElementById("loginError").textContent = "";
+    document.getElementById("loginError").textContent =
+      (dataLoadFinished && admins.length === 0)
+        ? "No hay administradores configurados en la base de datos (portal-tecdea/admins)."
+        : "";
     document.getElementById("loginUser").value = "";
     document.getElementById("loginPass").value = "";
     document.getElementById("loginModal").classList.remove("hidden");
@@ -878,9 +889,23 @@
   function doLogin() {
     const u = document.getElementById("loginUser").value.trim();
     const p = document.getElementById("loginPass").value;
+    // Task 28: sin credenciales de respaldo en el código. Mientras la carga no
+    // termine no se puede validar nada; si la BD no trae administradores, no hay acceso.
+    if (!dataLoadFinished) {
+      document.getElementById("loginError").textContent =
+        "Cargando datos de la base de datos; espera unos segundos e inténtalo de nuevo.";
+      return;
+    }
+    if (admins.length === 0) {
+      document.getElementById("loginError").textContent =
+        "No hay administradores configurados en la base de datos (portal-tecdea/admins).";
+      console.warn("[TecDeA] Login bloqueado: la ruta portal-tecdea/admins está vacía. Crea el primer administrador en Firebase Console.");
+      return;
+    }
     const found = admins.find(a => a.user === u && a.pass === p);
     if (found) {
       passwordSession.admin = true; // Task 18: no volver a pedirla hasta reiniciar la app
+      passwordSession.adminUser = found.user; // Task 27: recordar qué admin entró (para «Cambiar mi contraseña»)
       closeLoginModal();
       renderConfig();
     } else {
@@ -1849,6 +1874,69 @@
     }
     showToast(`Administradores guardados en base de datos Firebase (${admins.length}).`, "ok", 4500);
     buildAdminsTable();
+  }
+
+  // ── Task 27 · Cambio de contraseña del administrador conectado ──
+  // Devuelve el administrador que validó credenciales en esta sesión
+  // (o el primero de la lista, como respaldo defensivo).
+  function currentAdmin() {
+    return admins.find(a => a.user === passwordSession.adminUser) || admins[0] || null;
+  }
+
+  function showChangePassModal() {
+    const target = currentAdmin();
+    if (!target || !target.user) {
+      showToast("No se ha identificado el administrador de la sesión.", "err", 5000);
+      return;
+    }
+    document.getElementById("changePassFor").textContent = target.user;
+    document.getElementById("chgCurPass").value = "";
+    document.getElementById("chgNewPass").value = "";
+    document.getElementById("chgNewPass2").value = "";
+    document.getElementById("changePassError").textContent = "";
+    document.getElementById("changePassModal").classList.remove("hidden");
+    setTimeout(() => document.getElementById("chgCurPass").focus(), 50);
+  }
+
+  function closeChangePassModal() {
+    document.getElementById("changePassModal").classList.add("hidden");
+  }
+
+  async function doChangePassword() {
+    const errEl = document.getElementById("changePassError");
+    errEl.textContent = "";
+    const target = currentAdmin();
+    if (!target) {
+      errEl.textContent = "No se ha identificado el administrador de la sesión.";
+      return;
+    }
+
+    const cur = document.getElementById("chgCurPass").value;
+    const n1  = document.getElementById("chgNewPass").value;
+    const n2  = document.getElementById("chgNewPass2").value;
+
+    if (cur !== target.pass) {
+      errEl.textContent = "La contraseña actual no es correcta.";
+      return;
+    }
+    if (!n1.trim()) {
+      errEl.textContent = "La nueva contraseña no puede estar vacía.";
+      return;
+    }
+    if (n1 !== n2) {
+      errEl.textContent = "Las dos contraseñas nuevas no coinciden.";
+      return;
+    }
+
+    target.pass = n1.trim(); // mismo criterio que la tabla de administradores (sin espacios en los extremos)
+    const ok = await saveAdmins();
+    if (!ok) {
+      showToast("Error al guardar la nueva contraseña en Firebase.", "err", 7000);
+      return;
+    }
+    closeChangePassModal();
+    buildAdminsTable(); // reflejar la nueva contraseña en la tabla de administradores
+    showToast(`Contraseña de «${target.user}» actualizada en la base de datos Firebase.`, "ok", 4500);
   }
 
   // ── Contraseñas de grupos ─────────────────────────────
@@ -3251,6 +3339,7 @@
 
   function resetPasswordSession() {
     passwordSession.admin = false;
+    passwordSession.adminUser = null;
     passwordSession.groups = {};
     console.log('[TecDeA] Cambio de sesión: contraseñas reiniciadas (se volverán a pedir)');
     showToast('Sesión reiniciada: se volverán a pedir las contraseñas.', 'ok', 4500);
@@ -3508,6 +3597,7 @@
     deletedApps, // papelera en memoria (diagnóstico/tests)
     addAppNameInput, addAppFormChanged, addAppCajonChanged,
     addAdminRow, saveAdminsConfig,
+    showChangePassModal, closeChangePassModal, doChangePassword, // Task 27: cambio de contraseña del admin conectado
     saveGroupPasswordsConfig,
     hideDescModal, wireAppCardDesc, iconFallback, // Task 22: descripción en tarjetas
     sortApps,
@@ -5729,7 +5819,8 @@
         <span class="accordion-icon">▼</span>
       </button>
       <div class="accordion-content">
-        <p class="hint">Gestiona los usuarios con permiso para acceder a esta pantalla de Configuración. Debe existir al menos uno; no se permiten usuarios duplicados.</p>
+        <p class="hint">Gestiona los usuarios con permiso para acceder a esta pantalla de Configuración. Debe existir al menos uno; no se permiten usuarios duplicados.<br>
+        Para cambiar tu propia contraseña usa el botón «🔑 Cambiar mi contraseña»: pedirá la contraseña actual y la nueva dos veces, y la guardará en la base de datos.</p>
         <p class="hint hint-warning" style="background:#fff8e6;border-left:4px solid #f59e0b;padding:.7rem .9rem;margin:.8rem 0;border-radius:8px;font-size:.82rem;">
           🔒 <strong>Nota importante:</strong> Las contraseñas de los administradores se incluirán en la exportación a Excel/PDF. Asegúrate de proteger el archivo exportado.
         </p>
@@ -5746,6 +5837,7 @@
           </table>
         </div>
         <div class="actions">
+          <button class="btn btn-ghost" onclick="tecdea.showChangePassModal()" title="Cambia la contraseña del administrador conectado: pide la actual y la nueva dos veces">🔑 Cambiar mi contraseña</button>
           <button class="btn btn-gold" onclick="tecdea.addAdminRow()">＋ Añadir administrador</button>
           <button class="btn btn-primary" onclick="tecdea.saveAdminsConfig()">💾 Guardar administradores</button>
         </div>
@@ -5861,7 +5953,7 @@
     <h2>🔐 Acceso a Configuración</h2>
     <form onsubmit="event.preventDefault(); tecdea.doLogin()" autocomplete="on">
       <div class="fi-label">Usuario</div>
-      <input type="text"     id="loginUser" class="fi" placeholder="admin" autocomplete="username"
+      <input type="text"     id="loginUser" class="fi" placeholder="usuario" autocomplete="username"
              onkeydown="if(event.key==='Enter') document.getElementById('loginPass').focus()">
       <div class="fi-label" style="margin-top:.5rem">Contraseña</div>
       <input type="password" id="loginPass" class="fi" placeholder="••••••" autocomplete="current-password"
@@ -5870,6 +5962,30 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="tecdea.closeLoginModal()">Cancelar</button>
         <button type="submit" class="btn btn-primary">Entrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL CAMBIO DE CONTRASEÑA ADMIN ═══════════ -->
+<div id="changePassModal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>🔑 Cambiar contraseña</h2>
+    <form onsubmit="event.preventDefault(); tecdea.doChangePassword()" autocomplete="off">
+      <p class="hint" style="margin:0 0 .6rem">Administrador: <b id="changePassFor"></b></p>
+      <div class="fi-label">Contraseña actual</div>
+      <input type="password" id="chgCurPass" class="fi" placeholder="••••••" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter') document.getElementById('chgNewPass').focus()">
+      <div class="fi-label" style="margin-top:.5rem">Contraseña nueva</div>
+      <input type="password" id="chgNewPass" class="fi" placeholder="••••••" autocomplete="new-password"
+             onkeydown="if(event.key==='Enter') document.getElementById('chgNewPass2').focus()">
+      <div class="fi-label" style="margin-top:.5rem">Repite la contraseña nueva</div>
+      <input type="password" id="chgNewPass2" class="fi" placeholder="••••••" autocomplete="new-password"
+             onkeydown="if(event.key==='Enter') tecdea.doChangePassword()">
+      <div id="changePassError" class="modal-error"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="tecdea.closeChangePassModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Cambiar contraseña</button>
       </div>
     </form>
   </div>
