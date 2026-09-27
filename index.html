@@ -5740,6 +5740,12 @@
       </button>
     </div>
 
+    <!-- Etiqueta fija de versión del Service Worker: visible solo en el Home
+         (se oculta al salir de esta vista porque su padre display:none la
+         oculta también con position:fixed). Así el usuario comprueba en
+         pantalla qué versión se ejecuta y cuándo la PWA se ha actualizado. -->
+    <p id="homeVersionTag" style="position:fixed;left:0;right:0;bottom:6px;z-index:5;margin:0;text-align:center;pointer-events:none;opacity:.6;font-size:.72rem;color:#6B7280">TecDeA · versión <span id="homeVersionNum">…</span></p>
+
   </section>
 
   <!-- Vista: GRUPO -->
@@ -6284,18 +6290,21 @@
     }
   });
 
-  // Task 25 · Pinta «TecDeA · versión vX» en Configuración con la versión
-  // del SW que CONTROLA la página (no la del HTML): así se puede verificar
-  // en el móvil qué versión se está ejecutando de verdad.
+  // Task 25 · Pinta «TecDeA · versión vX» (Home y Configuración) con la
+  // versión del SW que CONTROLA la página (no la del HTML): así se puede
+  // verificar en el móvil qué versión se está ejecutando de verdad y
+  // comprobar que una actualización se ha aplicado.
   function updateVersionTag() {
-    const el = document.getElementById('appVersionNum');
-    if (!el) return;
-    if (!navigator.serviceWorker.controller) { el.textContent = 'sin PWA'; return; }
+    const els = document.querySelectorAll('#appVersionNum, #homeVersionNum');
+    if (els.length === 0) return;
+    if (!navigator.serviceWorker.controller) { els.forEach(el => { el.textContent = 'sin PWA'; }); return; }
     const ch = new MessageChannel();
     ch.port1.onmessage = (ev) => {
       const v = (ev.data && ev.data.version) || '';
-      const m = String(v).match(/v(\d+)/);
-      el.textContent = m ? 'v' + m[1] : (v || 'desconocida');
+      // Mostrar la versión completa (p. ej. «v2.1») para distinguir revisiones
+      const m = String(v).match(/v[\d.]+/);
+      const label = m ? m[0] : (v || 'desconocida');
+      els.forEach(el => { el.textContent = label; });
     };
     navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' }, [ch.port2]);
   }
