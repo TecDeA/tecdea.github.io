@@ -152,17 +152,13 @@
 
   // ── Estado global ──────────────────────────────────────
   let apps = [];
-  let admins = [{ user: "admin", pass: "admin" }];
+  let admins = []; // sin credenciales por defecto en el código — los administradores viven solo en la base de datos
   let groupPasswords = { tecnoApps: "", herramientasTecno: "", departamento: "", cajonDeSastre: "" };
   let pendingGroup = null;
-  // Task 26 · Papelera de restauración: aplicaciones eliminadas de la
-  // lista principal que siguen guardadas en la BD (ruta deletedApps)
-  // para poder restaurarlas después.
+  // Papelera de restauración: apps eliminadas que siguen en la BD (ruta deletedApps) por si hay que restaurarlas
   let deletedApps = [];
-  // Task 18 · Sesión de contraseñas: una vez validada la contraseña de un
-  // ámbito (admin o perfil/grupo), NO se vuelve a pedir hasta que se reinicie
-  // la app (variable en memoria: se limpia al recargar o reiniciar la aplicación).
-  const passwordSession = { admin: false, groups: {} };
+  // Sesión de contraseñas: una vez validada (admin o perfil/grupo) no se vuelve a pedir hasta recargar la app
+  const passwordSession = { admin: false, adminUser: null, groups: {} };
   let appsProfileFilters = []; // Perfiles activos (COMBINABLES): p. ej. ['tecnoApps','departamento']
   let appsEstadoFilter = 'all'; // Filtro de estado: 'all' | 'activas' | 'inactivas'
   let appsSort = { field: 'name', direction: 'asc' };
@@ -175,8 +171,7 @@
   const appsRef = ref(db, `${ROOT}/apps`);
   const adminsRef = ref(db, `${ROOT}/admins`);
   const groupPassRef = ref(db, `${ROOT}/groupPasswords`);
-  const legacyAdminRef = ref(db, `${ROOT}/admin`);
-  const deletedAppsRef = ref(db, `${ROOT}/deletedApps`); // Task 26: papelera
+  const deletedAppsRef = ref(db, `${ROOT}/deletedApps`); // papelera
 
   // ── Normalización de datos desde Firebase ─────────────
   function normalizeList(v) {
@@ -186,13 +181,14 @@
   }
 
   // ── Carga inicial ──────────────────────────────────────
+  let dataLoadFinished = false; // fin de la carga inicial: evita un falso «sin administradores» mientras Firebase responde
+
   async function loadData() {
     const results = await Promise.allSettled([
       get(appsRef),
       get(adminsRef),
       get(groupPassRef),
-      get(legacyAdminRef),
-      get(deletedAppsRef) // Task 26: papelera de restauración
+      get(deletedAppsRef) // papelera de restauración
     ]);
 
     if (results[0].status === "fulfilled") {
@@ -210,15 +206,6 @@
       if (list.length > 0) admins = list;
     }
 
-    if (admins.length === 0 && results[3].status === "fulfilled") {
-      const snap = results[3].value;
-      if (snap.exists()) {
-        const a = snap.val();
-        admins = [{ user: a.user || "admin", pass: a.pass || "admin" }];
-      }
-    }
-    if (admins.length === 0) admins = [{ user: "admin", pass: "admin" }];
-
     if (results[2].status === "fulfilled") {
       const snap = results[2].value;
       if (snap.exists()) {
@@ -232,10 +219,9 @@
       }
     }
 
-    // Task 26 · Papelera de restauración: apps borradas que siguen en la BD.
-    // Solo se admiten con nombre (las filas sin nombre se descartan al borrar).
-    if (results[4].status === "fulfilled") {
-      const snap = results[4].value;
+    // Papelera: solo se admiten apps con nombre (las filas sin nombre se descartan al borrar)
+    if (results[3].status === "fulfilled") {
+      const snap = results[3].value;
       if (snap.exists()) {
         deletedApps = normalizeList(snap.val())
           .filter(a => a && typeof a === 'object' && a.name && a.name.trim());
@@ -243,8 +229,8 @@
     }
 
     // Estado inicial conocido: evita un guardado/toast fantasma al primer blur
-    markAppsAsSaved(apps); // lo cargado de la BD es residente desde el principio
-    markAppsAsSaved(deletedApps); // Task 26: la papelera cargada también es residente
+    markAppsAsSaved(apps);
+    markAppsAsSaved(deletedApps);
     _lastSavedAppsJson = JSON.stringify(apps);
 
     const configView = document.getElementById("view-config");
@@ -256,12 +242,10 @@
       renderHome();
     }
 
-    // Task 23 · Diagnóstico del fallo de lectura: se distingue una base de
-    // datos que DENIEGA el acceso (reglas de Firebase) de un fallo de
-    // conexión, y se registra en consola el motivo de cada ruta rechazada.
+    // Diagnóstico del fallo de lectura: distingue denegación por reglas de Firebase de fallo de conexión
     const errs = results.filter(r => r.status === "rejected");
     if (errs.length > 0) {
-      const routeNames = ["apps", "admins", "groupPasswords", "admin (legacy)", "deletedApps"];
+      const routeNames = ["apps", "admins", "groupPasswords", "deletedApps"];
       results.forEach((r, i) => {
         if (r.status === "rejected") {
           console.error(`[TecDeA] Firebase: no se pudo leer "${routeNames[i]}":`, r.reason);
@@ -278,6 +262,8 @@
         showToast(`Aviso: ${errs.length} ruta(s) de Firebase no se pudieron leer (sin conexión con la base de datos).`, "err", 7000);
       }
     }
+
+    dataLoadFinished = true;
   }
 
   // ── Persistencia ──────────────────────────────────────
@@ -313,7 +299,7 @@
     try { await set(groupPassRef, groupPasswords); return true; }
     catch(e) { console.error("Error guardando groupPasswords:", e); return false; }
   }
-  // Task 26 · Papelera de restauración: persiste la lista de apps borradas
+  // Papelera de restauración: persiste la lista de apps borradas
   async function saveDeletedApps() {
     try { await withTimeout(set(deletedAppsRef, deletedApps), 5000); return true; }
     catch(e) { console.error("Error guardando la papelera de apps:", e); return false; }
@@ -356,7 +342,7 @@
       showGroup(group, category);
       return;
     }
-    // Task 18: contraseña de este perfil ya validada en esta sesión → acceso directo
+    // Contraseña de este perfil ya validada en esta sesión → acceso directo
     if (passwordSession.groups[group]) {
       console.log('[TecDeA] ' + groupLabel(group) + ': contraseña ya validada en esta sesión');
       showGroup(group, category);
@@ -395,7 +381,7 @@
       closeGroupPassModal();
       showGroup(g, cat);
     } else if (input === expected) {
-      passwordSession.groups[g] = true; // Task 18: no volver a pedirla hasta reiniciar la app
+      passwordSession.groups[g] = true; // no volver a pedirla hasta reiniciar la app
       closeGroupPassModal();
       showGroup(g, cat);
     } else {
@@ -466,8 +452,7 @@
       });
     }
 
-    // Task 22: descripción al pasar el ratón (PC) o mantener pulsada la
-    // tarjeta (móvil). Las tarjetas sin descripción no se cablean.
+    // Descripción al pasar el ratón (PC) o mantener pulsada la tarjeta (móvil); las tarjetas sin descripción no se cablean
     grid.querySelectorAll(".app-card").forEach(card => wireAppCardDesc(card));
   }
 
@@ -489,15 +474,6 @@
       ia: "IA",
       utilidades: "Utilidades"
     }[cat] || cat;
-  }
-
-  function groupIcon(g) {
-    return {
-      tecnoApps: "📱",
-      herramientasTecno: "🔧",
-      departamento: "🏫",
-      cajonDeSastre: "🧰"
-    }[g] || "📁";
   }
 
   // ── Iconos: cadena de fallback desde la propia URL de la app ──
@@ -577,7 +553,7 @@
     const fbAttr = rest.length
       ? ` data-fb="${escHtml(JSON.stringify(rest))}"`
       : "";
-    // Task 22: la descripción viaja en data-desc (hover en PC / pulsación larga en móvil)
+    // la descripción viaja en data-desc (hover en PC / pulsación larga en móvil)
     const descAttr = (a.desc && String(a.desc).trim())
       ? ` data-desc="${escHtml(a.desc)}"`
       : "";
@@ -847,15 +823,17 @@
       return; // Ya estamos en configuración, no mostrar modal
     }
 
-    // Task 18: si el administrador ya validó su contraseña en esta sesión,
-    // entrar directamente en Configuración sin volver a pedir credenciales.
+    // Si el administrador ya validó su contraseña en esta sesión, entrar directo
     if (passwordSession.admin) {
       console.log('[TecDeA] Configuración: administrador ya validado en esta sesión');
       renderConfig();
       return;
     }
 
-    document.getElementById("loginError").textContent = "";
+    document.getElementById("loginError").textContent =
+      (dataLoadFinished && admins.length === 0)
+        ? "No hay administradores configurados en la base de datos (portal-tecdea/admins)."
+        : "";
     document.getElementById("loginUser").value = "";
     document.getElementById("loginPass").value = "";
     document.getElementById("loginModal").classList.remove("hidden");
@@ -878,9 +856,23 @@
   function doLogin() {
     const u = document.getElementById("loginUser").value.trim();
     const p = document.getElementById("loginPass").value;
+    // Sin credenciales de respaldo: mientras la carga no termine no se puede validar nada;
+    // si la BD no trae administradores, no hay acceso.
+    if (!dataLoadFinished) {
+      document.getElementById("loginError").textContent =
+        "Cargando datos de la base de datos; espera unos segundos e inténtalo de nuevo.";
+      return;
+    }
+    if (admins.length === 0) {
+      document.getElementById("loginError").textContent =
+        "No hay administradores configurados en la base de datos (portal-tecdea/admins).";
+      console.warn("[TecDeA] Login bloqueado: la ruta portal-tecdea/admins está vacía. Crea el primer administrador en Firebase Console.");
+      return;
+    }
     const found = admins.find(a => a.user === u && a.pass === p);
     if (found) {
-      passwordSession.admin = true; // Task 18: no volver a pedirla hasta reiniciar la app
+      passwordSession.admin = true; // no volver a pedirla hasta reiniciar la app
+      passwordSession.adminUser = found.user; // recordar qué admin entró (para «Cambiar mi contraseña»)
       closeLoginModal();
       renderConfig();
     } else {
@@ -1808,9 +1800,7 @@
     if (!window.confirm(`¿Eliminar la aplicación ${label}? Se quitará de la lista, quedará en la papelera de restauración y el cambio se guardará en la base de datos.`)) return;
     collectTableData();
     apps.splice(i, 1);
-    // Task 26 · Papelera: las apps CON NOMBRE no se pierden, van a
-    // deletedApps (y a la BD) para poder restaurarlas. Las filas sin
-    // nombre (vacías) se descartan como antes.
+    // Las apps CON NOMBRE van a la papelera (deletedApps) para poder restaurarlas; las filas sin nombre se descartan
     if (a && a.name && a.name.trim()) {
       deletedApps.push(a);
       saveDeletedApps().then(ok => {
@@ -1896,12 +1886,15 @@
   }
 
   // ── Gestión de administradores (CRUD multi-admin) ─────
+  // Contraseñas fuera de la tabla (mecanismo único: el modal «Cambiar contraseña»), ocultas con botón 🔑 por fila
   function buildAdminsTable() {
     const tbody = document.querySelector("#adminsTable tbody");
     tbody.innerHTML = admins.map((a, i) => `
       <tr data-i="${i}">
         <td data-label="Usuario"><input type="text" class="fi" value="${escHtml(a.user)}" placeholder="usuario" data-af="user" autocomplete="off"></td>
-        <td data-label="Contraseña"><input type="text" class="fi" value="${escHtml(a.pass)}" placeholder="contraseña" data-af="pass" autocomplete="off"></td>
+        <td data-label="Contraseña" class="cell-pass">${a.pass
+          ? '<span class="pass-mask" title="Oculta por seguridad">••••••</span>'
+          : '<span class="pass-none">sin contraseña</span>'}<button class="btn-pass" onclick="window._changeAdminPass(${i})" title="Cambiar la contraseña de este administrador">🔑</button></td>
         <td data-label="" class="chk"><button class="btn-del" onclick="window._delAdmin(${i})" title="Eliminar">✕</button></td>
       </tr>`).join("");
 
@@ -1936,8 +1929,14 @@
     _isSavingAdmins = true;
     
     try {
-      const hasEmpty = admins.some(a => !a.user || !a.pass);
-      if (hasEmpty) return;
+      const incomplete = admins.find(a => !a.user || !a.pass);
+      if (incomplete) {
+        // la contraseña no se escribe en la tabla; se asigna con 🔑
+        if (incomplete.user && !incomplete.pass) {
+          showToast(`Falta la contraseña de «${incomplete.user}»: pulsa 🔑 en su fila para asignarla.`, "err", 4500);
+        }
+        return;
+      }
       const users = admins.map(a => a.user);
       const hasDup = new Set(users).size !== users.length;
       if (hasDup) return;
@@ -1970,6 +1969,11 @@
     autoSaveAdmins();
   };
 
+  // botón 🔑 de la tabla → abre el modal de cambio para esa fila
+  window._changeAdminPass = function(i) {
+    showChangePassModal(i);
+  };
+
   async function saveAdminsConfig() {
     collectAdminsData();
     const cleaned = admins.filter(a => a.user && a.pass);
@@ -1998,6 +2002,85 @@
     }
     showToast(`Administradores guardados en base de datos Firebase (${admins.length}).`, "ok", 4500);
     buildAdminsTable();
+  }
+
+  // ── Cambio de contraseña (mecanismo ÚNICO) ──
+  // Toda modificación de contraseñas de administrador pasa por este modal:
+  // pide la contraseña del administrador conectado (reconfirmación de sesión)
+  // y la nueva dos veces. Sin argumento apunta al administrador conectado;
+  // con un índice, al administrador de esa fila de la tabla.
+  function currentAdmin() {
+    return admins.find(a => a.user === passwordSession.adminUser) || admins[0] || null;
+  }
+
+  let _changePassTarget = null; // administrador cuya contraseña se va a cambiar
+
+  function showChangePassModal(index) {
+    const session = currentAdmin();
+    if (!session || !session.user) {
+      showToast("No se ha identificado el administrador de la sesión.", "err", 5000);
+      return;
+    }
+    _changePassTarget = (typeof index === "number" && admins[index]) ? admins[index] : session;
+    if (!_changePassTarget.user) {
+      showToast("Escribe primero el nombre de usuario en la tabla y vuelve a pulsar 🔑.", "err", 4500);
+      _changePassTarget = null;
+      return;
+    }
+    document.getElementById("changePassFor").textContent = _changePassTarget.user;
+    document.getElementById("chgCurLabel").textContent =
+      _changePassTarget.user === session.user
+        ? "Contraseña actual"
+        : `Tu contraseña actual (${session.user})`;
+    document.getElementById("chgCurPass").value = "";
+    document.getElementById("chgNewPass").value = "";
+    document.getElementById("chgNewPass2").value = "";
+    document.getElementById("changePassError").textContent = "";
+    document.getElementById("changePassModal").classList.remove("hidden");
+    setTimeout(() => document.getElementById("chgCurPass").focus(), 50);
+  }
+
+  function closeChangePassModal() {
+    document.getElementById("changePassModal").classList.add("hidden");
+  }
+
+  async function doChangePassword() {
+    const errEl = document.getElementById("changePassError");
+    errEl.textContent = "";
+    const session = currentAdmin();
+    if (!session) {
+      errEl.textContent = "No se ha identificado el administrador de la sesión.";
+      return;
+    }
+    const target = _changePassTarget || session;
+
+    const cur = document.getElementById("chgCurPass").value;
+    const n1  = document.getElementById("chgNewPass").value;
+    const n2  = document.getElementById("chgNewPass2").value;
+
+    // Reconfirmación: siempre la contraseña del administrador conectado
+    if (cur !== session.pass) {
+      errEl.textContent = "Tu contraseña actual no es correcta.";
+      return;
+    }
+    if (!n1.trim()) {
+      errEl.textContent = "La nueva contraseña no puede estar vacía.";
+      return;
+    }
+    if (n1 !== n2) {
+      errEl.textContent = "Las dos contraseñas nuevas no coinciden.";
+      return;
+    }
+
+    target.pass = n1.trim(); // sin espacios en los extremos, como el resto de campos
+    const ok = await saveAdmins();
+    if (!ok) {
+      showToast("Error al guardar la nueva contraseña en Firebase.", "err", 7000);
+      return;
+    }
+    closeChangePassModal();
+    buildAdminsTable(); // refrescar los botones 🔑 de la tabla
+    showToast(`Contraseña de «${target.user}» actualizada en la base de datos Firebase.`, "ok", 4500);
   }
 
   // ── Contraseñas de grupos ─────────────────────────────
@@ -2377,11 +2460,6 @@
       else if (a.cajonDeSastre && (a.category || '') === key) out.push(i);
     });
     return out;
-  }
-
-  // Apps de un perfil («p») o de una subcategoría de Cajón de sastre («c»)
-  function appSelTargets(kind, key) {
-    return appSelTargetIdx(kind, key).map(i => apps[i]);
   }
 
   // Nº de perfiles a los que pertenece una app. Las subcategorías NO cuentan
@@ -3122,7 +3200,7 @@
     }, 180);
   }
 
-  // ── Task 22: descripción en las tarjetas de apps ──────
+  // ── descripción en las tarjetas de apps ──────
   // Ordenador: se muestra al pasar el ratón por la tarjeta del icono.
   // Móvil: se muestra al mantener pulsada la tarjeta (600 ms); la pulsación
   // larga NO abre la app y cualquier tap posterior cierra el modal.
@@ -3211,9 +3289,7 @@
     document.querySelectorAll('.accordion-item').forEach(acc => {
       const c = acc.querySelector('.accordion-content');
       if (c.classList.contains('open')) {
-        // Task 24 · Congelar la altura actual para que la animación de
-        // cierre parta de la altura real (con max-height:'none' la
-        // transición no podría animar hacia 0).
+        // Congelar la altura actual: la transición de cierre parte de la altura real
         c.style.maxHeight = c.scrollHeight + 'px';
         void c.offsetHeight; // forzar reflow antes de colapsar
       }
@@ -3228,11 +3304,8 @@
       headerBtn.classList.add('active');
       headerBtn.setAttribute('aria-expanded', 'true');
       content.classList.add('open');
-      // Task 24 · Animar la apertura con la altura REAL del contenido: el
-      // límite fijo de 3000px del CSS (que queda como fallback si JS no
-      // se ejecutara) recortaba las listas largas —p. ej. la tabla de
-      // gestión de apps en móvil— sin scroll y daba la impresión de que
-      // «faltaban aplicaciones». Al terminar la transición, max-height
+      // Animar con la altura REAL del contenido: el límite fijo de 3000px del CSS
+      // recortaba listas largas sin scroll. Al terminar la transición, max-height
       // se libera ('none') para que el contenido crezca sin cortarse.
       content.style.maxHeight = content.scrollHeight + 'px';
       const releaseMaxHeight = (e) => {
@@ -3255,48 +3328,6 @@
         syncExportAppPanel();
       }
     }
-  }
-
-  // Toggle para mostrar/ocultar subfiltros de Cajón de sastre
-  // NOTA: Esta función ya NO se usa desde el HTML (los subfiltros están fuera del botón)
-  // Se mantiene por compatibilidad, pero usa getElementById en lugar de querySelector
-  function toggleCajonSubfilters(btn) {
-    // Los subfiltros ahora son hermanos del botón, no hijos
-    const subfilters = document.getElementById('cajonSubfilters');
-    if (!subfilters) return;
-
-    // Si los subfiltros están ocultos, mostrarlos y activar el filtro principal
-    if (subfilters.classList.contains('hidden')) {
-      // Activar el filtro principal cajonDeSastre (sin subfiltros = todas)
-      if (!appsProfileFilters.includes('cajonDeSastre')) {
-        setAppsWithSubFilter('cajonDeSastre'); // activa el perfil y repinta barra y tabla
-        return;
-      }
-      cajonCategoryFilters = []; // Resetear subfiltros al abrir
-
-      document.querySelectorAll('#appsFilterBar .filter-btn').forEach(b => {
-        b.classList.toggle('active', appsProfileFilters.includes(b.dataset.filter));
-      });
-
-      // Resetear estado visual de subfiltros
-      subfilters.querySelectorAll('.filter-sub-btn').forEach(b => {
-        b.classList.remove('active');
-      });
-
-      // Mostrar subfiltros con animación
-      subfilters.classList.remove('hidden');
-      subfilters.style.display = 'inline-flex';
-
-      // Añadir indicador visual de que está expandido
-      btn.classList.add('expanded');
-    } else {
-      // Ocultar subfiltros si ya estaban visibles (toggle)
-      subfilters.classList.add('hidden');
-      subfilters.style.display = 'none';
-      btn.classList.remove('expanded');
-    }
-
-    buildConfigTable();
   }
 
   // Toggle para añadir/quitar categoría del filtro (multi-selección)
@@ -3390,7 +3421,7 @@
     }
   }
 
-  // ── Task 19: cambio de sesión (mantener pulsado ⚙ Configuración) ──
+  // ── Cambio de sesión (mantener pulsado ⚙ Configuración) ──
   // Mantener pulsado ⚙ durante 1,5 s reinicia la sesión de contraseñas:
   // vacía passwordSession, vuelve a la Home y avisa con un toast. El click
   // que genera esa pulsación larga se consume para no abrir Configuración.
@@ -3400,6 +3431,7 @@
 
   function resetPasswordSession() {
     passwordSession.admin = false;
+    passwordSession.adminUser = null;
     passwordSession.groups = {};
     console.log('[TecDeA] Cambio de sesión: contraseñas reiniciadas (se volverán a pedir)');
     showToast('Sesión reiniciada: se volverán a pedir las contraseñas.', 'ok', 4500);
@@ -3434,7 +3466,7 @@
     showLoginModal();
   }
 
-  // ── Task 19/21: tutorial en ventana emergente (botón en la cabecera) ──
+  // ── Tutorial en ventana emergente (botón en la cabecera) ──
   // El tutorial es un modal global: se abre y se cierra desde cualquier vista.
   function toggleTutorial() {
     const panel = document.getElementById('tutorialPanel');
@@ -3444,7 +3476,7 @@
     btn.setAttribute('aria-expanded', String(!nowHidden));
   }
 
-  // Task 21: cerrar el modal con la cruz ✕ de la esquina
+  // Cerrar el modal con la cruz ✕ de la esquina
   function closeTutorial() {
     const panel = document.getElementById('tutorialPanel');
     const btn = document.getElementById('tutorialBtn');
@@ -3452,14 +3484,14 @@
     if (btn) btn.setAttribute('aria-expanded', 'false');
   }
 
-  // Task 21: pulsar fuera del modal (sobre el fondo oscuro) también lo cierra
+  // Pulsar fuera del modal (sobre el fondo oscuro) también lo cierra
   function tutorialOverlayClick(ev) {
     if (ev && ev.target === ev.currentTarget) closeTutorial();
   }
 
 
   // ── Exponemos al HTML ──────────────────────────────────
-  // ══ Task 26 · Papelera de restauración de aplicaciones borradas ══
+  // ══ Papelera de restauración de aplicaciones borradas ══
   const RESTORE_CAJON_LABELS = {
     matematicas: "📐 Matemáticas", fisica: "⚛️ Física", quimica: "🧪 Química",
     ia: "🤖 IA", utilidades: "🔧 Utilidades"
@@ -3506,7 +3538,7 @@
       const action = needsCat
         ? `<button class="btn btn-gold" onclick="tecdea.toggleRestoreCatPick(${ri})">📂 Elegir categoría…</button>`
         : `<button class="btn btn-primary" onclick="tecdea.confirmRestoreApp(${ri})">♻️ Restaurar</button>`;
-      // Task 27 · Borrado definitivo: disponible en TODAS las filas, con
+      // Borrado definitivo: disponible en TODAS las filas, con
       // o sin selector de categoría (sale de la papelera y de la BD).
       const delBtn = `<button class="btn btn-del-forever" onclick="tecdea.confirmDeleteForever(${ri})" title="Elimina la aplicación de la papelera y de la base de datos. Acción irreversible">🗑️ Borrar definitivamente</button>`;
       const picker = needsCat ? `
@@ -3614,7 +3646,7 @@
     }
   }
 
-  // ══ Task 27 · Borrado definitivo desde la papelera ════════════════
+  // ══ Borrado definitivo desde la papelera ════════════════
   // Quita la app de deletedApps y de la base de datos. Es irreversible:
   // el confirm lo advierte expresamente. Si el guardado falla, la app
   // ya se quitó de la pantalla pero la BD la conserva (mismo enfoque
@@ -3641,8 +3673,8 @@
 
   window.tecdea = {
     requestGroupAccess, closeGroupPassModal, doGroupLogin,
-    passwordSession, // Task 18: estado de sesión de contraseñas (diagnóstico/tests)
-    // Task 19/21: cambio de sesión + tutorial (modal)
+    passwordSession, // estado de sesión de contraseñas (diagnóstico/tests)
+    // cambio de sesión + tutorial (modal)
     resetPasswordSession, configBtnClick, startSessionResetHold, cancelSessionResetHold, toggleTutorial,
     closeTutorial, tutorialOverlayClick,
     showGroup, showCajonDeSastreMenu, goBackFromGroup,
@@ -3654,14 +3686,15 @@
     // Edición de aplicaciones existentes vía modal
     showEditAppModal: (i) => window._editApp(i), closeEditAppModal, confirmEditApp,
     editAppNameInput, editAppFormChanged, editAppCajonChanged,
-    // Task 26: papelera de restauración de apps borradas
+    // papelera de restauración de apps borradas
     showRestoreModal: openRestoreModal, closeRestoreModal, confirmRestoreApp,
     toggleRestoreCatPick, confirmRestoreWithCategory, restoreCajonChanged, confirmDeleteForever,
     deletedApps, // papelera en memoria (diagnóstico/tests)
     addAppNameInput, addAppFormChanged, addAppCajonChanged,
     addAdminRow, saveAdminsConfig,
+    showChangePassModal, closeChangePassModal, doChangePassword, // cambio de contraseña unificado (modal)
     saveGroupPasswordsConfig,
-    hideDescModal, wireAppCardDesc, iconFallback, // Task 22: descripción en tarjetas
+    hideDescModal, wireAppCardDesc, iconFallback, // descripción en tarjetas
     sortApps,
     exportData,
     toggleAccordion,
@@ -3679,12 +3712,11 @@
     // Importación masiva de aplicaciones
     onImportFileSelected, analyzeImportFile, closeImportModal,
     confirmImport, updateImportConfirmBtn
-    // toggleCajonSubfilters eliminada de API pública (obsoleta - usar setAppsFilter)
   };
 
   // ── Arranque ──────────────────────────────────────────
 
-  // Task 19: pulsación larga en ⚙ Configuración → cambio de sesión
+  // pulsación larga en ⚙ Configuración → cambio de sesión
   const _cfgBtn = document.querySelector('.btn-config');
   if (_cfgBtn) {
     _cfgBtn.addEventListener('pointerdown', startSessionResetHold);
@@ -3777,16 +3809,6 @@
   .hidden { display: none !important; }
 
   /* ══ Utilidades accesibilidad ═══════════════════ */
-  .sr-only {
-    position: absolute;
-    width: 1px; height: 1px;
-    padding: 0; margin: -1px;
-    overflow: hidden;
-    clip: rect(0,0,0,0);
-    white-space: nowrap;
-    border: 0;
-  }
-
   /* Focus visible para navegación por teclado */
   :focus-visible {
     outline: 3px solid var(--gold);
@@ -3850,6 +3872,19 @@
   header .subtitle em {
     font-style: italic;
   }
+  header .version-chip {
+    display: inline-block;
+    margin-left: .45rem;
+    padding: .02rem .5rem;
+    border: 1px solid var(--gold);
+    border-radius: 999px;
+    font-size: .66rem;
+    font-weight: 600;
+    letter-spacing: .03em;
+    color: var(--gold2);
+    vertical-align: 1px;
+    white-space: nowrap;
+  }
 
   .btn-config {
     background: transparent;
@@ -3872,7 +3907,7 @@
   .btn-config:hover { background: var(--gold); color: var(--navy); }
   .btn-config:active { background: var(--gold); color: var(--navy); transform: scale(.96); }
 
-  /* Task 19: feedback visual del cambio de sesión (mantener pulsado ⚙) */
+  /* feedback visual del cambio de sesión (mantener pulsado ⚙) */
   .btn-config {
     -webkit-touch-callout: none;
     -webkit-user-select: none;
@@ -3885,7 +3920,7 @@
     transform: scale(.96);
   }
 
-  /* Task 20: botón del tutorial en la cabecera (icono ❓, gemelo de ⚠️) */
+  /* botón del tutorial en la cabecera (icono ❓, gemelo de ⚠️) */
   .btn-tutorial {
     background: transparent;
     border: 1.5px solid var(--gold);
@@ -4269,7 +4304,7 @@
     border: 1.5px solid transparent;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-    -webkit-touch-callout: none; /* Task 22: sin previsualización al mantener pulsado (iOS) */
+    -webkit-touch-callout: none; /* sin previsualización al mantener pulsado (iOS) */
     min-height: 0;
   }
   .app-card:hover {
@@ -4376,21 +4411,6 @@
   }
   .accordion-content > p.hint:first-child {
     margin-top: 0;
-  }
-
-  /* Estilo legacy para section-box */
-  .section-box {
-    background: var(--white);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 1.25rem;
-    margin-bottom: 1.25rem;
-  }
-  .section-box h3 {
-    font-size: 1rem; font-weight: 700; color: var(--navy);
-    margin-bottom: 1rem;
-    padding-bottom: .5rem;
-    border-bottom: 2px solid var(--gold);
   }
 
   /* ══ Tablas (desktop) → Tarjetas (móvil) ══════════ */
@@ -4504,6 +4524,22 @@
   }
   .btn-del:hover { transform: scale(1.3); background: rgba(192,57,43,.08); }
   .btn-del:active { transform: scale(1.1); }
+
+  /* Celda de contraseña en la tabla de administradores (oculta + botón 🔑) */
+  .cell-pass { white-space: nowrap; }
+  .pass-mask { letter-spacing: 2px; color: var(--muted); margin-right: 6px; }
+  .pass-none { color: var(--muted); font-style: italic; font-size: .8rem; margin-right: 6px; }
+  .btn-pass {
+    background: none; border: none; cursor: pointer;
+    font-size: 1.05rem; transition: transform .15s;
+    min-width: 40px; min-height: 40px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+    -webkit-tap-highlight-color: transparent;
+    vertical-align: middle;
+  }
+  .btn-pass:hover { transform: scale(1.15); background: rgba(220,134,32,.12); }
+  .btn-pass:active { transform: scale(1.05); }
   .btn-edit {
     background: none; border: none; cursor: pointer;
     color: var(--navy); font-size: 1.1rem;
@@ -4517,7 +4553,7 @@
   .btn-edit:active { transform: scale(1.1); }
   .row-actions { display: inline-flex; align-items: center; gap: 2px; }
 
-  /* ══ Task 26: Papelera de restauración ═════════════════ */
+  /* ══ Papelera de restauración ═════════════════ */
   .restore-list {
     max-height: 50vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
     display: flex; flex-direction: column; gap: .6rem;
@@ -4544,7 +4580,7 @@
     margin-top: .45rem; display: flex; justify-content: flex-end;
     gap: .4rem; flex-wrap: wrap;
   }
-  /* Task 27: borrado definitivo (rojo fantasma; irreversibilidad) */
+  /* borrado definitivo (rojo fantasma; irreversibilidad) */
   .btn-del-forever {
     background: var(--white); color: #c0392b;
     border: 1px solid rgba(192,57,43,.45);
@@ -4838,11 +4874,6 @@
     flex-shrink: 0;
   }
   .exp-label input[type="radio"] { width: 18px; height: 18px; }
-  .exp-select {
-    margin-top: .3rem;
-    max-width: 100%;
-    font-size: .82rem;
-  }
   .export-checkboxes .exp-label:hover,
   .export-radios .exp-label:hover {
     color: var(--navy);
@@ -5072,7 +5103,7 @@
   .modal-error { color: var(--danger); font-size: .82rem; min-height: 1.2rem; margin-bottom: .5rem; }
   .modal-actions { display: flex; gap: .7rem; justify-content: flex-end; margin-top: .5rem; }
 
-  /* Task 21: modal del tutorial (ancho propio y cruz de cierre en la esquina) */
+  /* modal del tutorial (ancho propio y cruz de cierre en la esquina) */
   .tutorial-modal {
     position: relative;
     width: min(520px, 100%);
@@ -5357,7 +5388,6 @@
     .home-sub { font-size: .82rem; }
     .group-heading { font-size: 1.15rem; }
 
-    .section-box { padding: 1rem; }
     .config-title { font-size: 1.15rem; }
 
     .btn { padding: .55rem .9rem; font-size: .82rem; }
@@ -5571,7 +5601,6 @@
 
     .group-heading { font-size: 1.4rem; }
     .config-title { font-size: 1.4rem; }
-    .section-box { padding: 1.5rem; }
 
     header { padding: .75rem 1.5rem; }
     header h1 { font-size: 1.1rem; }
@@ -5625,7 +5654,6 @@
     }
     .main-btn .btn-icon { font-size: 1.5rem; }
     .shield-wrap { width: 180px; height: 180px; }
-    .header-content { flex-direction: column; text-align: center; gap: .5rem; }
   }
 
   /* ══ Utilidades adicionales ═══════════════════════ */
@@ -5701,7 +5729,9 @@
 <header>
   <div>
     <h1>TecDeA</h1>
-    <div class="subtitle">by <em>angelmicelti</em></div>
+    <div class="subtitle">by <em>angelmicelti</em>
+      <span class="version-chip" id="versionChip" title="Versión del service worker en ejecución"><span id="versionNum">…</span></span>
+    </div>
   </div>
   <div class="header-actions">
     <button class="btn-about" type="button" aria-label="Información sobre esta aplicación"
@@ -5739,12 +5769,6 @@
         <span class="btn-icon"><svg viewBox="0 0 64 64" width="48" height="48" style="display:inline-block;vertical-align:middle"><defs><linearGradient id="boxGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#E8943A"/><stop offset="100%" stop-color="#c77a28"/></linearGradient></defs><rect x="6" y="16" width="52" height="42" rx="4" fill="url(#boxGrad)" stroke="#1A3A8E" stroke-width="2.5"/><rect x="11" y="21" width="42" height="31" rx="2" fill="#1A3A8E" opacity="0.9"/><path d="M20,30 L28,30 L24,38 Z" fill="#1E7A3D" stroke="#E8943A" stroke-width="1"/><circle cx="40" cy="33" r="6" fill="#1E7A3D" stroke="#E8943A" stroke-width="1.5"/><path d="M37,33 L39,35 L43,31" stroke="#F5E6A3" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><line x1="15" y1="44" x2="30" y2="44" stroke="#F5E6A3" stroke-width="2" stroke-linecap="round"/><line x1="34" y1="44" x2="49" y2="44" stroke="#F5E6A3" stroke-width="2" stroke-linecap="round"/></svg></span>Cajón de sastre
       </button>
     </div>
-
-    <!-- Etiqueta fija de versión del Service Worker: visible solo en el Home
-         (se oculta al salir de esta vista porque su padre display:none la
-         oculta también con position:fixed). Así el usuario comprueba en
-         pantalla qué versión se ejecuta y cuándo la PWA se ha actualizado. -->
-    <p id="homeVersionTag" style="position:fixed;left:0;right:0;bottom:6px;z-index:5;margin:0;text-align:center;pointer-events:none;opacity:.6;font-size:.72rem;color:#6B7280">TecDeA · versión <span id="homeVersionNum">…</span></p>
 
   </section>
 
@@ -5899,7 +5923,8 @@
         <span class="accordion-icon">▼</span>
       </button>
       <div class="accordion-content">
-        <p class="hint">Gestiona los usuarios con permiso para acceder a esta pantalla de Configuración. Debe existir al menos uno; no se permiten usuarios duplicados.</p>
+        <p class="hint">Gestiona los usuarios con permiso para acceder a esta pantalla de Configuración. Debe existir al menos uno; no se permiten usuarios duplicados.<br>
+        Las contraseñas <b>no se escriben directamente en la tabla</b> (así nunca quedan visibles ni editables en plano): pulsa el botón 🔑 de cada fila —o «🔑 Cambiar mi contraseña» para la tuya—. El cambio pide tu contraseña actual y la nueva dos veces, y se guarda en la base de datos.</p>
         <p class="hint hint-warning" style="background:#fff8e6;border-left:4px solid #f59e0b;padding:.7rem .9rem;margin:.8rem 0;border-radius:8px;font-size:.82rem;">
           🔒 <strong>Nota importante:</strong> Las contraseñas de los administradores se incluirán en la exportación a Excel/PDF. Asegúrate de proteger el archivo exportado.
         </p>
@@ -5916,6 +5941,7 @@
           </table>
         </div>
         <div class="actions">
+          <button class="btn btn-ghost" onclick="tecdea.showChangePassModal()" title="Cambia tu contraseña: pide la actual y la nueva dos veces">🔑 Cambiar mi contraseña</button>
           <button class="btn btn-gold" onclick="tecdea.addAdminRow()">＋ Añadir administrador</button>
           <button class="btn btn-primary" onclick="tecdea.saveAdminsConfig()">💾 Guardar administradores</button>
         </div>
@@ -6015,9 +6041,6 @@
       </div>
     </div>
 
-    <!-- Task 25 · Versión REAL en ejecución (la pinta updateVersionTag()) -->
-    <p class="hint" id="appVersionTag" style="text-align:center;opacity:.65;font-size:.72rem;margin:1.2rem 0 0">TecDeA · versión <span id="appVersionNum">…</span></p>
-    
     <div class="back-row">
       <button class="back-btn" onclick="tecdea.renderHome()">Volver</button>
     </div>
@@ -6031,7 +6054,7 @@
     <h2>🔐 Acceso a Configuración</h2>
     <form onsubmit="event.preventDefault(); tecdea.doLogin()" autocomplete="on">
       <div class="fi-label">Usuario</div>
-      <input type="text"     id="loginUser" class="fi" placeholder="admin" autocomplete="username"
+      <input type="text"     id="loginUser" class="fi" placeholder="usuario" autocomplete="username"
              onkeydown="if(event.key==='Enter') document.getElementById('loginPass').focus()">
       <div class="fi-label" style="margin-top:.5rem">Contraseña</div>
       <input type="password" id="loginPass" class="fi" placeholder="••••••" autocomplete="current-password"
@@ -6040,6 +6063,30 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="tecdea.closeLoginModal()">Cancelar</button>
         <button type="submit" class="btn btn-primary">Entrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL CAMBIO DE CONTRASEÑA ADMIN ═══════════ -->
+<div id="changePassModal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>🔑 Cambiar contraseña</h2>
+    <form onsubmit="event.preventDefault(); tecdea.doChangePassword()" autocomplete="off">
+      <p class="hint" style="margin:0 0 .6rem">Administrador: <b id="changePassFor"></b></p>
+      <div class="fi-label" id="chgCurLabel">Contraseña actual</div>
+      <input type="password" id="chgCurPass" class="fi" placeholder="••••••" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter') document.getElementById('chgNewPass').focus()">
+      <div class="fi-label" style="margin-top:.5rem">Contraseña nueva</div>
+      <input type="password" id="chgNewPass" class="fi" placeholder="••••••" autocomplete="new-password"
+             onkeydown="if(event.key==='Enter') document.getElementById('chgNewPass2').focus()">
+      <div class="fi-label" style="margin-top:.5rem">Repite la contraseña nueva</div>
+      <input type="password" id="chgNewPass2" class="fi" placeholder="••••••" autocomplete="new-password"
+             onkeydown="if(event.key==='Enter') tecdea.doChangePassword()">
+      <div id="changePassError" class="modal-error"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="tecdea.closeChangePassModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Cambiar contraseña</button>
       </div>
     </form>
   </div>
@@ -6204,7 +6251,7 @@
   </div>
 </div>
 
-<!-- ═══════════ MODAL RESTAURAR APPS BORRADAS (Task 26) ════ -->
+<!-- ═══════════ MODAL RESTAURAR APPS BORRADAS ════ -->
 <div id="restoreModal" class="modal-bg hidden">
   <div class="modal">
     <h2>♻️ Restaurar aplicaciones borradas</h2>
@@ -6271,12 +6318,12 @@
         console.warn('[PWA] Error al registrar el Service Worker:', err);
       });
 
-    // Task 25 · Etiqueta de versión (al pie de Configuración): pregunta
+    // Etiqueta de versión (al pie de Configuración): pregunta
     // al SW que CONTROLA la página qué caché está gestionando.
     updateVersionTag();
 
     if (navigator.serviceWorker.controller) {
-      // Task 25 · Cuando el SW recién instalado toma el control
+      // Cuando el SW recién instalado toma el control
       // (skipWaiting en sw.js), recargar UNA sola vez: el usuario recibe
       // la versión nueva sin tener que cerrar y reabrir la PWA. El guard
       // evita bucles (tras recargar, el controlador ya no «cambia»).
@@ -6290,12 +6337,11 @@
     }
   });
 
-  // Task 25 · Pinta «TecDeA · versión vX» (Home y Configuración) con la
-  // versión del SW que CONTROLA la página (no la del HTML): así se puede
-  // verificar en el móvil qué versión se está ejecutando de verdad y
-  // comprobar que una actualización se ha aplicado.
+  // Pinta «vX» en el chip del banner con la versión del SW que CONTROLA la
+  // página (no la del HTML): así se verifica en el móvil qué versión se está
+  // ejecutando de verdad y que una actualización se ha aplicado.
   function updateVersionTag() {
-    const els = document.querySelectorAll('#appVersionNum, #homeVersionNum');
+    const els = document.querySelectorAll('#versionNum');
     if (els.length === 0) return;
     const setAll = (txt) => els.forEach(el => { el.textContent = txt; });
     if (!('serviceWorker' in navigator)) { setAll('sin PWA'); return; }
@@ -6335,4 +6381,4 @@
 </script>
 
 </body>
-</html>
+</html>
