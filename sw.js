@@ -2,7 +2,7 @@
 //  SERVICE WORKER - TECDEA PORTAL PWA
 // ════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'tecdea-portal-v2.2';
+const CACHE_NAME = 'tecdea-portal-v2.3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -83,6 +83,26 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => caches.match('/index.html')
           .then((r) => r || caches.match(event.request)))
+    );
+    return;
+  }
+
+  // ── Manifest: red primero, caché solo si la red falla ──
+  // Windows/Chrome leen el campo «version» del manifest al (re)instalar
+  // la PWA. Con Cache First el SW entregaba la copia antigua y el sistema
+  // registraba siempre la versión vieja (p. ej. «1.0»).
+  if (event.request.url.endsWith('manifest.webmanifest')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.ok) {
+            event.waitUntil(
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()))
+            );
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }
