@@ -6297,16 +6297,40 @@
   function updateVersionTag() {
     const els = document.querySelectorAll('#appVersionNum, #homeVersionNum');
     if (els.length === 0) return;
-    if (!navigator.serviceWorker.controller) { els.forEach(el => { el.textContent = 'sin PWA'; }); return; }
-    const ch = new MessageChannel();
-    ch.port1.onmessage = (ev) => {
-      const v = (ev.data && ev.data.version) || '';
-      // Mostrar la versión completa (p. ej. «v2.1») para distinguir revisiones
-      const m = String(v).match(/v[\d.]+/);
-      const label = m ? m[0] : (v || 'desconocida');
-      els.forEach(el => { el.textContent = label; });
+    const setAll = (txt) => els.forEach(el => { el.textContent = txt; });
+    if (!('serviceWorker' in navigator)) { setAll('sin PWA'); return; }
+
+    // Pregunta la versión a un worker (controlador o el activo del registro)
+    const ask = (worker) => {
+      if (!worker) return false;
+      try {
+        const ch = new MessageChannel();
+        ch.port1.onmessage = (ev) => {
+          const v = (ev.data && ev.data.version) || '';
+          // Mostrar la versión completa (p. ej. «v2.2») para distinguir revisiones
+          const m = String(v).match(/v[\d.]+/);
+          setAll(m ? m[0] : (v || 'desconocida'));
+        };
+        worker.postMessage({ type: 'GET_VERSION' }, [ch.port2]);
+        return true;
+      } catch (e) { return false; }
     };
-    navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' }, [ch.port2]);
+
+    // Caso normal: la página ya está controlada por el SW
+    if (navigator.serviceWorker.controller) { ask(navigator.serviceWorker.controller); return; }
+
+    // Sin controlador todavía (primera visita, recarga forzada con
+    // Ctrl+F5 o SW instalándose): NO quedarse en «sin PWA» para siempre.
+    // Reintentar en cuanto haya un SW activo o tome el control de la página.
+    navigator.serviceWorker.ready.then((reg) => ask(reg.active)).catch(() => {});
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      ask(navigator.serviceWorker.controller);
+    }, { once: true });
+    // Si a los 5 s sigue sin haber respuesta (p. ej. sin SW posible),
+    // mostrar un estado claro en lugar del «…» inicial.
+    setTimeout(() => {
+      if (els[0] && els[0].textContent === '…') setAll('sin PWA');
+    }, 5000);
   }
 </script>
 
