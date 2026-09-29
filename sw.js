@@ -2,7 +2,16 @@
 //  SERVICE WORKER - TECDEA PORTAL PWA
 // ════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'tecdea-portal-v2.6';
+const CACHE_NAME = 'tecdea-portal-v2.7';
+
+// Recursos que pertenecen SOLO al portal raíz. Todo lo demás (p. ej.
+// las PWAs instalables de las subcarpetas) pasa sin interceptar para
+// no chocar con su propia instalación.
+const isPortalAsset = (pathname) =>
+  pathname === '/' ||
+  pathname === '/index.html' ||
+  pathname === '/manifest.webmanifest' ||
+  pathname.startsWith('/img/');
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -54,6 +63,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Solo interceptar peticiones GET
   if (event.request.method !== 'GET') return;
+
+  // El SW del portal solo gestiona sus propios recursos: las rutas de
+  // las subcarpetas (apps PWA independientes) no se interceptan.
+  const url = new URL(event.request.url);
+  if (url.origin === location.origin && !isPortalAsset(url.pathname)) return;
 
   // No cachear peticiones a Firebase (API)
   if (event.request.url.includes('firebaseio.com') || 
