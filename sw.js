@@ -3,6 +3,7 @@
 // ════════════════════════════════════════════════════════
 
 const CACHE_NAME = 'tecdea-portal-v2.7';
+<<<<<<< Updated upstream
 
 // Recursos que pertenecen SOLO al portal raíz. Todo lo demás (p. ej.
 // las PWAs instalables de las subcarpetas) pasa sin interceptar para
@@ -12,6 +13,8 @@ const isPortalAsset = (pathname) =>
   pathname === '/index.html' ||
   pathname === '/manifest.webmanifest' ||
   pathname.startsWith('/img/');
+=======
+>>>>>>> Stashed changes
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -33,7 +36,10 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activación: limpiar caches antiguos
+// Activación: limpiar SOLO las caches propias del portal.
+// Las apps alojadas en subcarpetas (p. ej. /tablerokanban/) tienen sus
+// propias caches y service workers: borrarlas aquí las dejaba sin soporte
+// offline cada vez que el portal se actualizaba.
 self.addEventListener('activate', (event) => {
   console.log('[SW] Service Worker activado');
   event.waitUntil(
@@ -41,7 +47,7 @@ self.addEventListener('activate', (event) => {
       .then((cacheNames) => {
         return Promise.all(
           cacheNames
-            .filter((name) => name !== CACHE_NAME)
+            .filter((name) => name.startsWith('tecdea-portal-') && name !== CACHE_NAME)
             .map((name) => {
               console.log('[SW] Eliminando cache antiguo:', name);
               return caches.delete(name);
@@ -60,14 +66,39 @@ self.addEventListener('activate', (event) => {
 //  · Resto de GETs: Cache First + refresco en segundo plano
 //    GARANTIZADO con event.waitUntil (antes el SW podía morir antes
 //    de actualizar la caché, sobre todo en móvil).
+// Rutas que pertenecen EXCLUSIVAMENTE al portal. Las apps en subcarpetas
+// (p. ej. /tablerokanban/) gestionan sus propios recursos con sus propios
+// service workers: si el portal interceptaba esas peticiones (scope '/'),
+// cacheaba HTML e iconos ajenos y aparecían avisos de actualización falsos
+// y favicons mezclados entre portal y apps.
+const PORTAL_PATHS = new Set([
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/favicon.ico',
+  '/browserconfig.xml'
+]);
+const PORTAL_PREFIXES = ['/img/'];
+
+function esRecursoDelPortal(url) {
+  if (url.origin !== self.location.origin) return false;
+  return PORTAL_PATHS.has(url.pathname) ||
+         PORTAL_PREFIXES.some((p) => url.pathname.startsWith(p));
+}
+
 self.addEventListener('fetch', (event) => {
   // Solo interceptar peticiones GET
   if (event.request.method !== 'GET') return;
 
+<<<<<<< Updated upstream
   // El SW del portal solo gestiona sus propios recursos: las rutas de
   // las subcarpetas (apps PWA independientes) no se interceptan.
   const url = new URL(event.request.url);
   if (url.origin === location.origin && !isPortalAsset(url.pathname)) return;
+=======
+  // Dejar pasar TODO lo que no sea del portal (apps en subcarpetas incluidas)
+  if (!esRecursoDelPortal(new URL(event.request.url))) return;
+>>>>>>> Stashed changes
 
   // No cachear peticiones a Firebase (API)
   if (event.request.url.includes('firebaseio.com') || 
