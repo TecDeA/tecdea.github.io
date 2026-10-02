@@ -992,6 +992,8 @@
       if (uncategorized) rowClasses.push('row-uncategorized');
       // App desactivada por el administrador → fila atenuada (no se muestra en perfiles)
       if (!isAppActive(a)) rowClasses.push('row-inactive');
+      // App elegida en el buscador → resaltado persistente hasta elegir otra
+      if (i === _searchSelectedIdx) rowClasses.push('row-search-selected');
       return `
       <tr data-i="${i}" class="${rowClasses.join(' ')}" data-uncategorized="${uncategorized}">
         <td data-label="Nombre"><input type="text" class="fi" value="${escHtml(a.name)}" placeholder="Nombre" data-field="name"></td>
@@ -3509,6 +3511,9 @@
   // Modal para localizar apps cuando la lista es muy larga: busca en título
   // y descripción (sin mayúsculas, acentos ni signos, vía normalizeForComparison)
   // y al elegir un resultado resetea los filtros y resalta su fila en la tabla.
+  // El índice elegido queda marcado (_searchSelectedIdx) para que el resaltado
+  // persista al repintar la tabla, hasta que se elija otra aplicación.
+  let _searchSelectedIdx = null;
   function showSearchAppModal() {
     document.getElementById("searchAppInput").value = "";
     document.getElementById("searchAppResults").innerHTML =
@@ -3580,6 +3585,7 @@
   // que la fila es visible, abre el acordeón si estaba plegado y la resalta.
   function gotoSearchAppResult(i) {
     closeSearchAppModal();
+    _searchSelectedIdx = i;
     resetAppsFilterUI();
     const accHeader = document.querySelector("#appsTable")
       ?.closest(".accordion-item")?.querySelector(".accordion-header");
@@ -4688,6 +4694,17 @@
   .search-app-hit mark { background: #f5e6a3; border-radius: 3px; padding: 0 1px; }
   @keyframes rowSearchHit { 0%, 100% { background: transparent; } 20%, 60% { background: #f5e6a3; } }
   .row-search-hit { animation: rowSearchHit 2.4s ease; }
+  /* App elegida en el buscador: resaltado persistente hasta elegir otra */
+  table#appsTable tbody tr.row-search-selected td {
+    background: linear-gradient(to right, #fef9e7 0%, #fdeecb 50%, #fef9e7 100%) !important;
+    border-bottom: 1px solid #e8943a !important;
+  }
+  table#appsTable tbody tr.row-search-selected:hover td {
+    background: linear-gradient(135deg, #fdeecb 0%, #f9e0a8 100%) !important;
+  }
+  table#appsTable tbody tr.row-search-selected {
+    box-shadow: inset 4px 0 0 #e8943a;
+  }
 
   .desc-cell { min-width: 160px; }
   .desc-fi    { cursor: help; }
