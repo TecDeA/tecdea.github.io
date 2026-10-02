@@ -3505,6 +3505,93 @@
     document.getElementById("restoreModal").classList.add("hidden");
   }
 
+  // ── Búsqueda de aplicaciones por palabras clave ────────
+  // Modal para localizar apps cuando la lista es muy larga: busca en título
+  // y descripción (sin mayúsculas, acentos ni signos, vía normalizeForComparison)
+  // y al elegir un resultado resetea los filtros y resalta su fila en la tabla.
+  function showSearchAppModal() {
+    document.getElementById("searchAppInput").value = "";
+    document.getElementById("searchAppResults").innerHTML =
+      `<p class="restore-empty">Escribe arriba para empezar a buscar…</p>`;
+    document.getElementById("searchAppModal").classList.remove("hidden");
+    document.getElementById("searchAppInput").focus();
+  }
+
+  function closeSearchAppModal() {
+    document.getElementById("searchAppModal").classList.add("hidden");
+  }
+
+  // Apps cuyo nombre+descripción contienen TODAS las palabras de la consulta.
+  // Devuelve null con la consulta vacía (sin resultados dibujados aún).
+  function searchAppsByKeywords(query) {
+    const words = normalizeForComparison(query).split(" ").filter(Boolean);
+    if (!words.length) return null;
+    return apps.map((a, i) => ({ a, i })).filter(({ a }) => {
+      const hay = normalizeForComparison((a.name || "") + " " + (a.desc || ""));
+      return words.every(w => hay.includes(w));
+    });
+  }
+
+  // Resalta las palabras buscadas sobre un texto YA escapado con escHtml.
+  // Cada letra con acento habitual se amplía a su familia para que «matematicas»
+  // encuentre «Matemáticas» (normalizeForComparison ya quitó los signos raros).
+  function highlightSearchTerms(escapedText, query) {
+    const words = normalizeForComparison(query).split(" ").filter(Boolean);
+    if (!words.length) return escapedText;
+    const ACCENTS = { a: "aáàäâ", e: "eéèëê", i: "iíìïî", o: "oóòöô", u: "uúùüû", n: "nñ", c: "cç" };
+    const pattern = words.map(w =>
+      w.split("").map(c => ACCENTS[c] ? `[${ACCENTS[c]}]` : c).join("")
+    ).join("|");
+    return escapedText.replace(new RegExp(`(${pattern})`, "gi"), "<mark>$1</mark>");
+  }
+
+  function renderSearchAppResults() {
+    const wrap = document.getElementById("searchAppResults");
+    const query = document.getElementById("searchAppInput").value;
+    const hits = searchAppsByKeywords(query);
+    if (hits === null) {
+      wrap.innerHTML = `<p class="restore-empty">Escribe arriba para empezar a buscar…</p>`;
+      return;
+    }
+    if (hits.length === 0) {
+      wrap.innerHTML = `<p class="restore-empty">Sin coincidencias para «${escHtml(query.trim())}».</p>`;
+      return;
+    }
+    wrap.innerHTML = hits.map(({ a, i }) => {
+      const chips = restoreProfileChips(a).map(c =>
+        `<span class="restore-chip">${escHtml(c)}</span>`).join("");
+      const inactive = isAppActive(a) ? "" :
+        ` <span class="restore-inactive-tag">Inactiva</span>`;
+      const desc = (a.desc && a.desc.trim())
+        ? highlightSearchTerms(escHtml(a.desc), query)
+        : `<i>Sin descripción</i>`;
+      return `
+      <button type="button" class="restore-row search-app-hit" onclick="tecdea.gotoSearchAppResult(${i})">
+        <span class="restore-row-main">
+          <span class="restore-app-name">${highlightSearchTerms(escHtml(a.name || "(sin nombre)"), query)}</span>
+          <span class="restore-url">${desc}</span>
+          <span class="restore-app-meta">${chips}${inactive}</span>
+        </span>
+      </button>`;
+    }).join("") + `<p class="restore-empty">${hits.length} coincidencia${hits.length === 1 ? "" : "s"}</p>`;
+  }
+
+  // Localiza en la tabla la app elegida: limpia los filtros para garantizar
+  // que la fila es visible, abre el acordeón si estaba plegado y la resalta.
+  function gotoSearchAppResult(i) {
+    closeSearchAppModal();
+    resetAppsFilterUI();
+    const accHeader = document.querySelector("#appsTable")
+      ?.closest(".accordion-item")?.querySelector(".accordion-header");
+    if (accHeader && accHeader.getAttribute("aria-expanded") !== "true") accHeader.click();
+    buildConfigTable();
+    const tr = document.querySelector(`#appsTable tbody tr[data-i="${i}"]`);
+    if (!tr) return;
+    tr.scrollIntoView({ behavior: "smooth", block: "center" });
+    tr.classList.add("row-search-hit");
+    setTimeout(() => tr.classList.remove("row-search-hit"), 2400);
+  }
+
   function restoreProfileChips(a) {
     const chips = [];
     if (a.tecnoApps) chips.push("📱 TecnoApps");
@@ -3688,6 +3775,8 @@
     editAppNameInput, editAppFormChanged, editAppCajonChanged,
     // papelera de restauración de apps borradas
     showRestoreModal: openRestoreModal, closeRestoreModal, confirmRestoreApp,
+    // búsqueda de aplicaciones por palabras clave
+    showSearchAppModal, closeSearchAppModal, renderSearchAppResults, gotoSearchAppResult,
     toggleRestoreCatPick, confirmRestoreWithCategory, restoreCajonChanged, confirmDeleteForever,
     deletedApps, // papelera en memoria (diagnóstico/tests)
     addAppNameInput, addAppFormChanged, addAppCajonChanged,
@@ -4592,6 +4681,13 @@
   }
   .restore-cat-actions { margin-top: .6rem; display: flex; justify-content: flex-end; }
   .restore-empty { text-align: center; color: var(--muted); font-style: italic; padding: 1rem 0; }
+  /* Búsqueda de aplicaciones: resultado clicable, coincidencias resaltadas
+     y parpadeo de la fila localizada en la tabla */
+  .search-app-hit { width: 100%; cursor: pointer; text-align: left; font: inherit; }
+  .search-app-hit:hover { border-color: var(--gold); box-shadow: 0 2px 8px rgba(0,0,0,.10); }
+  .search-app-hit mark { background: #f5e6a3; border-radius: 3px; padding: 0 1px; }
+  @keyframes rowSearchHit { 0%, 100% { background: transparent; } 20%, 60% { background: #f5e6a3; } }
+  .row-search-hit { animation: rowSearchHit 2.4s ease; }
 
   .desc-cell { min-width: 160px; }
   .desc-fi    { cursor: help; }
@@ -5839,6 +5935,7 @@
           <button class="btn btn-ghost" onclick="tecdea.showRestoreModal()" title="Las apps borradas siguen en la base de datos: recupéralas aquí">♻️ Restaurar aplicaciones borradas</button>
           <button class="btn btn-ghost" onclick="tecdea.sortApps('name')">↕ Ordenar por nombre</button>
           <button class="btn btn-ghost" onclick="tecdea.sortApps('url')">↕ Ordenar por URL</button>
+          <button class="btn btn-ghost" onclick="tecdea.showSearchAppModal()" title="Busca aplicaciones por palabras de su título o descripción">🔎 Buscar aplicación</button>
           <button class="btn btn-primary" onclick="tecdea.saveConfig()">💾 Guardar aplicaciones</button>
         </div>
         <div class="filter-bar" id="appsFilterBar">
@@ -6259,6 +6356,19 @@
     <div id="restoreList" class="restore-list"></div>
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" onclick="tecdea.closeRestoreModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL BUSCAR APLICACIÓN ═══════════ -->
+<div id="searchAppModal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>🔎 Buscar aplicación</h2>
+    <p class="hint" style="margin-top:0">Escribe una o varias palabras: se buscan en el título y la descripción de todas las aplicaciones, sin distinguir mayúsculas, acentos ni signos. Pulsa un resultado para localizar su fila en la tabla.</p>
+    <input type="search" id="searchAppInput" class="fi" style="width:100%" placeholder="Palabras clave…" autocomplete="off" oninput="tecdea.renderSearchAppResults()">
+    <div id="searchAppResults" class="restore-list"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="tecdea.closeSearchAppModal()">Cerrar</button>
     </div>
   </div>
 </div>
