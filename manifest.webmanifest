@@ -3,7 +3,7 @@
  "short_name": "TecDeA",
  "version": "2.4",
  "description": "Portal de aplicaciones del Departamento de Tecnología del IES Virgen de Villadiego. Acceso rápido a las aplicaciones creadas por angelmicelti.",
- "id": "/portal-tecdea/" 
+ "id": "/portal-tecdea/", 
  "start_url": "/",
  "scope": "/",
  "display": "standalone",
