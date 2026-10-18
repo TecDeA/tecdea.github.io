@@ -854,6 +854,23 @@
     return false;
   }
 
+  // Etiqueta de la columna Cajón: se muestra completa («Cajón de sastre»)
+  // cuando alguna aplicación visible pertenece a esa categoría (sus filas
+  // muestran entonces las subcategorías y hay espacio de sobra); si no hay
+  // ninguna, no aparecen las subcategorías y permanece la abreviatura «Caj.».
+  function refreshCajonHeader() {
+    const tbl = document.getElementById('appsTable');
+    if (!tbl) return;
+    const anyCajon = Array.from(
+      tbl.querySelectorAll('tbody input[data-field="cajonDeSastre"]')
+    ).some(cb => cb.checked);
+    const th = tbl.querySelector('thead th.th-cajon');
+    if (th) {
+      th.textContent = anyCajon ? 'Cajón de sastre' : 'Caj.';
+      th.title = anyCajon ? '' : 'Cajón de sastre';
+    }
+  }
+
   function buildConfigTable() {
     const tbody = document.querySelector("#appsTable tbody");
     const rowsData = [];
@@ -895,6 +912,7 @@
       if (uncategorized) rowClasses.push('row-uncategorized');
       if (!isAppActive(a)) rowClasses.push('row-inactive');
       if (i === _searchSelectedIdx) rowClasses.push('row-search-selected');
+      if (isCajon) rowClasses.push('row-cajon');
 
       return `
       <tr data-i="${i}" class="${rowClasses.join(' ')}" data-uncategorized="${uncategorized}">
@@ -956,6 +974,11 @@
           if (tr) tr.classList.toggle('row-inactive', !inp.checked);
           updateEstadoFilterCounts();
         }
+        if (inp.dataset.field === 'cajonDeSastre') {
+          const trCj = inp.closest('tr');
+          if (trCj) trCj.classList.toggle('row-cajon', inp.checked);
+          refreshCajonHeader();
+        }
         if (inp.type === 'checkbox') {
           persistAppsChanges().then(notifyPersistResult);
         }
@@ -1009,6 +1032,8 @@
           if (cajonChk && !cajonChk.checked) {
             cajonChk.checked = true;
             td.querySelector('.category-wrapper')?.classList.remove('hidden');
+            cajonChk.closest('tr')?.classList.add('row-cajon');
+            refreshCajonHeader();
           }
         }
         collectTableData();
@@ -1049,6 +1074,7 @@
     });
 
     updateEstadoFilterCounts();
+    refreshCajonHeader();
     buildExportAppSelection(true);
   }
 
@@ -5136,7 +5162,8 @@
 
   /* ══ Móvil (tarjetas de la tabla de aplicaciones): los checks de la app
         (Tec., HerrTec, Dep., Caj., Activa) en una sola fila y los botones de
-        subcategoría del Cajón de sastre en otra fila debajo, centrados ══ */
+        subcategoría del Cajón de sastre en otra fila debajo, en una sola fila
+        y centrados respecto al espacio disponible ══ */
   @media (max-width: 599px) {
     table#appsTable tr {
       display: flex;
@@ -5176,6 +5203,25 @@
       font-size: .68rem; font-weight: 700; color: var(--navy);
       margin-bottom: .25rem; text-transform: uppercase; letter-spacing: .03em;
     }
+    /* Si la aplicación pertenece al Cajón de sastre (debajo aparecen sus
+       subcategorías y hay espacio de sobra), la etiqueta se muestra
+       completa, repartida en dos líneas; si no, permanece «Caj.». */
+    table#appsTable tr.row-cajon .cajon-chk-wrap::before {
+      content: 'Cajón de\A sastre';
+      white-space: pre-line;
+      text-transform: none;
+      text-align: center;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+    /* Las etiquetas de los demás checks reservan el mismo alto (dos líneas)
+       para que los cinco checkboxes queden alineados en la fila. */
+    table#appsTable tr.row-cajon td[data-label="Tec."]::before,
+    table#appsTable tr.row-cajon td[data-label="HerrTec"]::before,
+    table#appsTable tr.row-cajon td[data-label="Dep."]::before,
+    table#appsTable tr.row-cajon td[data-label="Activa"]::before {
+      min-height: 2.4em;
+    }
     table#appsTable .cajon-cell .category-wrapper {
       order: 20;
       flex: 1 0 100%;
@@ -5185,7 +5231,9 @@
     }
     table#appsTable .cajon-cell .category-checks {
       justify-content: center;
+      justify-content: safe center;
       margin-top: 0;
+      flex-wrap: nowrap;
     }
     table#appsTable td:last-child {
       order: 30;
@@ -5199,6 +5247,25 @@
   @media (max-width: 400px) {
     table#appsTable td::before,
     table#appsTable .cajon-chk-wrap::before { font-size: .6rem; }
+    /* En pantallas muy estrechas la etiqueta larga se reparte en tres líneas
+       cortas («Cajón» / «de» / «sastre»): ninguna combinación de dos líneas
+       cabe en el ancho de la celda (≈44px a 320px). */
+    table#appsTable tr.row-cajon .cajon-chk-wrap::before {
+      content: 'Cajón\A de\A sastre';
+    }
+    table#appsTable tr.row-cajon td[data-label="Tec."]::before,
+    table#appsTable tr.row-cajon td[data-label="HerrTec"]::before,
+    table#appsTable tr.row-cajon td[data-label="Dep."]::before,
+    table#appsTable tr.row-cajon td[data-label="Activa"]::before {
+      min-height: 3.6em;
+    }
+    /* Subcategorías siempre en una sola fila: en pantallas estrechas el icono
+       se coloca sobre el check (column-reverse) para que quepan las cinco
+       sin desbordar el ancho disponible. */
+    table#appsTable .cajon-cell .category-wrapper .cat-check {
+      flex-direction: column-reverse;
+      justify-content: center;
+    }
   }
 
   @media (min-width: 600px) and (max-width: 767px) {
@@ -5501,7 +5568,7 @@
                 <th>Tec.</th>
                 <th>HerrTec</th>
                 <th>Dep.</th>
-                <th>Caj.</th>
+                <th class="th-cajon" title="Cajón de sastre">Caj.</th>
                 <th title="Activa: desmárcala para ocultar la app en los perfiles sin eliminarla">Act.</th>
                 <th></th>
               </tr>
