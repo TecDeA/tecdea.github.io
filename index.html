@@ -909,16 +909,18 @@
         <td data-label="HerrTec" class="chk"><input type="checkbox" ${a.herramientasTecno ? "checked" : ""} data-field="herramientasTecno"></td>
         <td data-label="Dep." class="chk"><input type="checkbox" ${a.departamento ? "checked" : ""} data-field="departamento"></td>
         <td data-label="Caj." class="chk cajon-cell">
-          <input type="checkbox" id="cajonChk_${i}" ${a.cajonDeSastre ? "checked" : ""} data-field="cajonDeSastre"
-                 onchange="
-                   const td = this.closest('td');
-                   const wrapper = td.querySelector('.category-wrapper');
-                   if(this.checked){
-                     wrapper.classList.remove('hidden');
-                   }else{
-                     wrapper.classList.add('hidden');
-                     td.querySelectorAll('input[data-cat]').forEach(c => c.checked = false);
-                   }">
+          <span class="cajon-chk-wrap">
+            <input type="checkbox" id="cajonChk_${i}" ${a.cajonDeSastre ? "checked" : ""} data-field="cajonDeSastre"
+                   onchange="
+                     const td = this.closest('td');
+                     const wrapper = td.querySelector('.category-wrapper');
+                     if(this.checked){
+                       wrapper.classList.remove('hidden');
+                     }else{
+                       wrapper.classList.add('hidden');
+                       td.querySelectorAll('input[data-cat]').forEach(c => c.checked = false);
+                     }">
+          </span>
           <div class="category-wrapper ${isCajon ? '' : 'hidden'}">
             <div class="category-checks">
               ${CAJON_CATEGORIES.map(c => `
@@ -934,6 +936,7 @@
                  title="Desmarcar para desactivar la app: deja de mostrarse en los perfiles sin eliminarla">
         </td>
         <td data-label="" class="chk"><span class="row-actions">
+          <button class="btn-launch" onclick="window._launchApp(${i})" title="Lanzar aplicación (abrir en una pestaña nueva)">🚀</button>
           <button class="btn-edit" onclick="window._editApp(${i})" title="Editar">✏️</button>
           <button class="btn-del" onclick="window._delApp(${i})" title="Eliminar">✕</button>
         </span></td>
@@ -1445,6 +1448,28 @@
     const el = document.getElementById("editAppError");
     if (el) el.textContent = msg || "";
   }
+
+  // ── Lanzar la aplicación de la fila (botón 🚀): abre su URL en una
+  //    pestaña nueva. Se usa window.open('') + location para poder avisar
+  //    si el navegador bloquea las ventanas emergentes.
+  window._launchApp = function(i) {
+    collectTableData();
+    const a = apps[i];
+    if (!a) return;
+    const rawUrl = (a.url || '').trim();
+    const url = sanitizeUrl(rawUrl);
+    if (!rawUrl || !url || url === '#') {
+      showToast('No se puede lanzar la aplicación: configura antes una URL válida.', 'err', 4000);
+      return;
+    }
+    const win = window.open('', '_blank');
+    if (win) {
+      try { win.opener = null; } catch (e) { /* ignorado */ }
+      win.location.href = url;
+    } else {
+      showToast('El navegador ha bloqueado la apertura de la pestaña nueva. Permite las ventanas emergentes para este sitio.', 'err', 5000);
+    }
+  };
 
   window._editApp = function(i) {
     collectTableData();
@@ -3363,6 +3388,7 @@
     renderHome, renderConfig, saveConfig,
     showAddAppModal, closeAddAppModal, confirmAddApp,
     showEditAppModal: (i) => window._editApp(i), closeEditAppModal, confirmEditApp,
+    launchApp: (i) => window._launchApp(i),
     editAppNameInput, editAppFormChanged, editAppCajonChanged,
     showRestoreModal: openRestoreModal, closeRestoreModal, confirmRestoreApp,
     showSearchAppModal, closeSearchAppModal, renderSearchAppResults, gotoSearchAppResult,
@@ -3633,7 +3659,7 @@
   .btn-about:active { background: var(--gold); transform: scale(.94); }
 
   main {
-    max-width: 960px;
+    max-width: 1100px;
     margin: 0 auto;
     padding: 1.5rem 1rem 3rem;
     padding-bottom: calc(3rem + var(--safe-bottom));
@@ -4128,6 +4154,17 @@
   }
   .btn-edit:hover { transform: scale(1.3); background: rgba(26,43,79,.08); }
   .btn-edit:active { transform: scale(1.1); }
+  .btn-launch {
+    background: none; border: none; cursor: pointer;
+    font-size: 1.05rem;
+    transition: transform .15s;
+    min-width: 40px; min-height: 40px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-launch:hover { transform: scale(1.3); background: rgba(39,143,73,.14); }
+  .btn-launch:active { transform: scale(1.1); }
   .row-actions { display: inline-flex; align-items: center; gap: 2px; }
 
   .restore-list {
@@ -4410,6 +4447,25 @@
   }
   .category-wrapper {
     font-size: .75rem;
+  }
+
+  /* ══ Pantallas anchas (vista tabla): el check de Cajón y las subcategorías
+        comparten la misma fila, sin salto de línea dentro de la celda ══ */
+  @media (min-width: 600px) {
+    /* nowrap impide que el bloque de subcategorías salte a otra línea
+       dentro de la celda cuando la tabla está ajustada de anchura. */
+    .cajon-cell { white-space: nowrap; }
+    .cajon-cell .cajon-chk-wrap,
+    .cajon-cell .category-wrapper {
+      display: inline-flex;
+      align-items: center;
+      vertical-align: middle;
+    }
+    .cajon-cell .category-wrapper { margin-left: 6px; }
+    .cajon-cell .category-checks {
+      margin-top: 0;
+      flex-wrap: nowrap;
+    }
   }
 
   .export-grid {
@@ -5078,6 +5134,73 @@
     table#appsTable tr.row-inactive .fi:not([type="checkbox"]) { opacity: .55; }
   }
 
+  /* ══ Móvil (tarjetas de la tabla de aplicaciones): los checks de la app
+        (Tec., HerrTec, Dep., Caj., Activa) en una sola fila y los botones de
+        subcategoría del Cajón de sastre en otra fila debajo, centrados ══ */
+  @media (max-width: 599px) {
+    table#appsTable tr {
+      display: flex;
+      flex-wrap: wrap;
+    }
+    table#appsTable tr.no-apps-row { display: block; }
+    table#appsTable tr.no-apps-row td { display: block; }
+    table#appsTable td[data-label="Nombre"],
+    table#appsTable td[data-label="Descripción"],
+    table#appsTable td[data-label="URL"] {
+      flex: 1 0 100%;
+    }
+    table#appsTable td[data-label="Tec."],
+    table#appsTable td[data-label="HerrTec"],
+    table#appsTable td[data-label="Dep."],
+    table#appsTable td[data-label="Activa"] {
+      flex: 1 1 0;
+      min-width: 0;
+      align-items: center;
+      text-align: center;
+    }
+    /* La celda Cajón se despliega: su checkbox pasa a la fila de checks y el
+       bloque de subcategorías forma su propia fila (solo si está visible). */
+    table#appsTable td.cajon-cell {
+      display: contents;
+    }
+    table#appsTable td.cajon-cell::before { display: none; }
+    table#appsTable .cajon-chk-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1 1 0;
+      min-width: 0;
+    }
+    table#appsTable .cajon-chk-wrap::before {
+      content: 'Caj.';
+      font-size: .68rem; font-weight: 700; color: var(--navy);
+      margin-bottom: .25rem; text-transform: uppercase; letter-spacing: .03em;
+    }
+    table#appsTable .cajon-cell .category-wrapper {
+      order: 20;
+      flex: 1 0 100%;
+      display: flex;
+      justify-content: center;
+      margin-top: .15rem;
+    }
+    table#appsTable .cajon-cell .category-checks {
+      justify-content: center;
+      margin-top: 0;
+    }
+    table#appsTable td:last-child {
+      order: 30;
+      flex: 1 0 100%;
+      align-items: center;
+    }
+  }
+
+  /* En móviles muy estrechos se reduce un poco la etiqueta de los checks
+     para que los cinco quepan en la misma fila. */
+  @media (max-width: 400px) {
+    table#appsTable td::before,
+    table#appsTable .cajon-chk-wrap::before { font-size: .6rem; }
+  }
+
   @media (min-width: 600px) and (max-width: 767px) {
     .cred-grid { grid-template-columns: 1fr 1fr; }
   }
@@ -5127,7 +5250,7 @@
   }
 
   @media (min-width: 1280px) {
-    main { max-width: 1080px; margin: 0 auto; }
+    main { max-width: 1400px; margin: 0 auto; }
     .app-grid {
       grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
     }
@@ -5136,7 +5259,7 @@
   }
 
   @media (min-width: 1920px) {
-    main { max-width: 1400px; }
+    main { max-width: 1760px; }
     .app-grid {
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 1.5rem;
