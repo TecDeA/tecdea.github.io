@@ -543,20 +543,15 @@
   function sanitizeUrl(url) {
     if (typeof url !== 'string') return '#';
     url = url.trim();
-    const allowedProtocols = /^https?:\/\//i;
-    if (!allowedProtocols.test(url)) {
-      if (url.includes('://') || url.includes('javascript:') || url.includes('data:')) {
-        return '#';
-      }
-      if (url && !url.startsWith('#')) {
-        url = 'https://' + url;
-      } else {
-        return '#';
-      }
-    }
-    if (url.length > 2000) return '#';
+    if (!url || url.startsWith('#') || url.length > 2000) return '#';
     url = url.replace(/[\x00-\x1f\x7f]/g, '');
-    return url;
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(url)) url = 'https://' + url;
+    try {
+      const parsed = new URL(url);
+      return ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : '#';
+    } catch {
+      return '#';
+    }
   }
 
   function iconFallback(img) {
@@ -1171,7 +1166,9 @@
       return { ok: true, saved: false, uncategorized };
     }
     const ok = await saveApps(payload);
-    _lastSavedAppsJson = json;
+    // Conserva el estado pendiente si Firebase falla, para que el siguiente
+    // autoguardado pueda volver a intentarlo aunque no haya más cambios.
+    if (ok) _lastSavedAppsJson = json;
     return { ok, saved: ok, uncategorized };
   }
 
@@ -1382,9 +1379,9 @@
     setAddAppError("");
   }
 
-  function addAppRenderNameWarn() {
-    const inp  = document.getElementById("addAppName");
-    const warn = document.getElementById("addAppNameWarn");
+  function renderAppNameWarning(inputId, warningId, excludeIndex) {
+    const inp = document.getElementById(inputId);
+    const warn = document.getElementById(warningId);
     if (!inp || !warn) return;
     const val = (inp.value || "").trim();
     if (val.length < 3) {
@@ -1394,7 +1391,7 @@
       inp.style.boxShadow = "";
       return;
     }
-    const similar = findSimilarApps(val, -1, 0.75);
+    const similar = findSimilarApps(val, excludeIndex, 0.75);
     if (similar.length > 0) {
       const exact = similar.find(s => s.isExact);
       warn.textContent = exact
@@ -1413,6 +1410,10 @@
     }
   }
 
+  function addAppRenderNameWarn() {
+    renderAppNameWarning("addAppName", "addAppNameWarn", -1);
+  }
+
   let _addAppNameTimer = null;
   function addAppNameInput() {
     setAddAppError("");
@@ -1424,7 +1425,8 @@
     collectTableData();
     const name = document.getElementById("addAppName").value.trim();
     const desc = document.getElementById("addAppDesc").value.trim();
-    const url  = document.getElementById("addAppUrl").value.trim() || "https://tecdea.github.io/";
+    const urlInput = document.getElementById("addAppUrl").value.trim() || "https://tecdea.github.io/";
+    const url = sanitizeUrl(urlInput);
     const tec  = !!document.getElementById("addAppTecnoApps").checked;
     const her  = !!document.getElementById("addAppHerramientasTecno").checked;
     const dep  = !!document.getElementById("addAppDepartamento").checked;
@@ -1436,6 +1438,11 @@
     if (!name) {
       setAddAppError("Escribe el nombre de la aplicación.");
       document.getElementById("addAppName").focus();
+      return;
+    }
+    if (url === '#') {
+      setAddAppError("Introduce una URL válida que empiece por http:// o https://.");
+      document.getElementById("addAppUrl").focus();
       return;
     }
     if (caj && cats.length === 0) {
@@ -1544,34 +1551,7 @@
   }
 
   function editAppRenderNameWarn() {
-    const inp  = document.getElementById("editAppName");
-    const warn = document.getElementById("editAppNameWarn");
-    if (!inp || !warn) return;
-    const val = (inp.value || "").trim();
-    if (val.length < 3) {
-      warn.textContent = "";
-      warn.classList.add("hidden");
-      inp.style.borderColor = "";
-      inp.style.boxShadow = "";
-      return;
-    }
-    const similar = findSimilarApps(val, _editAppIndex, 0.75);
-    if (similar.length > 0) {
-      const exact = similar.find(s => s.isExact);
-      warn.textContent = exact
-        ? `⚠️ Ya existe una aplicación con el nombre «${exact.name}»`
-        : (similar.length === 1
-            ? `⚠️ Nombre similar a «${similar[0].name}» (${similar[0].similarity}% parecido)`
-            : `⚠️ Nombre similar a: ${similar.slice(0, 3).map(a => `«${a.name}»`).join(', ')}`);
-      warn.classList.remove("hidden");
-      inp.style.borderColor = "#E8943A";
-      inp.style.boxShadow = "0 0 0 3px rgba(232, 148, 58, 0.3)";
-    } else {
-      warn.textContent = "";
-      warn.classList.add("hidden");
-      inp.style.borderColor = "";
-      inp.style.boxShadow = "";
-    }
+    renderAppNameWarning("editAppName", "editAppNameWarn", _editAppIndex);
   }
 
   let _editAppNameTimer = null;
@@ -1586,7 +1566,8 @@
 
     const name = document.getElementById("editAppName").value.trim();
     const desc = document.getElementById("editAppDesc").value.trim();
-    const url  = document.getElementById("editAppUrl").value.trim() || "https://tecdea.github.io/";
+    const urlInput = document.getElementById("editAppUrl").value.trim() || "https://tecdea.github.io/";
+    const url = sanitizeUrl(urlInput);
     const tec  = !!document.getElementById("editAppTecnoApps").checked;
     const her  = !!document.getElementById("editAppHerramientasTecno").checked;
     const dep  = !!document.getElementById("editAppDepartamento").checked;
@@ -1598,6 +1579,11 @@
     if (!name) {
       setEditAppError("Escribe el nombre de la aplicación.");
       document.getElementById("editAppName").focus();
+      return;
+    }
+    if (url === '#') {
+      setEditAppError("Introduce una URL válida que empiece por http:// o https://.");
+      document.getElementById("editAppUrl").focus();
       return;
     }
     if (caj && cats.length === 0) {
@@ -1747,9 +1733,13 @@
   }
 
   let _isSavingAdmins = false;
+  let _adminsSaveQueued = false;
 
   async function autoSaveAdmins() {
-    if (_isSavingAdmins) return;
+    if (_isSavingAdmins) {
+      _adminsSaveQueued = true;
+      return;
+    }
     _isSavingAdmins = true;
     try {
       const incomplete = admins.find(a => !a.user || !a.pass);
@@ -1767,6 +1757,10 @@
       else showToast("Error al guardar administradores.", "err", 4000);
     } finally {
       _isSavingAdmins = false;
+      if (_adminsSaveQueued) {
+        _adminsSaveQueued = false;
+        setTimeout(autoSaveAdmins, 0);
+      }
     }
   }
 
@@ -1948,16 +1942,31 @@
     }, 600);
   }
 
+  const _scriptLoads = new Map();
   function loadScript(src) {
-    return new Promise((resolve, reject) => {
+    if (_scriptLoads.has(src)) return _scriptLoads.get(src);
+    const load = new Promise((resolve, reject) => {
       const existing = document.querySelector(`script[src="${src}"]`);
-      if (existing) { resolve(); return; }
-      const s = document.createElement('script');
-      s.src = src;
-      s.onload = () => resolve();
-      s.onerror = () => reject(new Error('No se pudo cargar ' + src));
-      document.head.appendChild(s);
+      if (existing?.dataset.loaded === 'true') { resolve(); return; }
+      const script = existing || document.createElement('script');
+      script.addEventListener('load', () => {
+        script.dataset.loaded = 'true';
+        resolve();
+      }, { once: true });
+      script.addEventListener('error', () => {
+        script.remove();
+        reject(new Error('No se pudo cargar ' + src));
+      }, { once: true });
+      if (!existing) {
+        script.src = src;
+        document.head.appendChild(script);
+      }
+    }).catch(error => {
+      _scriptLoads.delete(src);
+      throw error;
     });
+    _scriptLoads.set(src, load);
+    return load;
   }
 
   function collectExportData() {
@@ -3256,7 +3265,7 @@
     if (a.cajonDeSastre) {
       const cats = getAppCategories(a);
       if (cats.length) {
-        const labels = cats.map(c => RESTORE_CAJON_LABELS[c] || c).join(' · ');
+        const labels = cats.map(c => escHtml(RESTORE_CAJON_LABELS[c] || c)).join(' · ');
         chips.push(`🧰 ${labels}`);
       } else {
         chips.push("🧰 Cajón de sastre");
