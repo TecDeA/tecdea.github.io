@@ -5020,6 +5020,64 @@
       max-width: 100%;
       white-space: normal;
     }
+
+    /* En ventanas estrechas de escritorio, cada aplicación conserva el
+       formato de tarjeta de móvil: campos a ancho completo, categorías y
+       acciones en filas propias. */
+    #view-config table#appsTable,
+    #view-config table#appsTable tbody {
+      display: block;
+      width: 100%;
+    }
+    #view-config table#appsTable thead { display: none; }
+    #view-config table#appsTable tbody tr:not(.no-apps-row) {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .6rem;
+      padding: .85rem;
+      margin-bottom: .75rem;
+      border: 1.5px solid #e5e7eb;
+      border-radius: var(--radius);
+      background: var(--white);
+    }
+    #view-config table#appsTable tbody tr.row-odd {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border-color: #cbd5e1;
+    }
+    #view-config table#appsTable tbody tr.row-even { background: #fff; }
+    #view-config table#appsTable tbody tr:hover {
+      border-color: #93c5fd;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, .15);
+    }
+    #view-config table#appsTable tr:hover td { background: transparent; }
+    #view-config table#appsTable td {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      border: none;
+      padding: 0;
+    }
+    #view-config table#appsTable td[data-label="Nombre"],
+    #view-config table#appsTable td[data-label="Descripción"],
+    #view-config table#appsTable td[data-label="URL"] {
+      flex: 1 0 100%;
+    }
+    #view-config table#appsTable td::before {
+      content: attr(data-label);
+      margin-bottom: .25rem;
+      color: var(--navy);
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+    }
+    #view-config table#appsTable td[data-label=""] {
+      flex: 1 0 100%;
+      align-items: center;
+    }
+    #view-config table#appsTable td[data-label=""]::before { display: none; }
+    #view-config table#appsTable tr.no-apps-row,
+    #view-config table#appsTable tr.no-apps-row td { display: block; }
   }
 
   @media (max-width: 400px) {
