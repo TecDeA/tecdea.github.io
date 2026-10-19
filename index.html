@@ -4996,6 +4996,32 @@
     .app-card { break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
   }
 
+  /* La vista de Configuración usa la disposición compacta también cuando una
+     ventana de escritorio se estrecha, aunque el dispositivo no sea móvil. */
+  @media (max-width: 767px) {
+    #view-config .accordion-content.open {
+      padding-left: .75rem;
+      padding-right: .75rem;
+    }
+    #view-config .accordion-header {
+      padding: .85rem .9rem;
+      font-size: .92rem;
+    }
+    #view-config .actions .btn {
+      flex: 1 1 100%;
+    }
+    #view-config .filter-bar {
+      padding: .55rem;
+      gap: .4rem;
+    }
+    #view-config .filter-btn,
+    #view-config .filter-estado-btn,
+    #view-config .filter-sub-btn {
+      max-width: 100%;
+      white-space: normal;
+    }
+  }
+
   @media (max-width: 400px) {
     .main-buttons {
       display: grid !important;
