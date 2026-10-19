@@ -5337,25 +5337,10 @@
       font-size: .68rem; font-weight: 700; color: var(--navy);
       margin-bottom: .25rem; text-transform: uppercase; letter-spacing: .03em;
     }
-    /* Si la aplicación pertenece al Cajón de sastre (debajo aparecen sus
-       subcategorías y hay espacio de sobra), la etiqueta se muestra
-       completa, repartida en dos líneas; si no, permanece «Caj.». */
-    table#appsTable tr.row-cajon .cajon-chk-wrap::before {
-      content: 'Cajón de\A sastre';
-      white-space: pre-line;
-      text-transform: none;
-      text-align: center;
-      line-height: 1.2;
-      letter-spacing: 0;
-    }
-    /* Las etiquetas de los demás checks reservan el mismo alto (dos líneas)
-       para que los cinco checkboxes queden alineados en la fila. */
-    table#appsTable tr.row-cajon td[data-label="Tec."]::before,
-    table#appsTable tr.row-cajon td[data-label="HerrTec"]::before,
-    table#appsTable tr.row-cajon td[data-label="Dep."]::before,
-    table#appsTable tr.row-cajon td[data-label="Activa"]::before {
-      min-height: 2.4em;
-    }
+    /* El label del checkbox Cajón se mantiene siempre como «Caj.» (uniforme)
+       independientemente de si la app tiene subcategorías o no. Así la
+       fila de checks tiene la misma altura en todas las tarjetas y no se
+       produce desalineación vertical entre los cinco checkboxes. */
     table#appsTable .cajon-cell .category-wrapper {
       order: 20;
       flex: 1 0 100%;
@@ -5381,18 +5366,6 @@
   @media (max-width: 400px) {
     table#appsTable td::before,
     table#appsTable .cajon-chk-wrap::before { font-size: .6rem; }
-    /* En pantallas muy estrechas la etiqueta larga se reparte en tres líneas
-       cortas («Cajón» / «de» / «sastre»): ninguna combinación de dos líneas
-       cabe en el ancho de la celda (≈44px a 320px). */
-    table#appsTable tr.row-cajon .cajon-chk-wrap::before {
-      content: 'Cajón\A de\A sastre';
-    }
-    table#appsTable tr.row-cajon td[data-label="Tec."]::before,
-    table#appsTable tr.row-cajon td[data-label="HerrTec"]::before,
-    table#appsTable tr.row-cajon td[data-label="Dep."]::before,
-    table#appsTable tr.row-cajon td[data-label="Activa"]::before {
-      min-height: 3.6em;
-    }
     /* Subcategorías siempre en una sola fila: en pantallas estrechas el icono
        se coloca sobre el check (column-reverse) para que quepan las cinco
        sin desbordar el ancho disponible. */
