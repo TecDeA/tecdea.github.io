@@ -4997,8 +4997,13 @@
   }
 
   /* La vista de Configuración usa la disposición compacta también cuando una
-     ventana de escritorio se estrecha, aunque el dispositivo no sea móvil. */
-  @media (max-width: 767px) {
+     ventana de escritorio se estrecha, aunque el dispositivo no sea móvil.
+     Ampliado a 800px para que en pantallas de escritorio estrechas (PC y
+     portátiles con ventana <800px) la tabla de Aplicaciones adopte el
+     formato de tarjetas tipo móvil: cada app en su tarjeta y cada elemento
+     (Nombre, Descripción, URL, fila de Categorías/checks y fila de Botones)
+     en una fila diferente, con checks y botones centrados. */
+  @media (max-width: 800px) {
     #view-config .accordion-content.open {
       padding-left: .75rem;
       padding-right: .75rem;
@@ -5276,11 +5281,16 @@
     table#appsTable tr.row-inactive .fi:not([type="checkbox"]) { opacity: .55; }
   }
 
-  /* ══ Móvil (tarjetas de la tabla de aplicaciones): los checks de la app
-        (Tec., HerrTec, Dep., Caj., Activa) en una sola fila y los botones de
-        subcategoría del Cajón de sastre en otra fila debajo, en una sola fila
-        y centrados respecto al espacio disponible ══ */
-  @media (max-width: 599px) {
+  /* ══ Móvil (y escritorio estrecho <800px): tarjetas de la tabla de
+        aplicaciones. Los checks de la app (Tec., HerrTec, Dep., Caj., Activa)
+        se muestran en una sola fila y los botones de subcategoría del Cajón
+        de sastre en otra fila debajo, en una sola fila y centrados respecto
+        al espacio disponible. Ampliado a 800px para que en pantallas de
+        escritorio estrechas se mantenga la misma disposición que en móvil:
+        Nombre, Descripción y URL en filas propias, fila de Categorías
+        (checks) centrada y fila de Botones (lanzamiento, edición, eliminar)
+        centrada. ══ */
+  @media (max-width: 800px) {
     table#appsTable tr {
       display: flex;
       flex-wrap: wrap;
