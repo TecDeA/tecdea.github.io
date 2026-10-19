@@ -4496,8 +4496,11 @@
   }
 
   /* ══ Pantallas anchas (vista tabla): el check de Cajón y las subcategorías
-        comparten la misma fila, sin salto de línea dentro de la celda ══ */
-  @media (min-width: 600px) {
+        comparten la misma fila, sin salto de línea dentro de la celda.
+        Aplica solo a partir de 801px; por debajo (escritorio estrecho o móvil)
+        la tabla pasa a formato de tarjetas y la celda Cajón se despliega en su
+        propia fila, por lo que este nowrap no debe aplicarse. ══ */
+  @media (min-width: 801px) {
     /* nowrap impide que el bloque de subcategorías salte a otra línea
        dentro de la celda cuando la tabla está ajustada de anchura. */
     .cajon-cell { white-space: nowrap; }
@@ -4524,7 +4527,9 @@
     border-radius: 10px;
     border: 1px solid #e5e7eb;
   }
-  @media (max-width: 599px) {
+  /* En escritorio estrecho (<800px) y móvil, el panel de exportación ocupa
+     una sola columna (igual que en móvil). */
+  @media (max-width: 800px) {
     .export-grid { grid-template-columns: 1fr; }
   }
   .export-checkboxes, .export-radios {
@@ -4654,7 +4659,10 @@
     font-size: .72rem; color: #4b5b74; background: #eef2f7;
     border: 1px dashed #d7dce5; padding: .3rem .55rem; border-radius: 8px;
   }
-  @media (max-width: 600px) {
+  /* En móvil y escritorio estrecho (<800px), las etiquetas del panel de
+     selección de apps para exportar se apilan a una sola columna, igual
+     que en móvil. */
+  @media (max-width: 800px) {
     .app-sel-cats-label { min-width: 100%; }
     .app-sel-catfilter { min-width: 0; flex: 1; }
   }
@@ -5394,10 +5402,15 @@
     }
   }
 
-  @media (min-width: 600px) and (max-width: 767px) {
+  /* En escritorio estrecho (600-800px) la cuadrícula de credenciales pasa
+     a una sola columna, igual que en móvil, para evitar inputs demasiado
+     estrechos. */
+  @media (min-width: 600px) and (max-width: 800px) {
     .cred-grid { grid-template-columns: 1fr 1fr; }
   }
 
+  /* Móvil y escritorio estrecho (<600px): cred-grid a una sola columna
+     y modal con padding más compacto. */
   @media (max-width: 599px) {
     .cred-grid { grid-template-columns: 1fr; }
     .modal { padding: 1.5rem 1.25rem 1.25rem; }
@@ -5484,7 +5497,11 @@
     cursor: pointer;
     flex-shrink: 0;
   }
-  @media (max-width: 767px) {
+  /* Checkboxes más grandes (26px) y área táctil mínima de 40px en móvil
+     y en escritorio estrecho (<800px) para facilitar la pulsación larga
+     sobre los iconos de subcategoría del Cajón de sastre (en la tabla solo
+     se ve el emoji; el nombre aparece en el tooltip). */
+  @media (max-width: 800px) {
     input[type="checkbox"] {
       width: 26px; height: 26px;
     }
@@ -5493,9 +5510,6 @@
       height: 22px !important;
     }
 
-    /* Área táctil mínima de ~40px en móvil para facilitar la pulsación
-       larga sobre los iconos de subcategoría del Cajón de sastre
-       (en la tabla solo se ve el emoji; el nombre aparece en el tooltip). */
     .cajon-cell .category-wrapper .cat-check {
       padding: 6px;
       min-width: 40px;
@@ -5522,7 +5536,10 @@
     }
   }
 
-  @media (max-width: 767px) {
+  /* En móvil y escritorio estrecho (<800px): inputs a 16px para evitar
+     el zoom automático de iOS al enfocar, y los de las tablas a 14px
+     para que quepan en las tarjetas. */
+  @media (max-width: 800px) {
     input.fi, input[type="text"], input[type="password"], input[type="url"] {
       font-size: 16px;
     }
