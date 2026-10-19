@@ -5305,6 +5305,21 @@
     }
     table#appsTable tr.no-apps-row { display: block; }
     table#appsTable tr.no-apps-row td { display: block; }
+
+    /* Orden explícito de cada fila de la tarjeta (mobile / escritorio estrecho):
+       1) Nombre, 2) Descripción, 3) URL, 10) checks principales (Tec.,
+       HerrTec, Dep., Caj., Activa), 20) subcategorías del Cajón (si visibles),
+       30) botones de acción (🚀 ✏️ ✕). Sin estos `order`, el wrap de flexbox
+       puede mezclar los elementos y mostrar p. ej. la URL encima del Nombre. */
+    table#appsTable td[data-label="Nombre"]      { order: 1; }
+    table#appsTable td[data-label="Descripción"] { order: 2; }
+    table#appsTable td[data-label="URL"]         { order: 3; }
+    table#appsTable td[data-label="Tec."],
+    table#appsTable td[data-label="HerrTec"],
+    table#appsTable td[data-label="Dep."],
+    table#appsTable td[data-label="Caj."],
+    table#appsTable td[data-label="Activa"]     { order: 10; }
+
     table#appsTable td[data-label="Nombre"],
     table#appsTable td[data-label="Descripción"],
     table#appsTable td[data-label="URL"] {
@@ -5326,6 +5341,7 @@
     }
     table#appsTable td.cajon-cell::before { display: none; }
     table#appsTable .cajon-chk-wrap {
+      order: 10;
       display: flex;
       flex-direction: column;
       align-items: center;
