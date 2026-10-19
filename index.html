@@ -4009,7 +4009,18 @@
     margin-top: 0;
   }
 
-  .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  /* Mantiene visibles los encabezados mientras se recorre la lista de aplicaciones. */
+  .tbl-wrap {
+    max-height: min(70vh, 720px);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  #appsTable thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
 
   table#appsTable,
   table#adminsTable {
@@ -5025,7 +5036,6 @@
     .group-heading { font-size: 1.15rem; }
     .config-title { font-size: 1.15rem; }
     .btn { padding: .55rem .9rem; font-size: .82rem; }
-    table#appsTable thead,
     table#adminsTable thead { display: none; }
     table#appsTable,
     table#adminsTable { display: block; width: 100%; }
@@ -5103,7 +5113,6 @@
       grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
       gap: .85rem;
     }
-    table#appsTable thead,
     table#adminsTable thead { display: none; }
     table#appsTable,
     table#adminsTable { display: block; width: 100%; }
@@ -5390,10 +5399,7 @@
     }
   }
 
-  .tbl-wrap {
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-  }
+  .tbl-wrap { -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
   .tbl-wrap::-webkit-scrollbar { height: 4px; }
   .tbl-wrap::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 4px; }
 
