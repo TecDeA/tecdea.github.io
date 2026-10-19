@@ -5070,11 +5070,6 @@
       border: none;
       padding: 0;
     }
-    #view-config table#appsTable td[data-label="Nombre"],
-    #view-config table#appsTable td[data-label="Descripción"],
-    #view-config table#appsTable td[data-label="URL"] {
-      flex: 1 0 100%;
-    }
     #view-config table#appsTable td::before {
       content: attr(data-label);
       margin-bottom: .25rem;
@@ -5084,25 +5079,7 @@
       letter-spacing: .03em;
       text-transform: uppercase;
     }
-    #view-config table#appsTable td[data-label=""] {
-      flex: 1 0 100%;
-      align-items: center;
-    }
     #view-config table#appsTable td[data-label=""]::before { display: none; }
-    #view-config table#appsTable td.cajon-cell .category-wrapper {
-      display: flex;
-      justify-content: center;
-      width: 100%;
-      margin-left: 0;
-    }
-    #view-config table#appsTable td.cajon-cell .category-wrapper:not(.hidden) {
-      flex: 1 0 100%;
-    }
-    #view-config table#appsTable td.cajon-cell .category-checks {
-      width: 100%;
-      justify-content: center;
-      justify-content: safe center;
-    }
     #view-config table#appsTable tr.no-apps-row,
     #view-config table#appsTable tr.no-apps-row td { display: block; }
   }
@@ -5299,36 +5276,36 @@
         (checks) centrada y fila de Botones (lanzamiento, edición, eliminar)
         centrada. ══ */
   @media (max-width: 800px) {
-    table#appsTable tr {
+    #view-config table#appsTable tr {
       display: flex;
       flex-wrap: wrap;
     }
-    table#appsTable tr.no-apps-row { display: block; }
-    table#appsTable tr.no-apps-row td { display: block; }
+    #view-config table#appsTable tr.no-apps-row { display: block; }
+    #view-config table#appsTable tr.no-apps-row td { display: block; }
 
     /* Orden explícito de cada fila de la tarjeta (mobile / escritorio estrecho):
        1) Nombre, 2) Descripción, 3) URL, 10) checks principales (Tec.,
        HerrTec, Dep., Caj., Activa), 20) subcategorías del Cajón (si visibles),
        30) botones de acción (🚀 ✏️ ✕). Sin estos `order`, el wrap de flexbox
        puede mezclar los elementos y mostrar p. ej. la URL encima del Nombre. */
-    table#appsTable td[data-label="Nombre"]      { order: 1; }
-    table#appsTable td[data-label="Descripción"] { order: 2; }
-    table#appsTable td[data-label="URL"]         { order: 3; }
-    table#appsTable td[data-label="Tec."],
-    table#appsTable td[data-label="HerrTec"],
-    table#appsTable td[data-label="Dep."],
-    table#appsTable td[data-label="Caj."],
-    table#appsTable td[data-label="Activa"]     { order: 10; }
+    #view-config table#appsTable td[data-label="Nombre"]      { order: 1; }
+    #view-config table#appsTable td[data-label="Descripción"] { order: 2; }
+    #view-config table#appsTable td[data-label="URL"]         { order: 3; }
+    #view-config table#appsTable td[data-label="Tec."],
+    #view-config table#appsTable td[data-label="HerrTec"],
+    #view-config table#appsTable td[data-label="Dep."],
+    #view-config table#appsTable td[data-label="Caj."],
+    #view-config table#appsTable td[data-label="Activa"]     { order: 10; }
 
-    table#appsTable td[data-label="Nombre"],
-    table#appsTable td[data-label="Descripción"],
-    table#appsTable td[data-label="URL"] {
+    #view-config table#appsTable td[data-label="Nombre"],
+    #view-config table#appsTable td[data-label="Descripción"],
+    #view-config table#appsTable td[data-label="URL"] {
       flex: 1 0 100%;
     }
-    table#appsTable td[data-label="Tec."],
-    table#appsTable td[data-label="HerrTec"],
-    table#appsTable td[data-label="Dep."],
-    table#appsTable td[data-label="Activa"] {
+    #view-config table#appsTable td[data-label="Tec."],
+    #view-config table#appsTable td[data-label="HerrTec"],
+    #view-config table#appsTable td[data-label="Dep."],
+    #view-config table#appsTable td[data-label="Activa"] {
       flex: 1 1 0;
       min-width: 0;
       align-items: center;
@@ -5336,11 +5313,11 @@
     }
     /* La celda Cajón se despliega: su checkbox pasa a la fila de checks y el
        bloque de subcategorías forma su propia fila (solo si está visible). */
-    table#appsTable td.cajon-cell {
+    #view-config table#appsTable td.cajon-cell {
       display: contents;
     }
-    table#appsTable td.cajon-cell::before { display: none; }
-    table#appsTable .cajon-chk-wrap {
+    #view-config table#appsTable td.cajon-cell::before { display: none; }
+    #view-config table#appsTable .cajon-chk-wrap {
       order: 10;
       display: flex;
       flex-direction: column;
@@ -5348,7 +5325,7 @@
       flex: 1 1 0;
       min-width: 0;
     }
-    table#appsTable .cajon-chk-wrap::before {
+    #view-config table#appsTable .cajon-chk-wrap::before {
       content: 'Caj.';
       font-size: .68rem; font-weight: 700; color: var(--navy);
       margin-bottom: .25rem; text-transform: uppercase; letter-spacing: .03em;
@@ -5357,20 +5334,40 @@
        independientemente de si la app tiene subcategorías o no. Así la
        fila de checks tiene la misma altura en todas las tarjetas y no se
        produce desalineación vertical entre los cinco checkboxes. */
-    table#appsTable .cajon-cell .category-wrapper {
+    #view-config table#appsTable .cajon-cell .category-wrapper {
       order: 20;
       flex: 1 0 100%;
       display: flex;
-      justify-content: center;
-      margin-top: .15rem;
+      flex-direction: column;
+      align-items: center;
+      /* Separación clara entre la fila de checks principales y la fila de
+         subcategorías: padding superior amplio + borde superior fino + un
+         label "Subcategorías" para que se vea como una fila claramente
+         distinta y no se entremezcle con los checks de arriba. */
+      margin-top: .5rem;
+      padding-top: .45rem;
+      border-top: 1px dashed rgba(32, 24, 120, .18);
+      position: relative;
     }
-    table#appsTable .cajon-cell .category-checks {
+    #view-config table#appsTable .cajon-cell .category-wrapper::before {
+      content: 'Subcategorías';
+      display: block;
+      width: 100%;
+      text-align: center;
+      font-size: .68rem;
+      font-weight: 700;
+      color: var(--navy);
+      text-transform: uppercase;
+      letter-spacing: .03em;
+      margin-bottom: .3rem;
+    }
+    #view-config table#appsTable .cajon-cell .category-checks {
       justify-content: center;
       justify-content: safe center;
       margin-top: 0;
       flex-wrap: nowrap;
     }
-    table#appsTable td:last-child {
+    #view-config table#appsTable td:last-child {
       order: 30;
       flex: 1 0 100%;
       align-items: center;
@@ -5380,12 +5377,12 @@
   /* En móviles muy estrechos se reduce un poco la etiqueta de los checks
      para que los cinco quepan en la misma fila. */
   @media (max-width: 400px) {
-    table#appsTable td::before,
-    table#appsTable .cajon-chk-wrap::before { font-size: .6rem; }
+    #view-config table#appsTable td::before,
+    #view-config table#appsTable .cajon-chk-wrap::before { font-size: .6rem; }
     /* Subcategorías siempre en una sola fila: en pantallas estrechas el icono
        se coloca sobre el check (column-reverse) para que quepan las cinco
        sin desbordar el ancho disponible. */
-    table#appsTable .cajon-cell .category-wrapper .cat-check {
+    #view-config table#appsTable .cajon-cell .category-wrapper .cat-check {
       flex-direction: column-reverse;
       justify-content: center;
     }
