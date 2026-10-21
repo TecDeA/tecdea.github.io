@@ -1808,6 +1808,60 @@
   //     <img> con cache-buster aplicado.
   //
   //  Importante: la cache HTTP del navegador es independiente de la cache
+  // Recorre una lista de URLs candidatas secuencialmente, probando cada
+  // una con new Image() (no con el <img> del DOM, para no interferir con
+  // discoverIcons). Cuando una carga OK, la persiste en Firebase via
+  // saveCachedIcon y detiene el barrido. Si todas fallan, no hace nada
+  // (la app seguira usando su SVG local como fallback visual).
+  //
+  // Es async: devuelve una Promise que se resuelve cuando termina el barrido
+  // (sea cual sea el resultado).
+  async function tryCandidateUrlsSequentially(img, urls, startIndex) {
+    if (!urls || !urls.length) return;
+    for (let i = startIndex; i < urls.length; i++) {
+      const url = urls[i];
+      // Saltar URLs data: (SVG locales) - no son iconos "descubiertos"
+      if (!url || !/^https?:/.test(url)) continue;
+      const ok = await testImageLoad(url);
+      if (ok) {
+        // Persistir en Firebase usando el mismo iconLoadHandler para
+        // mantener la logica de limpieza de cache-buster
+        const urlKey = img.getAttribute('data-url-key');
+        if (urlKey) {
+          // Limpiar cache-buster antes de persistir
+          const cleanSrc = url.replace(/([?&]_t=\d+)/, '').replace(/[?&]$/, '');
+          const cached = cachedIcons.get(urlKey);
+          if (!cached || cached.src !== cleanSrc) {
+            await saveCachedIcon(urlKey, cleanSrc);
+            console.log(`[TecDeA] Icono descubierto y cacheado para "${urlKey}": ${cleanSrc}`);
+          }
+        }
+        return; // Detener tras el primer OK
+      }
+    }
+    console.log(`[TecDeA] No se pudo cargar ninguno de los ${urls.length} iconos candidatos`);
+  }
+
+  // Devuelve una Promise que se resuelve a true si la URL carga como imagen
+  // OK (naturalWidth > 0), o false si falla o supera el timeout.
+  function testImageLoad(url, timeoutMs = 4000) {
+    return new Promise(resolve => {
+      const probe = new Image();
+      probe.decoding = 'async';
+      let done = false;
+      const finish = (result) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(result);
+      };
+      const timer = setTimeout(() => finish(false), timeoutMs);
+      probe.onload = () => finish(probe.naturalWidth > 0);
+      probe.onerror = () => finish(false);
+      probe.src = url;
+    });
+  }
+
   //  Firebase. Aunque borremos Firebase, si el navegador tiene el favicon
   //  viejo en su cache HTTP, lo sigue mostrando. Por eso necesitamos el
   //  cache-buster: cambia la URL (anade `?_t=...`) y obliga al navegador
@@ -1878,42 +1932,86 @@
       );
     } else {
       // Si la tarjeta no esta visible (estamos en Configuracion), lanzar
-      // igualmente el descubrimiento en background con un <img> temporal.
-      // Esto refresca la cache HTTP del navegador para manifest/HTML y,
-      // si se encuentra un icono, lo guarda en Firebase para la proxima
-      // visita al perfil.
+      // el redescubrimiento en background con un <img> FUERA DE PANTALLA
+      // (no display:none, porque los navegadores no cargan imagenes de
+      // elementos ocultos y onload nunca dispararia).
+      //
+      // Estrategia:
+      //   A) discoverIcons() busca URLs en manifest.webmanifest y en
+      //      <link rel="icon"> del HTML de la app. Las que encuentre las
+      //      asigna a img.src; cuando carguen, onload persistira en
+      //      Firebase via iconLoadHandler.
+      //   B) Si discoverIcons no encuentra nada (o las URLs encontradas
+      //      fallan al cargar), recorremos manualmente las URLs candidatas
+      //      en orden: iconSources (favicons de la propia app, Google,
+      //      DuckDuckGo), Iconify tematico, y por ultimo el SVG local.
+      //      Paramos en la primera que cargue OK.
+      //
+      // Todo esto se hace con cache-buster (?_t=...) para forzar al
+      // navegador a hacer una peticion HTTP fresca (ignorando su cache
+      // HTTP), que era el objetivo original del boton 🔄.
       const tmpImg = document.createElement('img');
-      tmpImg.style.display = 'none';
+      // Fuera de pantalla pero visible para el navegador:
+      tmpImg.style.position = 'fixed';
+      tmpImg.style.left = '-9999px';
+      tmpImg.style.top = '-9999px';
+      tmpImg.style.width = '1px';
+      tmpImg.style.height = '1px';
+      tmpImg.style.opacity = '0';
+      tmpImg.style.pointerEvents = 'none';
+      tmpImg.style.zIndex = '-1';
       tmpImg.setAttribute('data-app-url', url);
       tmpImg.setAttribute('data-url-key', urlKey);
-      tmpImg.onload = function() { iconLoadHandler(tmpImg); };
-      tmpImg.onerror = function() { /* silencioso: simplemente no se encontro */ };
-      // Anade el tmpImg al DOM (necesario para que onload/onerror disparen
-      // de forma fiable en algunos navegadores)
+      tmpImg.setAttribute('alt', '');
+
+      // Persistir en Firebase cuando una URL cargue OK
+      tmpImg.addEventListener('load', function() {
+        iconLoadHandler(tmpImg);
+      });
+      // Silencioso en error: el bucle manual de fallback se encargara
+      tmpImg.addEventListener('error', function() {
+        // Nada: el flujo manual continuara probando
+      });
+
       document.body.appendChild(tmpImg);
-      // Configura la cadena de fuentes
-      const sources = iconSources(url).map(addCacheBuster);
+
+      // Construye la lista completa de URLs candidatas (con cache-buster)
+      const candidateUrls = iconSources(url).map(addCacheBuster);
       const iconifyName = descriptionToIconifyIcon(a.desc) || descriptionToIconifyIcon(a.name);
       if (iconifyName) {
-        sources.push(addCacheBuster(`https://api.iconify.design/${iconifyName}.svg?color=white&width=48&height=48`));
+        candidateUrls.push(addCacheBuster(`https://api.iconify.design/${iconifyName}.svg?color=white&width=48&height=48`));
       }
-      sources.push(generateAutoIcon(a));
-      const first = sources[0] || DEFAULT_ICON_SVG;
-      const rest = sources.slice(1);
-      tmpImg.src = first;
-      if (rest.length) {
-        tmpImg.setAttribute('data-fb', JSON.stringify(rest));
-        tmpImg.setAttribute('onerror', 'window.tecdea.iconFallback(this)');
-      }
+      // NO incluir el SVG local en la lista de URLs a persistir en Firebase
+      // (es un fallback visual, no un icono "descubierto").
+
+      // Lanza discoverIcons en background para buscar URLs en manifest y HTML.
+      // Le pasamos el <img> ya en el DOM; discoverIcons asignara img.src
+      // con la primera URL encontrada (si la hay).
+      discoverIcons(tmpImg, url, { bustCache: true, force: true })
+        .then(async () => {
+          // Tras discoverIcons, si tmpImg tiene una URL http(s) y cargo OK,
+          // iconLoadHandler ya la habra persistido. Si discoverIcons no
+          // encontro nada (o la URL encontrada fallo), recorremos manualmente
+          // las URLs candidatas hasta que una cargue OK.
+          if (tmpImg.complete && tmpImg.naturalWidth > 0 &&
+              /^https?:/.test(tmpImg.src)) {
+            // Ya cargue una URL buena via discoverIcons
+            return;
+          }
+          await tryCandidateUrlsSequentially(tmpImg, candidateUrls, 0);
+        })
+        .catch(err => {
+          console.warn('[TecDeA] rediscover (background) error:', err);
+          // Aunque discoverIcons falle, intentamos el barrido manual
+          tryCandidateUrlsSequentially(tmpImg, candidateUrls, 0).catch(() => {});
+        });
+
       // Limpia el <img> temporal tras 30s (se haya cargado o no)
       setTimeout(() => {
-        try { document.body.removeChild(tmpImg); } catch (e) {}
+        try {
+          if (tmpImg.parentNode) tmpImg.parentNode.removeChild(tmpImg);
+        } catch (e) {}
       }, 30000);
-
-      // Descubrimiento forzado en background
-      discoverIcons(tmpImg, url, { bustCache: true, force: true }).catch(err =>
-        console.warn('[TecDeA] rediscover (background) error:', err)
-      );
     }
 
     // 5) Feedback al usuario
