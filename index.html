@@ -115,6 +115,65 @@
     return null;
   }
 
+  // ── Mapeo palabras-clave -> icono Iconify (Material Symbols) ──
+  // Iconify API publica: https://api.iconify.design/{icon}.svg?color=white&width=48
+  // Sin clave, con CORS habilitado y SVG vectorial nitido a cualquier resolucion.
+  // Se usa como capa intermedia: si la app no expone su propio favicon, se
+  // intenta este icono tematico ANTES de caer en el SVG auto-generado local.
+  const DESCRIPTION_ICONS = [
+    { kw: ['calendario','agenda','horario','schedule'], icon: 'material-symbols:calendar-month-rounded' },
+    { kw: ['biblioteca','library','libro','libros','book'], icon: 'material-symbols:menu-book-rounded' },
+    { kw: ['alumno','alumn','estudiante','student'], icon: 'material-symbols:school-rounded' },
+    { kw: ['profesor','docente','teacher'], icon: 'material-symbols:co-present-rounded' },
+    { kw: ['correo','mail','email','buzon'], icon: 'material-symbols:mail-rounded' },
+    { kw: ['chat','mensaje','comunic','whatsapp','telegram'], icon: 'material-symbols:chat-rounded' },
+    { kw: ['nota','apunte','note'], icon: 'material-symbols:sticky-note-2-rounded' },
+    { kw: ['mapa','map'], icon: 'material-symbols:map-rounded' },
+    { kw: ['foto','photo','image','galeria'], icon: 'material-symbols:photo-camera-rounded' },
+    { kw: ['video','multimedia'], icon: 'material-symbols:videocam-rounded' },
+    { kw: ['musica','music','audio'], icon: 'material-symbols:music-note-rounded' },
+    { kw: ['mate','math','matematic'], icon: 'material-symbols:calculate-rounded' },
+    { kw: ['ciencia','science','fisica','quimica','biologia'], icon: 'material-symbols:science-rounded' },
+    { kw: ['arte','art','dibujo'], icon: 'material-symbols:palette-rounded' },
+    { kw: ['deporte','sport','baloncesto'], icon: 'material-symbols:sports-soccer-rounded' },
+    { kw: ['comida','comedor','food','menu','almuerzo'], icon: 'material-symbols:restaurant-rounded' },
+    { kw: ['dinero','money','pago','caja','tesoreria'], icon: 'material-symbols:payments-rounded' },
+    { kw: ['hora','tiempo','reloj','time'], icon: 'material-symbols:schedule-rounded' },
+    { kw: ['clima','weather','meteorolog'], icon: 'material-symbols:wb-sunny-rounded' },
+    { kw: ['noticia','news','periodico'], icon: 'material-symbols:newspaper-rounded' },
+    { kw: ['nube','cloud','drive'], icon: 'material-symbols:cloud-rounded' },
+    { kw: ['documento','doc','pdf','word'], icon: 'material-symbols:description-rounded' },
+    { kw: ['carpeta','folder'], icon: 'material-symbols:folder-rounded' },
+    { kw: ['enlace','link','acceso directo'], icon: 'material-symbols:link-rounded' },
+    { kw: ['seguridad','password','contrasena','lock','acceso'], icon: 'material-symbols:lock-rounded' },
+    { kw: ['llave','key'], icon: 'material-symbols:key-rounded' },
+    { kw: ['inicio','home','portada'], icon: 'material-symbols:home-rounded' },
+    { kw: ['escuela','instituto','school','centro'], icon: 'material-symbols:school-rounded' },
+    { kw: ['ordenador','portatil','computer','pc','laptop'], icon: 'material-symbols:computer-rounded' },
+    { kw: ['telefono','phone','movil'], icon: 'material-symbols:smartphone-rounded' },
+    { kw: ['imprimir','print','impresora'], icon: 'material-symbols:print-rounded' },
+    { kw: ['servicio','service','mantenimiento'], icon: 'material-symbols:build-rounded' },
+    { kw: ['registro','register','listado','lista'], icon: 'material-symbols:list-alt-rounded' },
+    { kw: ['grafico','graph','chart','estadistic'], icon: 'material-symbols:bar-chart-rounded' },
+    { kw: ['tecnologia','tech','digital','app','software'], icon: 'material-symbols:devices-rounded' },
+    { kw: ['programacion','code','codigo','developer'], icon: 'material-symbols:code-rounded' },
+    { kw: ['juego','game','play'], icon: 'material-symbols:sports-esports-rounded' },
+    { kw: ['herramienta','tool','utilidad'], icon: 'material-symbols:construction-rounded' },
+  ];
+
+  // Devuelve el nombre de icono Iconify (p. ej. "material-symbols:mail-rounded")
+  // si la descripcion o el nombre contiene alguna palabra clave, o null si no.
+  function descriptionToIconifyIcon(text) {
+    if (!text) return null;
+    const lower = text.toLowerCase();
+    for (const item of DESCRIPTION_ICONS) {
+      for (const k of item.kw) {
+        if (lower.includes(k)) return item.icon;
+      }
+    }
+    return null;
+  }
+
   function generateAutoIcon(app) {
     const name = (app.name || "").trim();
     const desc = (app.desc || "").trim();
@@ -199,6 +258,35 @@
   const adminsRef = ref(db, `${ROOT}/admins`);
   const groupPassRef = ref(db, `${ROOT}/groupPasswords`);
   const deletedAppsRef = ref(db, `${ROOT}/deletedApps`);
+  // Cache de iconos descubiertos: portal-tecdea/appIcons/{urlKey} = { src, ts }
+  // Asi, una vez que se descubre el icono de una app, todos los usuarios lo
+  // ven al instante sin tener que repetir el proceso de descubrimiento.
+  const appIconsRef = ref(db, `${ROOT}/appIcons`);
+
+  // Mapa en memoria: urlKey -> { src, ts }. Se rellena una sola vez al cargar
+  // el grupo (una unica lectura Firebase) y se consulta de forma sincrona
+  // al pintar las tarjetas, evitando N peticiones por app.
+  let cachedIcons = new Map();
+  const ICON_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 dias
+
+  function getCachedIcon(urlKey) {
+    if (!urlKey) return null;
+    const entry = cachedIcons.get(urlKey);
+    if (!entry || !entry.src) return null;
+    if (entry.ts && Date.now() - entry.ts > ICON_CACHE_TTL_MS) return null;
+    return entry.src;
+  }
+
+  async function saveCachedIcon(urlKey, src) {
+    if (!urlKey || !src) return;
+    try {
+      const entry = { src, ts: Date.now() };
+      cachedIcons.set(urlKey, entry);
+      await withTimeout(set(ref(db, `${ROOT}/appIcons/${urlKey}`), entry), 4000);
+    } catch (e) {
+      console.warn('[TecDeA] No se pudo guardar icono en cache Firebase:', e);
+    }
+  }
 
   function normalizeList(v) {
     if (Array.isArray(v)) return v;
@@ -213,7 +301,8 @@
       get(appsRef),
       get(adminsRef),
       get(groupPassRef),
-      get(deletedAppsRef)
+      get(deletedAppsRef),
+      get(appIconsRef)
     ]);
 
     if (results[0].status === "fulfilled") {
@@ -254,6 +343,21 @@
       }
     }
 
+    if (results[4].status === "fulfilled") {
+      const snap = results[4].value;
+      const obj = snap.exists() ? (snap.val() || {}) : {};
+      const map = new Map();
+      for (const [k, v] of Object.entries(obj)) {
+        if (v && typeof v === 'object' && typeof v.src === 'string' && v.src) {
+          map.set(k, { src: v.src, ts: typeof v.ts === 'number' ? v.ts : 0 });
+        }
+      }
+      cachedIcons = map;
+      console.log(`[TecDeA] Cache de iconos cargada: ${cachedIcons.size} entrada(s)`);
+    } else {
+      cachedIcons = new Map();
+    }
+
     markAppsAsSaved(apps);
     markAppsAsSaved(deletedApps);
     _lastSavedAppsJson = JSON.stringify(apps);
@@ -269,7 +373,7 @@
 
     const errs = results.filter(r => r.status === "rejected");
     if (errs.length > 0) {
-      const routeNames = ["apps", "admins", "groupPasswords", "deletedApps"];
+      const routeNames = ["apps", "admins", "groupPasswords", "deletedApps", "appIcons"];
       results.forEach((r, i) => {
         if (r.status === "rejected") {
           console.error(`[TecDeA] Firebase: no se pudo leer "${routeNames[i]}":`, r.reason);
@@ -478,16 +582,14 @@
       return sources;
     }
 
+    // Recortado: 3 subfolders x 8 ficheros = 24 URLs (antes 6 x 24 = 144).
+    // La cache Firebase evita tener que repetir el barrido en visitas posteriores.
     const fileNames = [
-      'icon-512x512.png', 'icon-512.png', 'icon-384x384.png', 'icon-310x310.png',
-      'icon-256x256.png', 'icon-256.png', 'icon-192x192.png', 'icon-192.png',
-      'icon-180x180.png', 'icon-167x167.png', 'icon-152x152.png', 'icon-150x150.png',
-      'icon-144x144.png', 'apple-touch-icon.png', 'apple-touch-icon-precomposed.png',
-      'apple-touch-icon-180x180.png', 'apple-touch-icon-167x167.png', 'apple-touch-icon-152x152.png',
-      'apple-touch-icon-144x144.png', 'icon.png', 'favicon.png', 'favicon.ico',
+      'icon-192x192.png', 'icon-512x512.png', 'apple-touch-icon.png',
+      'favicon.png', 'favicon.ico', 'icon.png', 'icon-144x144.png', 'icon-256x256.png'
     ];
 
-    const subFolders = ['', 'icons', 'img', 'images', 'assets', 'static'];
+    const subFolders = ['', 'img', 'icons'];
 
     for (const sub of subFolders) {
       const base = sub ? `${appUrl}/${sub}` : appUrl;
@@ -519,22 +621,72 @@
   function appCard(a) {
     const safeName = escHtml(a.name || 'Sin nombre');
     const safeUrl = sanitizeUrl(a.url);
+
+    // Color de fondo HSL coherente (mismo algoritmo que generateAutoIcon)
+    const sourceText = ((a.name || a.desc || "?").trim()) || "?";
+    let hash = 0;
+    for (let i = 0; i < sourceText.length; i++) {
+      hash = ((hash << 5) - hash + sourceText.charCodeAt(i)) | 0;
+    }
+    const hue = Math.abs(hash) % 360;
+    const bgColor = `hsl(${hue}, 65%, 45%)`;
+
+    // Icono Iconify basado en palabras clave de la descripcion o del nombre
+    const iconifyName = descriptionToIconifyIcon(a.desc) || descriptionToIconifyIcon(a.name);
+    const iconifyUrl = iconifyName
+      ? `https://api.iconify.design/${iconifyName}.svg?color=white&width=48&height=48`
+      : null;
+
+    // SVG auto-generado local (emoji/letra). Se marca con data-local-svg para
+    // que iconLoadHandler sepa que NO debe persistirlo en Firebase.
+    const localSvg = generateAutoIcon(a);
+
+    // Cache Firebase: si ya tenemos un icono guardado para esta URL, lo
+    // ponemos primero para que se muestre al instante.
+    const urlKey = normUrlKey(a.url || '');
+    const cachedSrc = getCachedIcon(urlKey);
+
+    // Construccion de la cadena de fuentes (en orden de prioridad):
+    //   1. Icono cacheado en Firebase (si existe y no ha expirado)
+    //   2. Iconos de la propia app (favicon, manifest, Google, DuckDuckGo)
+    //   3. Icono Iconify tematico (si la descripcion/nombre coincide)
+    //   4. SVG auto-generado local (emoji/letra)
     const sources = iconSources(safeUrl);
-    sources.push(generateAutoIcon(a));
+    if (cachedSrc) sources.unshift(cachedSrc);
+    if (iconifyUrl) sources.push(iconifyUrl);
+    sources.push(localSvg);
+
     const first = sources[0] || DEFAULT_ICON_SVG;
     const rest = sources.slice(1);
+
+    // Marca el SVG local para que el handler de load no lo persista
+    const isLocalFirst = (first === localSvg);
+    const localAttr = isLocalFirst ? ' data-local-svg="true"' : '';
+
     const fbAttr = rest.length
       ? ` data-fb="${escHtml(JSON.stringify(rest))}"`
       : "";
     const descAttr = (a.desc && String(a.desc).trim())
       ? ` data-desc="${escHtml(a.desc)}"`
       : "";
+
+    // Si la primera fuente es Iconify, aplica fondo de color via estilo inline
+    const isIconifyFirst = iconifyUrl && (first === iconifyUrl);
+    const styleAttr = isIconifyFirst
+      ? ` style="background:${bgColor};padding:12px;border-radius:12px;"`
+      : '';
+
+    // Metadata para que iconFallback pueda reaplicar el fondo si cae en Iconify
+    const bgAttr = ` data-icon-bg="${bgColor}"`;
+    const urlKeyAttr = urlKey ? ` data-url-key="${escHtml(urlKey)}"` : '';
+
     return `
       <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="app-card"${descAttr}>
         <div class="app-card-icon-wrap">
-          <img src="${first}" alt="" loading="lazy"${fbAttr}
+          <img src="${first}" alt="" loading="lazy"${fbAttr}${localAttr}${bgAttr}${urlKeyAttr}${styleAttr}
                data-app-url="${safeUrl}"
-               onerror="window.tecdea.iconFallback(this)">
+               onerror="window.tecdea.iconFallback(this)"
+               onload="window.tecdea.iconLoadHandler(this)">
         </div>
         <span class="app-card-name">${safeName}</span>
       </a>`;
@@ -556,25 +708,94 @@
 
   function iconFallback(img) {
     const raw = img.getAttribute("data-fb");
+    const bg = img.getAttribute("data-icon-bg") || '';
+
     if (!raw) {
       img.src = DEFAULT_ICON_SVG;
       img.onerror = null;
       img.removeAttribute("onerror");
+      img.removeAttribute("data-local-svg");
+      img.style.background = '';
+      img.style.padding = '';
+      img.style.borderRadius = '';
       return;
     }
     try {
       const list = JSON.parse(raw);
       if (!Array.isArray(list) || list.length === 0) throw new Error("empty");
       const next = list.shift();
-      img.src = next;
-      if (list.length) img.setAttribute("data-fb", JSON.stringify(list));
-      else {
-        img.removeAttribute("data-fb");
+
+      // Gestion del fondo de color: solo se aplica si la siguiente fuente es
+      // un icono Iconify (SVG blanco sobre transparente). En el resto de casos
+      // (favicon propio, Google, DuckDuckGo, SVG local) se quita el fondo.
+      const isNextIconify = next.startsWith('https://api.iconify.design/');
+      const isNextLocalSvg = next.startsWith('data:image/svg+xml,') &&
+        (img.dataset.localSvg === 'true' || /<text[^>]*>[\uD800-\uDBFF\uDC00-\uDFFF]|<text[^>]*>[A-Za-z0-9?]/.test(next));
+
+      // Marca data-local-svg si el siguiente elemento es el SVG local
+      if (next.startsWith('data:image/svg+xml,') && list.length === 0) {
+        // Probablemente es el SVG local (ultimo en la cadena)
+        img.setAttribute('data-local-svg', 'true');
+      } else {
+        img.removeAttribute('data-local-svg');
       }
+
+      img.src = next;
+      if (isNextIconify && bg) {
+        img.style.background = bg;
+        img.style.padding = '12px';
+        img.style.borderRadius = '12px';
+      } else {
+        img.style.background = '';
+        img.style.padding = '';
+        img.style.borderRadius = '';
+      }
+
+      if (list.length) img.setAttribute("data-fb", JSON.stringify(list));
+      else img.removeAttribute("data-fb");
     } catch {
       img.src = DEFAULT_ICON_SVG;
       img.onerror = null;
       img.removeAttribute("onerror");
+      img.removeAttribute("data-local-svg");
+      img.style.background = '';
+      img.style.padding = '';
+      img.style.borderRadius = '';
+    }
+  }
+
+  // Handler de load: persiste en Firebase la primera URL "buena" que cargue.
+  // Se descartan:
+  //   - SVG auto-generados locales (data:image/svg+xml con data-local-svg="true")
+  //   - URLs vacias o "#"
+  //   - Imagenes con naturalWidth === 0 (carga tecnica sin pixel real)
+  // Se persisten:
+  //   - Favicons de la propia app (http/https)
+  //   - Iconos de Google s2/favicons y DuckDuckGo
+  //   - Iconos Iconify (URL https://api.iconify.design/...)
+  //   - Iconos cacheados en Firebase (no se re-persisten, ya estan)
+  function iconLoadHandler(img) {
+    try {
+      if (!img || img.naturalWidth === 0) return;
+      const src = String(img.src || '');
+      if (!src) return;
+
+      const urlKey = img.getAttribute('data-url-key');
+      if (!urlKey) return;
+
+      // Si es el SVG local, no persistir
+      if (img.dataset.localSvg === 'true') return;
+      if (src.startsWith('data:image/svg+xml')) return;
+      if (!src.startsWith('http://') && !src.startsWith('https://')) return;
+
+      // Si ya esta cacheado y es la misma URL, no hacer nada
+      const cached = cachedIcons.get(urlKey);
+      if (cached && cached.src === src) return;
+
+      // Persistir en Firebase (silencioso, sin bloquear UI)
+      saveCachedIcon(urlKey, src);
+    } catch (e) {
+      console.warn('[TecDeA] iconLoadHandler: no se pudo persistir icono:', e);
     }
   }
 
@@ -3433,7 +3654,7 @@
     addAdminRow, saveAdminsConfig,
     showChangePassModal, closeChangePassModal, doChangePassword,
     saveGroupPasswordsConfig,
-    hideDescModal, wireAppCardDesc, wireTooltip, iconFallback,
+    hideDescModal, wireAppCardDesc, wireTooltip, iconFallback, iconLoadHandler,
     sortApps,
     exportData,
     toggleAccordion,
