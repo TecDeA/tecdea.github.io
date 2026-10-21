@@ -346,10 +346,14 @@
     if (results[4].status === "fulfilled") {
       const snap = results[4].value;
       const obj = snap.exists() ? (snap.val() || {}) : {};
+      // Aplanar recursivamente: los datos antiguos tienen '/' en las claves
+      // (que Firebase convirtio en nodos anidados) y los nuevos usan '_'.
+      // flattenAppIcons reconstruye el mapa plano en ambos casos.
+      const flat = flattenAppIcons(obj);
       const map = new Map();
-      for (const [k, v] of Object.entries(obj)) {
-        if (v && typeof v === 'object' && typeof v.src === 'string' && v.src) {
-          map.set(k, { src: v.src, ts: typeof v.ts === 'number' ? v.ts : 0 });
+      for (const k in flat) {
+        if (Object.prototype.hasOwnProperty.call(flat, k)) {
+          map.set(k, flat[k]);
         }
       }
       cachedIcons = map;
@@ -798,8 +802,12 @@
       const src = String(img.src || '');
       if (!src) return;
 
-      const urlKey = img.getAttribute('data-url-key');
-      if (!urlKey) return;
+      const rawUrlKey = img.getAttribute('data-url-key');
+      if (!rawUrlKey) return;
+      // Sanitizar por si acaso: appCard() ya usa normUrlKey (que reemplaza
+      // '/' por '_'), pero por si alguna via alternativa deja el data-url-key
+      // con '/', lo sanitizamos aqui tambien. Firebase no admite '/' en claves.
+      const urlKey = rawUrlKey.replace(/\//g, '_');
 
       // Si es el SVG local, no persistir
       if (img.dataset.localSvg === 'true') return;
@@ -3051,7 +3059,36 @@
     return String(u).trim().toLowerCase()
       .replace(/^https?:\/\//, '')
       .replace(/^www\./, '')
-      .replace(/\/+$/, '');
+      .replace(/\/+$/, '')
+      .replace(/\//g, '_');  // Firebase no admite '/' en claves: la trata como separador de ruta
+  }
+
+  // Aplana recursivamente el arbol de appIcons de Firebase.
+  // Firebase almacena claves con '/' como nodos anidados. Esta funcion
+  // reconstruye el mapa plano { claveCompleta: { src, ts } } uniendo los
+  // segmentos con '_' (que es lo que produce normUrlKey).
+  // Así se leen tanto datos antiguos (anidados por el bug de '/') como
+  // datos nuevos (planos, con '_' como separador).
+  function flattenAppIcons(obj, prefix) {
+    prefix = prefix || '';
+    const out = {};
+    if (!obj || typeof obj !== 'object') return out;
+    for (const k in obj) {
+      if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
+      const v = obj[k];
+      const fullKey = prefix ? prefix + '_' + k : k;
+      if (v && typeof v === 'object' && typeof v.src === 'string' && v.src) {
+        // Es una entrada hoja: { src, ts }
+        out[fullKey] = {
+          src: v.src,
+          ts: typeof v.ts === 'number' ? v.ts : 0
+        };
+      } else if (v && typeof v === 'object') {
+        // Es un nodo intermedio (claves antiguas con '/'): recursar
+        Object.assign(out, flattenAppIcons(v, fullKey));
+      }
+    }
+    return out;
   }
 
   function parseImportBool(v) {
