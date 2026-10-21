@@ -660,15 +660,19 @@
     //   3. Icono Iconify tematico (si la descripcion/nombre coincide)
     //   4. SVG auto-generado local (emoji/letra)
     const sources = iconSources(safeUrl);
-    if (cachedSrc) sources.unshift(wasRefreshed ? addCacheBuster(cachedSrc) : cachedSrc);
+    if (cachedSrc) sources.unshift(cachedSrc);
+    if (iconifyUrl) sources.push(iconifyUrl);
+    sources.push(localSvg);
+
+    // Si la app acaba de ser refrescada (boton 🔄), aplica cache-buster a
+    // todas las URLs http(s) de la cadena. Se hace DESPUES de construir la
+    // cadena completa para evitar aplicar dos veces addCacheBuster a la
+    // URL cacheada (que se anade con unshift).
     if (wasRefreshed) {
-      // Reemplaza cada URL http(s) por su version con cache-buster
       for (let i = 0; i < sources.length; i++) {
         sources[i] = addCacheBuster(sources[i]);
       }
     }
-    if (iconifyUrl) sources.push(wasRefreshed ? addCacheBuster(iconifyUrl) : iconifyUrl);
-    sources.push(localSvg);
 
     const first = sources[0] || DEFAULT_ICON_SVG;
     const rest = sources.slice(1);
