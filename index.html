@@ -646,14 +646,28 @@
     const urlKey = normUrlKey(a.url || '');
     const cachedSrc = getCachedIcon(urlKey);
 
+    // Si la app acaba de ser refrescada (boton 🔄), aplicamos cache-buster
+    // a todas las URLs http(s) para forzar al navegador a hacer una peticion
+    // HTTP fresca en lugar de servir la version vieja de su cache HTTP.
+    // Esto incluye la URL cacheada en Firebase (si la hubiera) y todas las
+    // URLs candidatas generadas por iconSources(). El set _refreshedApps
+    // se limpia automaticamente tras 60 segundos.
+    const wasRefreshed = _refreshedApps.has(urlKey);
+
     // Construccion de la cadena de fuentes (en orden de prioridad):
     //   1. Icono cacheado en Firebase (si existe y no ha expirado)
     //   2. Iconos de la propia app (favicon, manifest, Google, DuckDuckGo)
     //   3. Icono Iconify tematico (si la descripcion/nombre coincide)
     //   4. SVG auto-generado local (emoji/letra)
     const sources = iconSources(safeUrl);
-    if (cachedSrc) sources.unshift(cachedSrc);
-    if (iconifyUrl) sources.push(iconifyUrl);
+    if (cachedSrc) sources.unshift(wasRefreshed ? addCacheBuster(cachedSrc) : cachedSrc);
+    if (wasRefreshed) {
+      // Reemplaza cada URL http(s) por su version con cache-buster
+      for (let i = 0; i < sources.length; i++) {
+        sources[i] = addCacheBuster(sources[i]);
+      }
+    }
+    if (iconifyUrl) sources.push(wasRefreshed ? addCacheBuster(iconifyUrl) : iconifyUrl);
     sources.push(localSvg);
 
     const first = sources[0] || DEFAULT_ICON_SVG;
@@ -788,24 +802,47 @@
       if (src.startsWith('data:image/svg+xml')) return;
       if (!src.startsWith('http://') && !src.startsWith('https://')) return;
 
-      // Si ya esta cacheado y es la misma URL, no hacer nada
+      // Si ya esta cacheado y es la misma URL (limpia), no hacer nada
+      // Limpia el cache-buster `?_t=...` antes de comparar y guardar, para
+      // no acumular timestamps en Firebase. Asi la URL cacheada es la
+      // "canonica" (sin cache-buster) y las proximas visitas la usan tal
+      // cual; el navegador ya la tendra fresca en su cache HTTP si la
+      // peticion forzada (con cache-buster) acabo de pasar.
+      const cleanSrc = src.replace(/([?&]_t=\d+)/, '').replace(/[?&]$/, '');
       const cached = cachedIcons.get(urlKey);
-      if (cached && cached.src === src) return;
+      if (cached && cached.src === cleanSrc) return;
 
       // Persistir en Firebase (silencioso, sin bloquear UI)
-      saveCachedIcon(urlKey, src);
+      saveCachedIcon(urlKey, cleanSrc);
     } catch (e) {
       console.warn('[TecDeA] iconLoadHandler: no se pudo persistir icono:', e);
     }
   }
 
+  // Anade un cache-buster `?_t=${Date.now()}` (o `&_t=...` si ya hay query)
+  // a una URL http(s). Se usa al refrescar iconos para forzar al navegador
+  // a hacer una nueva peticion HTTP en lugar de servir la imagen cacheada.
+  // Las URLs relativas y data: URIs se devuelven sin modificar.
+  function addCacheBuster(url) {
+    if (!url || typeof url !== 'string') return url;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) return url;
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}_t=${Date.now()}`;
+  }
+
   const ICON_FETCH_TIMEOUT = 5000;
 
+  // fetchWithTimeout(url, options, timeout)
+  //   options.bustCache = true  ->  anade `cache: 'no-store'` a fetch para
+  //   forzar al navegador a hacer una peticion fresca (ignora cache HTTP).
+  //   El flag se elimina antes de pasarlo a fetch (no es una opcion nativa).
   async function fetchWithTimeout(url, options = {}, timeout = ICON_FETCH_TIMEOUT) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const { bustCache, ...fetchOpts } = options;
+    if (bustCache) fetchOpts.cache = 'no-store';
     try {
-      const response = await fetch(url, { ...options, signal: controller.signal });
+      const response = await fetch(url, { ...fetchOpts, signal: controller.signal });
       clearTimeout(timeoutId);
       return response;
     } catch (error) {
@@ -817,7 +854,18 @@
     }
   }
 
-  async function tryManifestIcons(baseUrl) {
+  // Set temporal de urlKey recien refrescados. appCard() consulta este set
+  // para anadir cache-buster a la URL cacheada en Firebase y a todas las
+  // URLs candidatas, forzando que el navegador haga una nueva peticion HTTP.
+  // Se limpia automaticamente tras 60 segundos.
+  const _refreshedApps = new Set();
+  function markAppRefreshed(urlKey) {
+    if (!urlKey) return;
+    _refreshedApps.add(urlKey);
+    setTimeout(() => _refreshedApps.delete(urlKey), 60000);
+  }
+
+  async function tryManifestIcons(baseUrl, bustCache = false) {
     let appUrl, origin;
     try {
       const u = new URL(baseUrl);
@@ -837,7 +885,7 @@
     const discovered = [];
     for (const mUrl of manifestCandidates) {
       try {
-        const resp = await fetchWithTimeout(mUrl, { mode: 'cors', redirect: 'follow' });
+        const resp = await fetchWithTimeout(mUrl, { mode: 'cors', redirect: 'follow', bustCache });
         if (!resp.ok) continue;
         const contentType = resp.headers.get('content-type') || '';
         if (!contentType.includes('json') && !contentType.includes('text/plain')) {
@@ -887,9 +935,9 @@
     return discovered;
   }
 
-  async function tryHtmlIcons(baseUrl) {
+  async function tryHtmlIcons(baseUrl, bustCache = false) {
     try {
-      const resp = await fetchWithTimeout(baseUrl, { mode: 'cors', redirect: 'follow' });
+      const resp = await fetchWithTimeout(baseUrl, { mode: 'cors', redirect: 'follow', bustCache });
       if (!resp.ok) return [];
       const contentType = resp.headers.get('content-type') || '';
       if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
@@ -928,18 +976,26 @@
     }
   }
 
-  async function discoverIcons(img, appUrl) {
-    if (img.complete && img.naturalWidth > 0) return;
+  // discoverIcons(img, appUrl, opts = {})
+  //   opts.bustCache = true  ->  fetch con `cache: 'no-store'` para forzar
+  //     al navegador a hacer una peticion fresca a manifest/HTML de la app.
+  //     util tras pulsar 🔄 para no leer la version cacheada del manifest.
+  //   opts.force = true  ->  no short-circuita aunque el <img> ya este
+  //     cargado con un icono previo. Necesario para forzar redescubrimiento.
+  async function discoverIcons(img, appUrl, opts = {}) {
+    const bustCache = !!opts.bustCache;
+    const force = !!opts.force;
+    if (!force && img.complete && img.naturalWidth > 0) return;
     if (img.dataset.iconProcessing === 'true') return;
     img.dataset.iconProcessing = 'true';
 
     try {
-      let discovered = await tryManifestIcons(appUrl);
-      const htmlIcons = await tryHtmlIcons(appUrl);
+      let discovered = await tryManifestIcons(appUrl, bustCache);
+      const htmlIcons = await tryHtmlIcons(appUrl, bustCache);
       discovered = [...discovered, ...htmlIcons];
 
       if (discovered.length === 0) return;
-      if (img.complete && img.naturalWidth > 0) {
+      if (!force && img.complete && img.naturalWidth > 0) {
         if (!String(img.src).startsWith(DEFAULT_ICON_SVG.slice(0, 50))) return;
       }
 
@@ -1732,6 +1788,26 @@
   //    DOM en este momento). En Configuracion no hay tarjetas visibles, asi
   //    que solo limpia cache + feedback; el redescubrimiento ocurrira la
   //    proxima vez que se abra el perfil correspondiente.
+  // Refrescar icono de una app concreta (boton 🔄 de la fila):
+  //
+  //  1. Borra la cache Firebase (portal-tecdea/appIcons/{key}) y la entrada
+  //     en memoria (cachedIcons).
+  //  2. Marca el urlKey como "recien refrescado" en _refreshedApps: durante
+  //     los proximos 60 segundos, appCard() anadira `?_t=...` (cache-buster)
+  //     a la URL cacheada y a las URLs candidatas, para forzar al navegador
+  //     a hacer una nueva peticion HTTP en lugar de servir la version vieja
+  //     de su cache HTTP.
+  //  3. Lanza un descubrimiento forzado con `cache: 'no-store'` en background
+  //     para que manifest y HTML de la app se re-descarguen frescos (por si
+  //     han cambiado los iconos declarados ahi).
+  //  4. Si la tarjeta esta visible en la vista de grupo, re-renderiza su
+  //     <img> con cache-buster aplicado.
+  //
+  //  Importante: la cache HTTP del navegador es independiente de la cache
+  //  Firebase. Aunque borremos Firebase, si el navegador tiene el favicon
+  //  viejo en su cache HTTP, lo sigue mostrando. Por eso necesitamos el
+  //  cache-buster: cambia la URL (anade `?_t=...`) y obliga al navegador
+  //  a hacer una nueva peticion.
   window._refreshAppIcon = function(i) {
     collectTableData();
     const a = apps[i];
@@ -1761,22 +1837,27 @@
         console.warn('[TecDeA] No se pudo borrar icono de Firebase:', err);
       });
 
-    // 3) Si la tarjeta esta visible en la vista de grupo (poco probable
-    //    estando en Configuracion, pero por si acaso), forzar redescubrimiento
-    //    limpiando el <img> y dejando que discoverIcons() trabaje.
+    // 3) Marcar como refrescado: las proximas renderizaciones de la tarjeta
+    //    anadiran cache-buster a las URLs para evitar cache HTTP del navegador
+    markAppRefreshed(urlKey);
+
+    // 4) Si la tarjeta esta visible en la vista de grupo, forzar
+    //    redescubrimiento aplicando cache-buster al <img> actual
     const visibleCard = document.querySelector(
       `#appGrid .app-card img[data-app-url="${url}"]`
     );
     if (visibleCard) {
+      // Limpia estado visual previo
       visibleCard.removeAttribute('data-local-svg');
       visibleCard.style.background = '';
       visibleCard.style.padding = '';
       visibleCard.style.borderRadius = '';
-      // Reconstruye la cadena de fuentes sin la cache
-      const sources = iconSources(url);
+
+      // Reconstruye la cadena de fuentes con cache-buster en cada URL
+      const sources = iconSources(url).map(addCacheBuster);
       const iconifyName = descriptionToIconifyIcon(a.desc) || descriptionToIconifyIcon(a.name);
       if (iconifyName) {
-        sources.push(`https://api.iconify.design/${iconifyName}.svg?color=white&width=48&height=48`);
+        sources.push(addCacheBuster(`https://api.iconify.design/${iconifyName}.svg?color=white&width=48&height=48`));
       }
       sources.push(generateAutoIcon(a));
       const first = sources[0] || DEFAULT_ICON_SVG;
@@ -1787,17 +1868,55 @@
       } else {
         visibleCard.removeAttribute('data-fb');
       }
-      // Re-dispara el descubrimiento de manifest/HTML icons
-      discoverIcons(visibleCard, url).catch(err =>
+      // Re-descubrimiento forzado con cache: 'no-store' para manifest y HTML
+      discoverIcons(visibleCard, url, { bustCache: true, force: true }).catch(err =>
         console.warn('[TecDeA] rediscover error:', err)
+      );
+    } else {
+      // Si la tarjeta no esta visible (estamos en Configuracion), lanzar
+      // igualmente el descubrimiento en background con un <img> temporal.
+      // Esto refresca la cache HTTP del navegador para manifest/HTML y,
+      // si se encuentra un icono, lo guarda en Firebase para la proxima
+      // visita al perfil.
+      const tmpImg = document.createElement('img');
+      tmpImg.style.display = 'none';
+      tmpImg.setAttribute('data-app-url', url);
+      tmpImg.setAttribute('data-url-key', urlKey);
+      tmpImg.onload = function() { iconLoadHandler(tmpImg); };
+      tmpImg.onerror = function() { /* silencioso: simplemente no se encontro */ };
+      // Anade el tmpImg al DOM (necesario para que onload/onerror disparen
+      // de forma fiable en algunos navegadores)
+      document.body.appendChild(tmpImg);
+      // Configura la cadena de fuentes
+      const sources = iconSources(url).map(addCacheBuster);
+      const iconifyName = descriptionToIconifyIcon(a.desc) || descriptionToIconifyIcon(a.name);
+      if (iconifyName) {
+        sources.push(addCacheBuster(`https://api.iconify.design/${iconifyName}.svg?color=white&width=48&height=48`));
+      }
+      sources.push(generateAutoIcon(a));
+      const first = sources[0] || DEFAULT_ICON_SVG;
+      const rest = sources.slice(1);
+      tmpImg.src = first;
+      if (rest.length) {
+        tmpImg.setAttribute('data-fb', JSON.stringify(rest));
+        tmpImg.setAttribute('onerror', 'window.tecdea.iconFallback(this)');
+      }
+      // Limpia el <img> temporal tras 30s (se haya cargado o no)
+      setTimeout(() => {
+        try { document.body.removeChild(tmpImg); } catch (e) {}
+      }, 30000);
+
+      // Descubrimiento forzado en background
+      discoverIcons(tmpImg, url, { bustCache: true, force: true }).catch(err =>
+        console.warn('[TecDeA] rediscover (background) error:', err)
       );
     }
 
-    // 4) Feedback al usuario
+    // 5) Feedback al usuario
     if (wasCached) {
-      showToast(`🔄 Icono de «${a.name || 'app'}» borrado de la cache. Se redescubrira la proxima visita.`, 'ok', 4000);
+      showToast(`🔄 Icono de «${a.name || 'app'}» borrado de la cache. Refrescando...`, 'ok', 3500);
     } else {
-      showToast(`🔄 Esta app no tenia icono cacheado. Se forzara el redescubrimiento la proxima visita.`, 'ok', 4000);
+      showToast(`🔄 Forzando redescubrimiento del icono de «${a.name || 'app'}»...`, 'ok', 3500);
     }
   };
 
