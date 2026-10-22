@@ -1641,7 +1641,6 @@
         </td>
         <td data-label="" class="chk"><span class="row-actions">
           <button class="btn-launch" onclick="window._launchApp(${i})" title="Lanzar aplicación (abrir en una pestaña nueva)">🚀</button>
-          <button class="btn-refresh-icon" onclick="window._refreshAppIcon(${i})" title="Refrescar icono: borra el icono cacheado y vuelve a descubrirlo">🔄</button>
           <button class="btn-edit" onclick="window._editApp(${i})" title="Editar">✏️</button>
           <button class="btn-del" onclick="window._delApp(${i})" title="Eliminar">✕</button>
         </span></td>
@@ -5443,22 +5442,6 @@
   .btn-launch:hover { transform: scale(1.3); background: rgba(39,143,73,.14); }
   .btn-launch:active { transform: scale(1.1); }
 
-  .btn-refresh-icon {
-    background: none; border: none; cursor: pointer;
-    color: #6b7280; /* gris neutro por defecto */
-    font-size: 1rem;
-    transition: transform .15s, background .15s, color .15s;
-    min-width: 40px; min-height: 40px;
-    display: inline-flex; align-items: center; justify-content: center;
-    border-radius: 8px;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .btn-refresh-icon:hover {
-    transform: scale(1.3);
-    background: rgba(220,134,32,.18);
-    color: var(--gold);
-  }
-  .btn-refresh-icon:active { transform: scale(1.1); }
 
   .row-actions { display: inline-flex; align-items: center; gap: 2px; }
 
