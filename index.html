@@ -1119,6 +1119,13 @@
   let _iconPickerTarget = 'edit';
 
   function openIconPicker(modal) {
+    // Validar que el modal destino exista y tenga el input hidden
+    const hiddenInput = document.getElementById(modal + 'AppIconOverride');
+    if (!hiddenInput) {
+      console.warn('[TecDeA] openIconPicker: modal destino invalido:', modal);
+      showToast('Error: no se pudo abrir el selector de iconos.', 'err', 3000);
+      return;
+    }
     _iconPickerTarget = modal;
     const search = document.getElementById('iconPickerSearch');
     if (search) search.value = '';
@@ -1835,6 +1842,12 @@
     document.getElementById("addAppActiva").checked = true;
     document.querySelectorAll('.addAppCat').forEach(c => c.checked = false);
     document.getElementById("addAppCajonWrap").classList.add("hidden");
+    // Reset iconOverride (icono personalizado)
+    document.getElementById("addAppUseIconOverride").checked = false;
+    document.getElementById("addAppIconOverride").value = '';
+    document.getElementById("addAppIconOverridePreview").classList.add("hidden");
+    document.getElementById("addAppIconOverrideImg").innerHTML = '';
+    document.getElementById("addAppIconOverrideName").textContent = 'Ninguno';
     document.getElementById("addAppNameWarn").classList.add("hidden");
     const nameInp = document.getElementById("addAppName");
     nameInp.style.borderColor = "";
@@ -1846,6 +1859,12 @@
 
   function closeAddAppModal() {
     document.getElementById("addAppModal").classList.add("hidden");
+    // Reset iconOverride (evita residuos al reabrir)
+    document.getElementById("addAppUseIconOverride").checked = false;
+    document.getElementById("addAppIconOverride").value = '';
+    document.getElementById("addAppIconOverridePreview").classList.add("hidden");
+    document.getElementById("addAppIconOverrideImg").innerHTML = '';
+    document.getElementById("addAppIconOverrideName").textContent = 'Ninguno';
   }
 
   function addAppCajonChanged(chk) {
@@ -1969,6 +1988,11 @@
   //    pestaña nueva. Se usa window.open('') + location para poder avisar
   //    si el navegador bloquea las ventanas emergentes.
   window._launchApp = function(i) {
+    // Validar indice
+    if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i >= apps.length) {
+      console.warn('[TecDeA] _launchApp: indice invalido:', i);
+      return;
+    }
     collectTableData();
     const a = apps[i];
     if (!a) return;
@@ -2072,6 +2096,11 @@
   //  cache-buster: cambia la URL (anade `?_t=...`) y obliga al navegador
   //  a hacer una nueva peticion.
   window._refreshAppIcon = function(i) {
+    // Validar indice
+    if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i >= apps.length) {
+      console.warn('[TecDeA] _refreshAppIcon: indice invalido:', i);
+      return;
+    }
     collectTableData();
     const a = apps[i];
     if (!a) return;
@@ -2206,6 +2235,11 @@
   };
 
   window._editApp = function(i) {
+    // Validar indice
+    if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i >= apps.length) {
+      console.warn('[TecDeA] _editApp: indice invalido:', i);
+      return;
+    }
     collectTableData();
     const a = apps[i];
     if (!a) return;
@@ -2251,6 +2285,12 @@
   function closeEditAppModal() {
     document.getElementById("editAppModal").classList.add("hidden");
     _editAppIndex = -1;
+    // Reset iconOverride (evita residuos al reabrir)
+    document.getElementById("editAppUseIconOverride").checked = false;
+    document.getElementById("editAppIconOverride").value = '';
+    document.getElementById("editAppIconOverridePreview").classList.add("hidden");
+    document.getElementById("editAppIconOverrideImg").innerHTML = '';
+    document.getElementById("editAppIconOverrideName").textContent = 'Ninguno';
   }
 
   function editAppCajonChanged(chk) {
@@ -2333,6 +2373,11 @@
   }
 
   window._delApp = function(i) {
+    // Validar que i sea un indice valido (numero entero en rango)
+    if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i >= apps.length) {
+      console.warn('[TecDeA] _delApp: indice invalido:', i);
+      return;
+    }
     const a = apps[i];
     const label = a && a.name && a.name.trim() ? `«${a.name.trim()}»`
                 : (a && a.url ? `«${a.url}»` : 'la fila vacía');
@@ -2502,6 +2547,12 @@
   };
 
   window._changeAdminPass = function(i) {
+    // Validar indice
+    if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i >= admins.length) {
+      console.warn('[TecDeA] _changeAdminPass: indice invalido:', i);
+      showToast('No se pudo cambiar la contraseña: administrador no valido.', 'err', 4000);
+      return;
+    }
     showChangePassModal(i);
   };
 
