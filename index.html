@@ -4039,17 +4039,28 @@
     const item = headerBtn.parentElement;
     const content = item.querySelector('.accordion-content');
     const isOpen = content.classList.contains('open');
-    document.querySelectorAll('.accordion-item').forEach(acc => {
-      const c = acc.querySelector('.accordion-content');
-      if (c.classList.contains('open')) {
-        c.style.maxHeight = c.scrollHeight + 'px';
-        void c.offsetHeight;
-      }
-      acc.querySelector('.accordion-header').classList.remove('active');
-      acc.querySelector('.accordion-header').setAttribute('aria-expanded', 'false');
-      c.classList.remove('open');
-      c.style.maxHeight = '';
-    });
+    // Solo cerrar acordeones HERMANOS (mismo padre), no todos los de la pagina.
+    // Esto permite acordeones anidados (p. ej. 'Léeme' dentro de 'Aplicaciones')
+    // sin que al pulsar el hijo se cierre el padre.
+    const parent = item.parentElement;
+    if (parent) {
+      parent.querySelectorAll(':scope > .accordion-item').forEach(acc => {
+        const c = acc.querySelector('.accordion-content');
+        if (c && c.classList.contains('open')) {
+          c.style.maxHeight = c.scrollHeight + 'px';
+          void c.offsetHeight;
+        }
+        const h = acc.querySelector('.accordion-header');
+        if (h) {
+          h.classList.remove('active');
+          h.setAttribute('aria-expanded', 'false');
+        }
+        if (c) {
+          c.classList.remove('open');
+          c.style.maxHeight = '';
+        }
+      });
+    }
     if (!isOpen) {
       headerBtn.classList.add('active');
       headerBtn.setAttribute('aria-expanded', 'true');
