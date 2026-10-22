@@ -696,6 +696,11 @@
       ? `https://api.iconify.design/${iconifyName}.svg?color=white&width=48&height=48`
       : null;
 
+    // Log de depuracion: ver que icono Iconify se ha seleccionado para esta app
+    if (iconifyName) {
+      console.log(`[TecDeA] Icono Iconify para «${a.name || '(sin nombre)'}»: ${iconifyName}`);
+    }
+
     // SVG auto-generado local (emoji/letra). Se marca con data-local-svg para
     // que iconLoadHandler sepa que NO debe persistirlo en Firebase.
     const localSvg = generateAutoIcon(a);
@@ -714,9 +719,9 @@
     const wasRefreshed = _refreshedApps.has(urlKey);
 
     // Construccion de la cadena de fuentes (en orden de prioridad):
-    //   - Si la descripcion coincide con palabra clave:
-    //       1. Icono cacheado en Firebase (si existe y no ha expirado)
-    //       2. Icono Iconify tematico (PRIORIDAD ALTA)
+    //   - Si la descripcion coincide con palabra clave (iconifyUrl != null):
+    //       1. Icono Iconify tematico (PRIORIDAD MAXIMA - siempre primero)
+    //       2. Icono cacheado en Firebase (si existe y no ha expirado)
     //       3. Iconos de la propia app (favicon, manifest, Google, DuckDuckGo)
     //       4. SVG auto-generado local (emoji/letra)
     //   - Si NO coincide:
@@ -726,11 +731,20 @@
     //
     // Razon: el usuario pidio explicitamente que el portal busque iconos
     // relacionados con la funcionalidad. Si la descripcion dice "robotics",
-    // mostramos el icono de robot de Iconify ANTES que el favicon propio.
-    // El favicon propio pasa a ser fallback.
+    // mostramos el icono de robot de Iconify ANTES QUE NADA - incluso
+    // antes que la cache Firebase. Asi, aunque la cache tenga la URL del
+    // favicon de Google (que es la que el usuario ve "una y otra vez"),
+    // Iconify se prueba primero. Si Iconify carga OK, el navegador muestra
+    // el icono tematico. Si Iconify falla, se cae al cache o al favicon
+    // propio.
+    //
+    // Esto tambien arregla el problema de que, tras pulsar 🔄, la cache se
+    // re-llenaba con el favicon de Google (porque Iconify iba despues). Ahora
+    // Iconify va primero en candidateUrls, asi que si carga OK, se persiste
+    // su URL en Firebase (sobrescribiendo la entrada anterior).
     const sources = [];
+    if (iconifyUrl) sources.push(iconifyUrl);  // ICONIFY PRIMERO con match
     if (cachedSrc) sources.push(cachedSrc);
-    if (iconifyUrl) sources.push(iconifyUrl);
     sources.push(...iconSources(safeUrl));
     sources.push(localSvg);
 
