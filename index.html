@@ -755,6 +755,63 @@
     return sources;
   }
 
+  // Devuelve SOLO las URLs de iconos del propio dominio de la app:
+  // favicon.ico, icon-192.png, apple-touch-icon, manifest icons, etc.
+  // NO incluye Google favicon ni DuckDuckGo (esos son servicios externos).
+  // Se usa para distinguir "favicon propio" de "favicon de Google" en el
+  // barrido de refresco: si la app tiene su propio favicon, persistirlo;
+  // si no, persistir Iconify (mejor que Google favicon generico).
+  function iconSourcesOwn(url) {
+    const sources = [];
+    let appUrl, origin;
+    if (!url || typeof url !== 'string' || url === '#') return sources;
+    try {
+      const u = new URL(url);
+      if (!['http:', 'https:'].includes(u.protocol)) return sources;
+      origin = u.origin;
+      appUrl = url.replace(/\/+$/, '');
+    } catch { return sources; }
+
+    const fileNames = [
+      'icon-192x192.png', 'icon-512x512.png', 'apple-touch-icon.png',
+      'favicon.png', 'favicon.ico', 'icon.png', 'icon-144x144.png', 'icon-256x256.png'
+    ];
+    const subFolders = ['', 'img', 'icons'];
+    for (const sub of subFolders) {
+      const base = sub ? `${appUrl}/${sub}` : appUrl;
+      for (const f of fileNames) {
+        sources.push(`${base}/${f}`);
+      }
+    }
+    if (origin && origin !== "null") {
+      sources.push(`${origin}/apple-touch-icon.png`);
+      sources.push(`${origin}/icon-512x512.png`);
+      sources.push(`${origin}/icon-192x192.png`);
+      sources.push(`${origin}/favicon.png`);
+      sources.push(`${origin}/favicon.ico`);
+    }
+    return sources;
+  }
+
+  // Devuelve SOLO las URLs de servicios externos (Google s2/favicons y
+  // DuckDuckGo). Se usan como ULTIMO recurso cuando ni el favicon propio
+  // ni Iconify cargan OK.
+  function iconSourcesExternal(url) {
+    const sources = [];
+    if (!url || typeof url !== 'string' || url === '#') return sources;
+    let hostname;
+    try {
+      const u = new URL(url);
+      if (!['http:', 'https:'].includes(u.protocol)) return sources;
+      hostname = u.hostname;
+    } catch { return sources; }
+    if (hostname) {
+      sources.push(`https://www.google.com/s2/favicons?sz=128&domain=${hostname}`);
+      sources.push(`https://icons.duckduckgo.com/ip3/${hostname}.ico`);
+    }
+    return sources;
+  }
+
   const DEFAULT_ICON_SVG = "data:image/svg+xml," + encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><text y="18" font-size="20">🔗</text></svg>'
   );
@@ -806,20 +863,21 @@
 
     // Construccion de la cadena de fuentes (en orden de prioridad):
     //   1. Icono cacheado en Firebase (si existe y no ha expirado)
-    //   2. Iconos de la propia app (favicon, manifest, Google, DuckDuckGo)
+    //   2. Favicon PROPIO de la app (favicon.ico, icon-192.png, manifest...)
     //   3. Icono Iconify tematico (FALLBACK si el favicon propio falla)
-    //   4. SVG auto-generado local (emoji/letra)
+    //   4. Servicios externos (Google s2/favicons, DuckDuckGo) - ULTIMO
+    //      recurso antes del SVG local, porque sirven un favicon generico
+    //   5. SVG auto-generado local (emoji/letra)
     //
-    // Razon: respetamos el favicon propio de la app (es lo que el usuario
-    // quiere: si la app tiene su propio icono, mostrarlo). Iconify entra
-    // SOLO como fallback cuando el favicon propio falla (p. ej. Robotics
-    // Bench en Vercel, que no tiene favicon accesible). Si el usuario
-    // pulsa 🔄, la cache Firebase se borra y _refreshAppIcon prioriza
-    // Iconify en el barrido de refresco.
+    // Razon: el usuario quiere Iconify cuando la app NO tiene favicon propio.
+    // Si ponemos Google favicon ANTES de Iconify, Google siempre carga OK
+    // (sirve un favicon aunque sea generico) y nunca llegamos a Iconify.
+    // Por eso Iconify va ANTES que Google favicon.
     const sources = [];
     if (cachedSrc) sources.push(cachedSrc);
-    sources.push(...iconSources(safeUrl));
-    if (iconifyUrl) sources.push(iconifyUrl);
+    sources.push(...iconSourcesOwn(safeUrl));     // Favicon PROPIO de la app
+    if (iconifyUrl) sources.push(iconifyUrl);     // Iconify (data URI)
+    sources.push(...iconSourcesExternal(safeUrl)); // Google/DuckDuckGo (ultimo)
     sources.push(localSvg);
 
     // Si la app acaba de ser refrescada (boton 🔄), aplica cache-buster a
@@ -2080,15 +2138,16 @@
       visibleCard.style.borderRadius = '';
 
       // Reconstruye la cadena de fuentes con cache-buster en cada URL.
-      // ORDEN CONSERVADOR: favicon propio PRIMERO, Iconify como FALLBACK.
+      // ORDEN: favicon PROPIO → Iconify (data URI) → Google/DuckDuckGo (externos)
       const sources = [
-        ...iconSources(url).map(addCacheBuster),  // Favicon propio PRIMERO
+        ...iconSourcesOwn(url).map(addCacheBuster),  // Favicon PROPIO de la app
       ];
       const iconifyUrlLocal = descriptionToIconifyIcon(a.desc) || descriptionToIconifyIcon(a.name);
       if (iconifyUrlLocal) {
         // NO aplicar cache-buster a las data URIs (son locales, no se cachean)
-        sources.push(iconifyUrlLocal);  // Iconify como FALLBACK
+        sources.push(iconifyUrlLocal);  // Iconify ANTES que Google favicon
       }
+      sources.push(...iconSourcesExternal(url).map(addCacheBuster));  // Google/DuckDuckGo
       sources.push(generateAutoIcon(a));
       const first = sources[0] || DEFAULT_ICON_SVG;
       const rest = sources.slice(1);
@@ -2149,26 +2208,29 @@
 
       // Construye la lista completa de URLs candidatas (con cache-buster).
       //
-      // ORDEN CONSERVADOR (lo que el usuario pide):
-      //   1. URLs del favicon propio de la app (iconSources): favicon.ico,
-      //      icon-192.png, manifest icons, Google s2/favicons, DuckDuckGo
-      //   2. Icono Iconify tematico (data URI) - SOLO como FALLBACK si
-      //      ninguna URL del favicon propio cargo OK
+      // ORDEN (lo que el usuario quiere):
+      //   1. URLs del favicon PROPIO de la app (iconSourcesOwn): favicon.ico,
+      //      icon-192.png, manifest icons, apple-touch-icon...
+      //   2. Icono Iconify tematico (data URI) - SOLO si ninguna URL propia
+      //      cargo OK. Es lo que el usuario quiere para apps sin favicon.
+      //   3. Servicios externos (Google s2/favicons, DuckDuckGo) - ULTIMO
+      //      recurso, si Iconify tampoco matchea o falla.
       //
-      // Razon: si la app tiene su propio favicon, respetarlo. Iconify solo
-      // entra cuando la app NO tiene favicon accesible (p. ej. Robotics
-      // Bench en Vercel, que devuelve 404 para todos los nombres tipicos).
+      // Razon: si ponemos Google favicon ANTES de Iconify, Google siempre
+      // carga OK (sirve un favicon generico del dominio) y nunca llegamos
+      // a Iconify. Por eso Iconify va ANTES que Google favicon.
       //
       // tryCandidateUrlsSequentially recorre en orden y persiste la PRIMERA
-      // URL que cargue OK. Si una URL del favicon propio carga OK, se
-      // persiste ESA (no Iconify). Si ninguna carga, prueba Iconify.
+      // URL que cargue OK. Si el favicon propio carga OK, se persiste ESA.
+      // Si no, prueba Iconify. Si Iconify no matchea o falla, prueba Google.
       const iconifyDataUri = descriptionToIconifyIcon(a.desc) || descriptionToIconifyIcon(a.name);
       const candidateUrls = [
-        ...iconSources(url).map(addCacheBuster),  // Favicon propio PRIMERO
+        ...iconSourcesOwn(url).map(addCacheBuster),  // Favicon PROPIO primero
       ];
       if (iconifyDataUri) {
-        candidateUrls.push(iconifyDataUri);  // Iconify como FALLBACK
+        candidateUrls.push(iconifyDataUri);  // Iconify ANTES que Google
       }
+      candidateUrls.push(...iconSourcesExternal(url).map(addCacheBuster));  // Google/DuckDuckGo
       // NO incluir el SVG local en la lista de URLs a persistir en Firebase
       // (es un fallback visual, no un icono "descubierto").
 
