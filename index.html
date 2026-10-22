@@ -805,41 +805,32 @@
     const wasRefreshed = _refreshedApps.has(urlKey);
 
     // Construccion de la cadena de fuentes (en orden de prioridad):
-    //   - Si la descripcion coincide con palabra clave (iconifyUrl != null):
-    //       1. Icono Iconify tematico (PRIORIDAD MAXIMA - siempre primero)
-    //       2. Icono cacheado en Firebase (si existe y no ha expirado)
-    //       3. Iconos de la propia app (favicon, manifest, Google, DuckDuckGo)
-    //       4. SVG auto-generado local (emoji/letra)
-    //   - Si NO coincide:
-    //       1. Icono cacheado en Firebase
-    //       2. Iconos de la propia app
-    //       3. SVG auto-generado local (sin Iconify porque no hay match)
+    //   1. Icono cacheado en Firebase (si existe y no ha expirado)
+    //   2. Iconos de la propia app (favicon, manifest, Google, DuckDuckGo)
+    //   3. Icono Iconify tematico (FALLBACK si el favicon propio falla)
+    //   4. SVG auto-generado local (emoji/letra)
     //
-    // Razon: el usuario pidio explicitamente que el portal busque iconos
-    // relacionados con la funcionalidad. Si la descripcion dice "robotics",
-    // mostramos el icono de robot de Iconify ANTES QUE NADA - incluso
-    // antes que la cache Firebase. Asi, aunque la cache tenga la URL del
-    // favicon de Google (que es la que el usuario ve "una y otra vez"),
-    // Iconify se prueba primero. Si Iconify carga OK, el navegador muestra
-    // el icono tematico. Si Iconify falla, se cae al cache o al favicon
-    // propio.
-    //
-    // Esto tambien arregla el problema de que, tras pulsar 🔄, la cache se
-    // re-llenaba con el favicon de Google (porque Iconify iba despues). Ahora
-    // Iconify va primero en candidateUrls, asi que si carga OK, se persiste
-    // su URL en Firebase (sobrescribiendo la entrada anterior).
+    // Razon: respetamos el favicon propio de la app (es lo que el usuario
+    // quiere: si la app tiene su propio icono, mostrarlo). Iconify entra
+    // SOLO como fallback cuando el favicon propio falla (p. ej. Robotics
+    // Bench en Vercel, que no tiene favicon accesible). Si el usuario
+    // pulsa 🔄, la cache Firebase se borra y _refreshAppIcon prioriza
+    // Iconify en el barrido de refresco.
     const sources = [];
-    if (iconifyUrl) sources.push(iconifyUrl);  // ICONIFY PRIMERO con match
     if (cachedSrc) sources.push(cachedSrc);
     sources.push(...iconSources(safeUrl));
+    if (iconifyUrl) sources.push(iconifyUrl);
     sources.push(localSvg);
 
     // Si la app acaba de ser refrescada (boton 🔄), aplica cache-buster a
     // todas las URLs http(s) de la cadena. Se hace DESPUES de construir la
     // cadena completa para evitar aplicar dos veces addCacheBuster.
+    // Las data URIs (iconifyUrl) no reciben cache-buster (son locales).
     if (wasRefreshed) {
       for (let i = 0; i < sources.length; i++) {
-        sources[i] = addCacheBuster(sources[i]);
+        if (typeof sources[i] === 'string' && /^https?:/.test(sources[i])) {
+          sources[i] = addCacheBuster(sources[i]);
+        }
       }
     }
 
@@ -1993,20 +1984,24 @@
     if (!urls || !urls.length) return;
     for (let i = startIndex; i < urls.length; i++) {
       const url = urls[i];
-      // Saltar URLs data: (SVG locales) - no son iconos "descubiertos"
-      if (!url || !/^https?:/.test(url)) continue;
+      if (!url) continue;
+      // Permitir URLs http(s) Y data URIs (estas ultimas son los iconos
+      // Iconify embebidos en el propio index.html, no requieren red).
+      // Saltar URLs vacias o invalidas.
+      const isHttpUrl = /^https?:/.test(url);
+      const isDataUri = url.startsWith('data:image/');
+      if (!isHttpUrl && !isDataUri) continue;
       const ok = await testImageLoad(url);
       if (ok) {
-        // Persistir en Firebase usando el mismo iconLoadHandler para
-        // mantener la logica de limpieza de cache-buster
+        // Persistir en Firebase
         const urlKey = img.getAttribute('data-url-key');
         if (urlKey) {
-          // Limpiar cache-buster antes de persistir
-          const cleanSrc = url.replace(/([?&]_t=\d+)/, '').replace(/[?&]$/, '');
+          // Limpiar cache-buster antes de persistir (solo aplica a URLs http)
+          const cleanSrc = isDataUri ? url : url.replace(/([?&]_t=\d+)/, '').replace(/[?&]$/, '');
           const cached = cachedIcons.get(urlKey);
           if (!cached || cached.src !== cleanSrc) {
             await saveCachedIcon(urlKey, cleanSrc);
-            console.log(`[TecDeA] Icono descubierto y cacheado para "${urlKey}": ${cleanSrc}`);
+            console.log(`[TecDeA] Icono descubierto y cacheado para "${urlKey}": ${cleanSrc.substring(0, 100)}${cleanSrc.length > 100 ? '...' : ''}`);
           }
         }
         return; // Detener tras el primer OK
@@ -2085,14 +2080,15 @@
       visibleCard.style.borderRadius = '';
 
       // Reconstruye la cadena de fuentes con cache-buster en cada URL.
-      // Si hay match de descripcion, Iconify (data URI embebida) va PRIMERO.
-      const sources = [];
+      // ORDEN CONSERVADOR: favicon propio PRIMERO, Iconify como FALLBACK.
+      const sources = [
+        ...iconSources(url).map(addCacheBuster),  // Favicon propio PRIMERO
+      ];
       const iconifyUrlLocal = descriptionToIconifyIcon(a.desc) || descriptionToIconifyIcon(a.name);
       if (iconifyUrlLocal) {
         // NO aplicar cache-buster a las data URIs (son locales, no se cachean)
-        sources.push(iconifyUrlLocal);
+        sources.push(iconifyUrlLocal);  // Iconify como FALLBACK
       }
-      sources.push(...iconSources(url).map(addCacheBuster));
       sources.push(generateAutoIcon(a));
       const first = sources[0] || DEFAULT_ICON_SVG;
       const rest = sources.slice(1);
@@ -2152,16 +2148,27 @@
       document.body.appendChild(tmpImg);
 
       // Construye la lista completa de URLs candidatas (con cache-buster).
-      // IMPORTANTE: si la descripcion coincide con palabra clave, Iconify
-      // (data URI embebida) va PRIMERO. Asi, aunque la app tenga su propio
-      // favicon, prevalece el icono tematico (que es lo que el usuario quiere).
-      const candidateUrls = [];
-      const iconifyNameLocal = descriptionToIconifyIcon(a.desc) || descriptionToIconifyIcon(a.name);
-      if (iconifyNameLocal) {
-        // NO aplicar cache-buster a las data URIs (son locales)
-        candidateUrls.push(iconifyNameLocal);
+      //
+      // ORDEN CONSERVADOR (lo que el usuario pide):
+      //   1. URLs del favicon propio de la app (iconSources): favicon.ico,
+      //      icon-192.png, manifest icons, Google s2/favicons, DuckDuckGo
+      //   2. Icono Iconify tematico (data URI) - SOLO como FALLBACK si
+      //      ninguna URL del favicon propio cargo OK
+      //
+      // Razon: si la app tiene su propio favicon, respetarlo. Iconify solo
+      // entra cuando la app NO tiene favicon accesible (p. ej. Robotics
+      // Bench en Vercel, que devuelve 404 para todos los nombres tipicos).
+      //
+      // tryCandidateUrlsSequentially recorre en orden y persiste la PRIMERA
+      // URL que cargue OK. Si una URL del favicon propio carga OK, se
+      // persiste ESA (no Iconify). Si ninguna carga, prueba Iconify.
+      const iconifyDataUri = descriptionToIconifyIcon(a.desc) || descriptionToIconifyIcon(a.name);
+      const candidateUrls = [
+        ...iconSources(url).map(addCacheBuster),  // Favicon propio PRIMERO
+      ];
+      if (iconifyDataUri) {
+        candidateUrls.push(iconifyDataUri);  // Iconify como FALLBACK
       }
-      candidateUrls.push(...iconSources(url).map(addCacheBuster));
       // NO incluir el SVG local en la lista de URLs a persistir en Firebase
       // (es un fallback visual, no un icono "descubierto").
 
