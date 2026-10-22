@@ -4744,8 +4744,9 @@
   }
   .edit-icon-actions .btn {
     min-height: 36px;
-    padding: .3rem .7rem;
-    font-size: .78rem;
+    padding: .3rem .5rem;
+    font-size: .75rem;
+    white-space: nowrap;
   }
 
 @media (prefers-reduced-motion: reduce) {
@@ -7254,7 +7255,7 @@
 </div>
 
 <div id="editAppModal" class="modal-bg hidden">
-  <div class="modal">
+  <div class="modal modal-wide">
     <h2>✏️ Editar aplicación</h2>
     <form onsubmit="event.preventDefault(); tecdea.confirmEditApp()" autocomplete="off" novalidate>
       <div class="fi-label">Nombre <span class="req">*</span></div>
