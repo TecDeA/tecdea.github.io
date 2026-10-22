@@ -794,8 +794,13 @@
     }
     document.getElementById("groupTitle").textContent = title;
 
-    grid.innerHTML = filtered.length
-      ? filtered.map(a => appCard(a)).join("")
+    // Mapear apps con su indice original para que appCard pueda llamar a _editApp
+    const filteredWithIndex = filtered.map(a => {
+      const idx = apps.indexOf(a);
+      return { app: a, idx: idx };
+    });
+    grid.innerHTML = filteredWithIndex.length
+      ? filteredWithIndex.map(({ app, idx }) => appCard(app, idx)).join("")
       : "<p class='empty'>No hay aplicaciones configuradas para este perfil.</p>";
     setView("group");
     document.querySelector('.btn-config')?.classList.remove('hidden');
@@ -890,7 +895,7 @@
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><text y="18" font-size="20">🔗</text></svg>'
   );
 
-  function appCard(a) {
+  function appCard(a, appIndex) {
     const safeName = escHtml(a.name || 'Sin nombre');
     const safeUrl = sanitizeUrl(a.url);
 
@@ -949,6 +954,11 @@
 
     const urlKeyAttr = urlKey ? ` data-url-key="${escHtml(urlKey)}"` : '';
 
+    // Boton de edicion: solo se muestra si el admin esta logueado
+    const editBtn = (passwordSession.admin && typeof appIndex === 'number' && appIndex >= 0)
+      ? `<button class="app-card-edit" onclick="event.preventDefault();event.stopPropagation();window._editApp(${appIndex})" title="Editar aplicación">✏️</button>`
+      : '';
+
     return `
       <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="app-card"${descAttr}>
         <div class="app-card-icon-wrap">
@@ -958,6 +968,7 @@
                onload="window.tecdea.iconLoadHandler(this)">
         </div>
         <span class="app-card-name">${safeName}</span>
+        ${editBtn}
       </a>`;
   }
 
@@ -1386,6 +1397,48 @@
     }
   }
 
+
+  // Borra la cache de icono de la app que se esta editando actualmente
+  function clearCurrentAppCache() {
+    if (_editAppIndex < 0 || _editAppIndex >= apps.length) {
+      showToast('No hay aplicación seleccionada para editar.', 'err', 3000);
+      return;
+    }
+    const a = apps[_editAppIndex];
+    const urlKey = normUrlKey(a.url || '');
+    if (!urlKey) {
+      showToast('No se pudo determinar la clave de cache.', 'err', 4000);
+      return;
+    }
+    const wasCached = cachedIcons.has(urlKey);
+    if (!wasCached) {
+      showToast('Esta app no tiene icono cacheado en la base de datos.', 'ok', 3000);
+      return;
+    }
+    if (!window.confirm(`¿Borrar el icono cacheado de «${a.name || urlKey}» de la base de datos?`)) return;
+    set(ref(db, `${ROOT}/appIcons/${urlKey}`), null)
+      .then(() => {
+        cachedIcons.delete(urlKey);
+        showToast(`🗑️ Caché de icono de «${a.name}» borrada`, 'ok', 3500);
+      })
+      .catch(err => {
+        showToast('Error al borrar la caché: ' + (err.message || ''), 'err', 5000);
+      });
+  }
+
+  // Sincroniza (refresca) el icono de la app que se esta editando
+  function syncCurrentAppIcon() {
+    if (_editAppIndex < 0 || _editAppIndex >= apps.length) {
+      showToast('No hay aplicación seleccionada para editar.', 'err', 3000);
+      return;
+    }
+    // Cerrar el modal de edicion primero, luego llamar a _refreshAppIcon
+    closeEditAppModal();
+    setTimeout(() => {
+      window._refreshAppIcon(_editAppIndex);
+    }, 200);
+  }
+
   function showLoginModal() {
     const configView = document.getElementById("view-config");
     if (configView && !configView.classList.contains("hidden")) {
@@ -1589,7 +1642,6 @@
         <td data-label="" class="chk"><span class="row-actions">
           <button class="btn-launch" onclick="window._launchApp(${i})" title="Lanzar aplicación (abrir en una pestaña nueva)">🚀</button>
           <button class="btn-refresh-icon" onclick="window._refreshAppIcon(${i})" title="Refrescar icono: borra el icono cacheado y vuelve a descubrirlo">🔄</button>
-          <button class="btn-clear-cache" onclick="window._clearAppCache(${i})" title="Borrar cache de icono de esta app en la base de datos">🗑️</button>
           <button class="btn-edit" onclick="window._editApp(${i})" title="Editar">✏️</button>
           <button class="btn-del" onclick="window._delApp(${i})" title="Eliminar">✕</button>
         </span></td>
@@ -2375,31 +2427,6 @@
     }
   };
 
-  // Borra la cache de icono de una app concreta en Firebase.
-  window._clearAppCache = async function(i) {
-    if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i >= apps.length) return;
-    collectTableData();
-    const a = apps[i];
-    if (!a) return;
-    const urlKey = normUrlKey(a.url || '');
-    if (!urlKey) {
-      showToast('No se pudo determinar la clave de cache.', 'err', 4000);
-      return;
-    }
-    const wasCached = cachedIcons.has(urlKey);
-    if (!wasCached) {
-      showToast(`Esta app no tiene icono cacheado.`, 'ok', 3000);
-      return;
-    }
-    if (!window.confirm(`¿Borrar el icono cacheado de «${a.name || urlKey}» de la base de datos?`)) return;
-    try {
-      await withTimeout(set(ref(db, `${ROOT}/appIcons/${urlKey}`), null), 4000);
-      cachedIcons.delete(urlKey);
-      showToast(`🗑️ Cache de «${a.name || 'app'}» borrada`, 'ok', 3500);
-    } catch (e) {
-      showToast('Error: ' + (e.message || ''), 'err', 5000);
-    }
-  };
 
   window._editApp = function(i) {
     // Validar indice
@@ -4163,188 +4190,17 @@
 
   let _iconCacheFilter = 'all'; // 'all' | 'expired'
 
-  function showIconCacheModal() {
-    _iconCacheFilter = 'all';
-    renderIconCacheModal();
-    document.getElementById("iconCacheModal").classList.remove("hidden");
-  }
 
-  function closeIconCacheModal() {
-    document.getElementById("iconCacheModal").classList.add("hidden");
-  }
 
-  function setIconCacheFilter(filter) {
-    _iconCacheFilter = filter;
-    document.querySelectorAll('#iconCacheModal .icon-cache-filter-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.filter === filter);
-    });
-    renderIconCacheList();
-  }
 
-  function iconCacheAgeLabel(ts) {
-    if (!ts) return 'fecha desconocida';
-    const days = Math.floor((Date.now() - ts) / (24 * 60 * 60 * 1000));
-    if (days < 1) return 'hoy';
-    if (days === 1) return 'ayer';
-    if (days < 30) return `hace ${days} días`;
-    const months = Math.floor(days / 30);
-    return months === 1 ? 'hace 1 mes' : `hace ${months} meses`;
-  }
 
-  function isIconCacheExpired(ts) {
-    if (!ts) return false; // sin ts no podemos asegurar que esté expirado
-    return Date.now() - ts > ICON_CACHE_TTL_MS;
-  }
 
-  function iconCacheVisibleEntries() {
-    const entries = Array.from(cachedIcons.entries())
-      .map(([key, val]) => ({ key, src: val.src, ts: val.ts || 0 }))
-      .sort((a, b) => (b.ts || 0) - (a.ts || 0));
-    if (_iconCacheFilter === 'expired') {
-      return entries.filter(e => isIconCacheExpired(e.ts));
-    }
-    return entries;
-  }
 
-  function renderIconCacheModal() {
-    document.querySelectorAll('#iconCacheModal .icon-cache-filter-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.filter === _iconCacheFilter);
-    });
-    renderIconCacheList();
-  }
 
-  function renderIconCacheList() {
-    const wrap = document.getElementById("iconCacheList");
-    const summary = document.getElementById("iconCacheSummary");
-    if (!wrap || !summary) return;
 
-    const total = cachedIcons.size;
-    const expired = Array.from(cachedIcons.values())
-      .filter(v => isIconCacheExpired(v.ts || 0)).length;
-    const visible = iconCacheVisibleEntries();
 
-    summary.innerHTML =
-      `<strong>${total}</strong> icono(s) cacheado(s) en la base de datos` +
-      (expired > 0
-        ? ` · <span style="color:#c0392b;font-weight:700">${expired} expirado(s) (>30 días)</span>`
-        : '') +
-      (total > 0
-        ? `<br><span style="font-size:.75rem;color:var(--muted)">El admin asigna iconos manualmente desde las plantillas para una app. Si limpias la cache, la próxima visita volverá a hacer el descubrimiento (lento la primera vez, rápido en adelante).</span>`
-        : `<br><span style="font-size:.75rem;color:var(--muted)">Aún no hay iconos cacheados. Se cachearán automáticamente la primera vez que se visite cada app.</span>`);
 
-    if (total === 0) {
-      wrap.innerHTML = `<p class="restore-empty">No hay iconos cacheados todavía. 🎉</p>`;
-      updateIconCacheActions(visible.length);
-      return;
-    }
 
-    if (visible.length === 0) {
-      wrap.innerHTML = `<p class="restore-empty">No hay iconos que coincidan con el filtro actual.</p>`;
-      updateIconCacheActions(0);
-      return;
-    }
-
-    wrap.innerHTML = visible.map(e => {
-      const expiredTag = isIconCacheExpired(e.ts)
-        ? ' <span class="restore-inactive-tag" style="background:#fee2e2;color:#991b1b">expirado</span>'
-        : '';
-      const appMatch = apps.find(a => normUrlKey(a.url || '') === e.key);
-      const appName = appMatch && appMatch.name
-        ? appMatch.name
-        : '(app no encontrada)';
-      const safeSrc = escHtml(e.src);
-      const safeKey = escHtml(e.key);
-      const safeName = escHtml(appName);
-      return `
-      <label class="icon-cache-row" data-key="${safeKey}">
-        <input type="checkbox" data-key="${safeKey}" checked onchange="tecdea.updateIconCacheActions()">
-        <img src="${safeSrc}" alt="" class="icon-cache-thumb" loading="lazy"
-             onerror="this.style.opacity='.3';this.alt='⚠'">
-        <div class="icon-cache-info">
-          <div class="icon-cache-name">${safeName}${expiredTag}</div>
-          <div class="icon-cache-key">${safeKey}</div>
-          <div class="icon-cache-age">Cacheado: ${iconCacheAgeLabel(e.ts)}</div>
-        </div>
-      </label>`;
-    }).join('');
-
-    updateIconCacheActions(visible.length);
-  }
-
-  function updateIconCacheActions(visibleCount = null) {
-    if (visibleCount === null) {
-      visibleCount = iconCacheVisibleEntries().length;
-    }
-    const checked = document.querySelectorAll('#iconCacheList input[type="checkbox"]:checked').length;
-    const btnSel = document.getElementById('iconCacheClearSelectedBtn');
-    const btnAll = document.getElementById('iconCacheClearAllBtn');
-    if (btnSel) {
-      btnSel.textContent = `🗑️ Limpiar seleccionados (${checked})`;
-      btnSel.disabled = checked === 0;
-    }
-    if (btnAll) {
-      btnAll.disabled = cachedIcons.size === 0;
-    }
-  }
-
-  function iconCacheSelectAll(state) {
-    document.querySelectorAll('#iconCacheList input[type="checkbox"]').forEach(cb => {
-      cb.checked = !!state;
-    });
-    updateIconCacheActions();
-  }
-
-  async function clearSelectedIconCache() {
-    const checked = Array.from(
-      document.querySelectorAll('#iconCacheList input[type="checkbox"]:checked')
-    ).map(cb => cb.dataset.key);
-    if (checked.length === 0) return;
-
-    if (!window.confirm(`¿Eliminar ${checked.length} icono(s) cacheado(s) de la base de datos? La próxima visita los volverá a descubrir (puede tardar un poco la primera vez).`)) return;
-
-    showToast(`Limpiando ${checked.length} icono(s)…`, "ok", 2000);
-    let ok = 0;
-    let failed = 0;
-    for (const key of checked) {
-      try {
-        await withTimeout(set(ref(db, `${ROOT}/appIcons/${key}`), null), 4000);
-        cachedIcons.delete(key);
-        ok++;
-      } catch (e) {
-        console.warn('[TecDeA] No se pudo borrar icono cacheado:', key, e);
-        failed++;
-      }
-    }
-    renderIconCacheModal();
-    if (failed > 0) {
-      showToast(`✓ ${ok} eliminado(s). ⚠ ${failed} no se pudieron borrar.`, "err", 5000);
-    } else {
-      showToast(`✓ ${ok} icono(s) eliminado(s). Recargando tarjetas…`, "ok", 3500);
-    }
-    // Re-renderizar las tarjetas visibles para que redescubran su icono
-    refreshVisibleCards();
-  }
-
-  async function clearAllIconCache() {
-    if (cachedIcons.size === 0) {
-      showToast('La cache ya está vacía.', "ok", 2000);
-      return;
-    }
-    if (!window.confirm(`¿Eliminar TODOS los ${cachedIcons.size} iconos cacheados de la base de datos? La próxima visita a cada app volverá a descubrir su icono (puede ser lento la primera vez para apps sin favicon propio).`)) return;
-
-    showToast(`Limpiando ${cachedIcons.size} icono(s)…`, "ok", 2000);
-    try {
-      await withTimeout(set(appIconsRef, null), 5000);
-      cachedIcons = new Map();
-      renderIconCacheModal();
-      showToast(`✓ Cache de iconos vaciada. Recargando tarjetas visibles…`, "ok", 3000);
-      // Re-renderizar las tarjetas visibles para que redescubran su icono
-      refreshVisibleCards();
-    } catch (e) {
-      console.error('[TecDeA] Error al vaciar cache de iconos:', e);
-      showToast('Error al vaciar la cache: ' + (e.message || 'desconocido'), "err", 6000);
-    }
-  }
 
   // Re-renderiza las tarjetas visibles en la vista de grupo para que
   // redescubran su icono (util tras limpiar cache Firebase).
@@ -4610,7 +4466,8 @@
     showEditAppModal: (i) => window._editApp(i), closeEditAppModal, confirmEditApp,
     launchApp: (i) => window._launchApp(i),
     refreshAppIcon: (i) => window._refreshAppIcon(i),
-    clearAppCache: (i) => window._clearAppCache(i),
+    clearCurrentAppCache,
+    syncCurrentAppIcon,
     openIconPicker, closeIconPicker, renderIconPicker, selectIcon,
     toggleIconOverrideEdit, toggleIconOverrideAdd, clearIconOverride,
     editAppNameInput, editAppFormChanged, editAppCajonChanged,
@@ -4636,9 +4493,6 @@
     isAppActive,
     onImportFileSelected, analyzeImportFile, closeImportModal,
     confirmImport, updateImportConfirmBtn,
-    showIconCacheModal, closeIconCacheModal, setIconCacheFilter,
-    iconCacheSelectAll, clearSelectedIconCache, clearAllIconCache,
-    updateIconCacheActions
   };
 
   const _cfgBtn = document.querySelector('.btn-config');
@@ -4860,6 +4714,19 @@
     text-align: center;
     color: var(--muted);
     font-style: italic;
+  }
+
+
+  .edit-icon-actions {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+    margin: .5rem 0 0;
+  }
+  .edit-icon-actions .btn {
+    min-height: 36px;
+    padding: .3rem .7rem;
+    font-size: .78rem;
   }
 
 @media (prefers-reduced-motion: reduce) {
@@ -5263,6 +5130,49 @@
     overflow: hidden;
   }
 
+  /* Boton de edicion en tarjetas (solo visible para admin logueado) */
+  .app-card {
+    position: relative;
+  }
+  .app-card-edit {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(32,24,120,.85);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    font-size: .75rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity .2s, transform .15s;
+    z-index: 5;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .app-card:hover .app-card-edit,
+  .app-card:active .app-card-edit {
+    opacity: 1;
+  }
+  .app-card-edit:hover {
+    transform: scale(1.2);
+    background: var(--gold);
+    color: var(--navy);
+  }
+  .app-card-edit:active {
+    transform: scale(1.1);
+  }
+  /* En movil (sin hover), siempre visible */
+  @media (hover: none) {
+    .app-card-edit {
+      opacity: .7;
+    }
+  }
+
   .empty {
     color: var(--muted); font-size: .9rem; padding: 1.5rem 0;
     grid-column: 1 / -1;
@@ -5550,22 +5460,6 @@
   }
   .btn-refresh-icon:active { transform: scale(1.1); }
 
-  .btn-clear-cache {
-    background: none; border: none; cursor: pointer;
-    color: #6b7280;
-    font-size: 1rem;
-    transition: transform .15s, background .15s, color .15s;
-    min-width: 40px; min-height: 40px;
-    display: inline-flex; align-items: center; justify-content: center;
-    border-radius: 8px;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .btn-clear-cache:hover {
-    transform: scale(1.3);
-    background: rgba(192,57,43,.18);
-    color: #c0392b;
-  }
-  .btn-clear-cache:active { transform: scale(1.1); }
   .row-actions { display: inline-flex; align-items: center; gap: 2px; }
 
   .restore-list {
@@ -5587,99 +5481,6 @@
   .restore-chip-warn { background: #fef3c7; color: #92400e; }
   .restore-url { font-size: .72rem; color: var(--muted); word-break: break-all; }
 
-  /* ══ Listado de cache de iconos ══ */
-  .icon-cache-filters {
-    display: flex;
-    align-items: center;
-    gap: .4rem;
-    margin-bottom: .8rem;
-    flex-wrap: wrap;
-  }
-  .icon-cache-filter-btn {
-    background: #fff;
-    border: 1.5px solid #d1d5db;
-    color: var(--text);
-    padding: .35rem .85rem;
-    border-radius: 18px;
-    cursor: pointer;
-    font-size: .78rem;
-    font-weight: 600;
-    transition: all .18s ease;
-    min-height: 32px;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-    font-family: inherit;
-  }
-  .icon-cache-filter-btn:hover {
-    border-color: var(--navy);
-    background: #f0f4ff;
-  }
-  .icon-cache-filter-btn.active {
-    background: var(--navy);
-    color: var(--white);
-    border-color: var(--navy);
-  }
-  .icon-cache-row {
-    display: flex;
-    align-items: center;
-    gap: .65rem;
-    padding: .55rem .7rem;
-    background: var(--white);
-    border: 1px solid rgba(32,24,120,.12);
-    border-radius: 10px;
-    cursor: pointer;
-    user-select: none;
-    -webkit-user-select: none;
-    transition: background .15s, border-color .15s;
-  }
-  .icon-cache-row:hover {
-    border-color: var(--navy);
-    background: #f0f4ff;
-  }
-  .icon-cache-row input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--navy);
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-  .icon-cache-thumb {
-    width: 40px;
-    height: 40px;
-    object-fit: contain;
-    border-radius: 6px;
-    background: #f8f4ec;
-    flex-shrink: 0;
-    border: 1px solid #e5e7eb;
-  }
-  .icon-cache-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .icon-cache-name {
-    font-weight: 600;
-    color: var(--navy);
-    font-size: .88rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .icon-cache-key {
-    font-size: .7rem;
-    color: var(--muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
-  }
-  .icon-cache-age {
-    font-size: .7rem;
-    color: var(--muted);
-    font-style: italic;
-  }
   .restore-inactive-tag {
     font-size: .68rem; font-weight: 700; color: #64748b; background: #e2e8f0;
     border-radius: 999px; padding: .1rem .45rem; vertical-align: middle;
@@ -7119,7 +6920,6 @@
           <button class="btn btn-ghost" onclick="tecdea.sortApps('name')">↕ Ordenar por nombre</button>
           <button class="btn btn-ghost" onclick="tecdea.sortApps('url')">↕ Ordenar por URL</button>
           <button class="btn btn-ghost" onclick="tecdea.showSearchAppModal()" title="Busca aplicaciones por palabras de su título o descripción">🔎 Buscar aplicación</button>
-          <button class="btn btn-ghost" onclick="tecdea.showIconCacheModal()" title="Gestiona los iconos cacheados en la base de datos: limpia los obsoletos o todos a la vez">🧹 Limpiar cache de iconos</button>
           <button class="btn btn-primary" onclick="tecdea.saveConfig()">💾 Guardar aplicaciones</button>
         </div>
         <div class="filter-bar" id="appsFilterBar">
@@ -7507,6 +7307,12 @@
         <span><strong>Activa</strong>: la aplicación se mostrará en los perfiles. Desmárcala para ocultarla.</span>
       </label>
 
+      <div class="fi-label">Icono</div>
+      <div class="edit-icon-actions">
+        <button type="button" class="btn btn-ghost btn-clear-cache-edit" onclick="tecdea.clearCurrentAppCache()" title="Borra la cache de icono de esta app en la base de datos. La próxima visita redescubrirá su favicon propio.">🗑️ Borrar caché de icono</button>
+        <button type="button" class="btn btn-gold btn-sync-icon-edit" onclick="tecdea.syncCurrentAppIcon()" title="Borra la caché y fuerza el redescubrimiento inmediato del icono.">🔄 Sincronizar icono</button>
+      </div>
+
       <div id="editAppError" class="modal-error"></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="tecdea.closeEditAppModal()">Cancelar</button>
@@ -7539,24 +7345,7 @@
   </div>
 </div>
 
-<div id="iconCacheModal" class="modal-bg hidden">
-  <div class="modal modal-wide">
-    <h2>🧹 Limpiar cache de iconos</h2>
-    <div id="iconCacheSummary" class="import-summary"></div>
-    <div class="icon-cache-filters">
-      <button type="button" class="icon-cache-filter-btn active" data-filter="all" onclick="tecdea.setIconCacheFilter('all')">Todas</button>
-      <button type="button" class="icon-cache-filter-btn" data-filter="expired" onclick="tecdea.setIconCacheFilter('expired')">⚠️ Solo expirados</button>
-      <span style="flex:1"></span>
-      <button type="button" class="btn btn-ghost" onclick="tecdea.iconCacheSelectAll(true)" style="min-height:32px;padding:.25rem .75rem;font-size:.75rem">Todas</button>
-      <button type="button" class="btn btn-ghost" onclick="tecdea.iconCacheSelectAll(false)" style="min-height:32px;padding:.25rem .75rem;font-size:.75rem">Ninguna</button>
-    </div>
-    <div id="iconCacheList" class="restore-list"></div>
-    <div class="modal-actions">
-      <button type="button" class="btn btn-ghost" onclick="tecdea.closeIconCacheModal()">Cerrar</button>
-      <button type="button" class="btn btn-ghost" id="iconCacheClearAllBtn" onclick="tecdea.clearAllIconCache()" style="color:#c0392b;border-color:rgba(192,57,43,.4)">🧹 Limpiar TODO</button>
-      <button type="button" class="btn btn-primary" id="iconCacheClearSelectedBtn" onclick="tecdea.clearSelectedIconCache()">🗑️ Limpiar seleccionados</button>
-    </div>
-  </div>
+
 </div>
 
 <div id="importModal" class="modal-bg hidden">
