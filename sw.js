@@ -2,7 +2,7 @@
 //  SERVICE WORKER - TECDEA PORTAL PWA
 // ════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'tecdea-portal-v2.43';
+const CACHE_NAME = 'tecdea-portal-v2.44';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
