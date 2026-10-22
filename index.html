@@ -868,17 +868,18 @@
     } catch { return sources; }
 
     // Lista de nombres de icono mas comunes en apps PWA.
-    // Ordenados por probabilidad: primero los mas usados en tecdea.github.io
-    // (basado en auditoria del portal real), despues estandares PWA.
-    // Equilibrio entre cobertura y rendimiento: ~10 nombres x 3 subfolders = 30 URLs
+    // ORDENADO por probabilidad de exito: favicon.ico/svg en raiz primero,
+    // despues icon-512/192 (los mas usados en tecdea.github.io), etc.
     const fileNames = [
-      // Mas comunes en tecdea.github.io
+      // Favicon en raiz (lo mas comun)
+      'favicon.ico', 'favicon.png', 'favicon.svg',
+      // Iconos PNG mas comunes en tecdea.github.io
       'icon-512.png', 'icon-512x512.png', 'icon-192.png', 'icon-192x192.png',
       'icon.svg',
       // Apple touch icon
       'apple-touch-icon.png', 'apple-touch-icon-precomposed.png',
-      // Favicon e icono generico
-      'favicon.png', 'favicon.ico', 'icon.png',
+      // Icono generico
+      'icon.png',
       // Otros tamanos PWA
       'icon-256x256.png', 'icon-144x144.png'
     ];
