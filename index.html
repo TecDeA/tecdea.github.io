@@ -1398,6 +1398,25 @@
   }
 
 
+  // Abre la app que se esta editando en una pestaña nueva
+  function launchCurrentApp() {
+    if (_editAppIndex < 0 || _editAppIndex >= apps.length) return;
+    const a = apps[_editAppIndex];
+    if (!a) return;
+    const url = sanitizeUrl(a.url);
+    if (url === '#') {
+      showToast('URL no válida.', 'err', 3000);
+      return;
+    }
+    const win = window.open('', '_blank');
+    if (win) {
+      try { win.opener = null; } catch (e) {}
+      win.location.href = url;
+    } else {
+      showToast('El navegador ha bloqueado la apertura. Permite ventanas emergentes.', 'err', 5000);
+    }
+  }
+
   // Borra la cache de icono de la app que se esta editando actualmente
   function clearCurrentAppCache() {
     if (_editAppIndex < 0 || _editAppIndex >= apps.length) {
@@ -4467,6 +4486,7 @@
     refreshAppIcon: (i) => window._refreshAppIcon(i),
     clearCurrentAppCache,
     syncCurrentAppIcon,
+    launchCurrentApp,
     openIconPicker, closeIconPicker, renderIconPicker, selectIcon,
     toggleIconOverrideEdit, toggleIconOverrideAdd, clearIconOverride,
     editAppNameInput, editAppFormChanged, editAppCajonChanged,
@@ -7293,6 +7313,7 @@
 
       <div class="fi-label">Icono</div>
       <div class="edit-icon-actions">
+        <button type="button" class="btn btn-ghost btn-launch-edit" onclick="tecdea.launchCurrentApp()" title="Abrir la aplicación en una pestaña nueva">🚀 Abrir app</button>
         <button type="button" class="btn btn-ghost btn-clear-cache-edit" onclick="tecdea.clearCurrentAppCache()" title="Borra la cache de icono de esta app en la base de datos. La próxima visita redescubrirá su favicon propio.">🗑️ Borrar caché de icono</button>
         <button type="button" class="btn btn-gold btn-sync-icon-edit" onclick="tecdea.syncCurrentAppIcon()" title="Borra la caché y fuerza el redescubrimiento inmediato del icono.">🔄 Sincronizar icono</button>
       </div>
