@@ -120,45 +120,100 @@
   // Sin clave, con CORS habilitado y SVG vectorial nitido a cualquier resolucion.
   // Se usa como capa intermedia: si la app no expone su propio favicon, se
   // intenta este icono tematico ANTES de caer en el SVG auto-generado local.
+  // ── Mapeo palabras-clave → icono Iconify (Material Symbols) ──
+  // Iconify API publica: https://api.iconify.design/{icon}.svg?color=white&width=48
+  // Sin clave, con CORS habilitado y SVG vectorial nítido a cualquier resolución.
+  //
+  // IMPORTANTE: Cuando la descripción de la app contiene una palabra clave,
+  // el icono Iconify temático PASA A SER LA PRIMERA OPCIÓN (antes que el
+  // favicon propio de la app). Esto es lo que pide el usuario: que el portal
+  // busque iconos relacionados con la funcionalidad, no que se quede con el
+  // favicon de la app (que a menudo es feo o no existe).
+  //
+  // Si Iconify falla al cargar, se cae al favicon propio. Y si este también
+  // falla, al SVG local con emoji/letra.
   const DESCRIPTION_ICONS = [
-    { kw: ['calendario','agenda','horario','schedule'], icon: 'material-symbols:calendar-month-rounded' },
-    { kw: ['biblioteca','library','libro','libros','book'], icon: 'material-symbols:menu-book-rounded' },
-    { kw: ['alumno','alumn','estudiante','student'], icon: 'material-symbols:school-rounded' },
-    { kw: ['profesor','docente','teacher'], icon: 'material-symbols:co-present-rounded' },
-    { kw: ['correo','mail','email','buzon'], icon: 'material-symbols:mail-rounded' },
-    { kw: ['chat','mensaje','comunic','whatsapp','telegram'], icon: 'material-symbols:chat-rounded' },
-    { kw: ['nota','apunte','note'], icon: 'material-symbols:sticky-note-2-rounded' },
-    { kw: ['mapa','map'], icon: 'material-symbols:map-rounded' },
-    { kw: ['foto','photo','image','galeria'], icon: 'material-symbols:photo-camera-rounded' },
-    { kw: ['video','multimedia'], icon: 'material-symbols:videocam-rounded' },
-    { kw: ['musica','music','audio'], icon: 'material-symbols:music-note-rounded' },
+    // STEM - Robótica / Electrónica / Programación
+    { kw: ['robot','robotica','robotics','arduino','raspberry','pi'], icon: 'material-symbols:smart-toy-rounded' },
+    { kw: ['bench','banco','mesa','workbench','taller'], icon: 'material-symbols:work-rounded' },
+    { kw: ['electronica','electron','circuit','circuito','placa','pcb'], icon: 'material-symbols:memory-rounded' },
+    { kw: ['sensor','actuador','motor','servo'], icon: 'material-symbols:sensors-rounded' },
+    { kw: ['programacion','program','code','codigo','developer','coding'], icon: 'material-symbols:code-rounded' },
+    { kw: ['algoritmo','algorithm','bug','debug'], icon: 'material-symbols:bug-report-rounded' },
+    { kw: ['datos','data','database','base de datos','almacen'], icon: 'material-symbols:database-rounded' },
+    { kw: ['api','endpoint','servicio web'], icon: 'material-symbols:api-rounded' },
+    { kw: ['web','html','css','frontend'], icon: 'material-symbols:html-rounded' },
+    { kw: ['servidor','server','backend','hosting'], icon: 'material-symbols:dns-rounded' },
+    { kw: ['red','network','router','wifi'], icon: 'material-symbols:router-rounded' },
+    { kw: ['seguridad','password','contrasena','lock','acceso','candado'], icon: 'material-symbols:lock-rounded' },
+    { kw: ['llave','key','clave'], icon: 'material-symbols:key-rounded' },
+    // 3D / Impresión
+    { kw: ['3d','impresion','impresora 3d','cad','modelado','blender','freecad','slicer'], icon: 'material-symbols:view-in-ar-rounded' },
+    { kw: ['cnc','laser','corte','fresadora'], icon: 'material-symbols:precision-manufacturing-rounded' },
+    // Materias académicas
     { kw: ['mate','math','matematic'], icon: 'material-symbols:calculate-rounded' },
-    { kw: ['ciencia','science','fisica','quimica','biologia'], icon: 'material-symbols:science-rounded' },
-    { kw: ['arte','art','dibujo'], icon: 'material-symbols:palette-rounded' },
-    { kw: ['deporte','sport','baloncesto'], icon: 'material-symbols:sports-soccer-rounded' },
-    { kw: ['comida','comedor','food','menu','almuerzo'], icon: 'material-symbols:restaurant-rounded' },
-    { kw: ['dinero','money','pago','caja','tesoreria'], icon: 'material-symbols:payments-rounded' },
-    { kw: ['hora','tiempo','reloj','time'], icon: 'material-symbols:schedule-rounded' },
-    { kw: ['clima','weather','meteorolog'], icon: 'material-symbols:wb-sunny-rounded' },
-    { kw: ['noticia','news','periodico'], icon: 'material-symbols:newspaper-rounded' },
-    { kw: ['nube','cloud','drive'], icon: 'material-symbols:cloud-rounded' },
-    { kw: ['documento','doc','pdf','word'], icon: 'material-symbols:description-rounded' },
-    { kw: ['carpeta','folder'], icon: 'material-symbols:folder-rounded' },
-    { kw: ['enlace','link','acceso directo'], icon: 'material-symbols:link-rounded' },
-    { kw: ['seguridad','password','contrasena','lock','acceso'], icon: 'material-symbols:lock-rounded' },
-    { kw: ['llave','key'], icon: 'material-symbols:key-rounded' },
-    { kw: ['inicio','home','portada'], icon: 'material-symbols:home-rounded' },
-    { kw: ['escuela','instituto','school','centro'], icon: 'material-symbols:school-rounded' },
-    { kw: ['ordenador','portatil','computer','pc','laptop'], icon: 'material-symbols:computer-rounded' },
-    { kw: ['telefono','phone','movil'], icon: 'material-symbols:smartphone-rounded' },
+    { kw: ['geometria','geometry','figura','poligono'], icon: 'material-symbols:geometry-rounded' },
+    { kw: ['fisica','physics','fuerza','energia','movimiento'], icon: 'material-symbols:science-rounded' },
+    { kw: ['quimica','chemistry','atomo','molecula','reaccion'], icon: 'material-symbols:science-rounded' },
+    { kw: ['biologia','biology','celula','adn','genetica'], icon: 'material-symbols:biotech-rounded' },
+    { kw: ['ciencia','science','laboratorio','lab','experimento'], icon: 'material-symbols:science-rounded' },
+    { kw: ['geografia','geography','pais','capital','continente'], icon: 'material-symbols:public-rounded' },
+    { kw: ['historia','history','epoca','civilizacion','edad'], icon: 'material-symbols:menu-book-rounded' },
+    { kw: ['lengua','language','idioma','gramatica','vocabulario','ingles','frances'], icon: 'material-symbols:translate-rounded' },
+    { kw: ['literatura','literature','lectura','novela','poesia'], icon: 'material-symbols:auto-stories-rounded' },
+    { kw: ['filosofia','philosophy','pensamiento','etica'], icon: 'material-symbols:psychology-rounded' },
+    { kw: ['arte','art','dibujo','pintura','diseno','design'], icon: 'material-symbols:palette-rounded' },
+    { kw: ['musica','music','audio','sonido','notas','partitura'], icon: 'material-symbols:music-note-rounded' },
+    { kw: ['educa','educacion','ensenanza','aprendizaje','ensenar'], icon: 'material-symbols:school-rounded' },
+    // Escolar
+    { kw: ['alumno','alumn','estudiante','student','clase'], icon: 'material-symbols:school-rounded' },
+    { kw: ['profesor','docente','teacher','tutor'], icon: 'material-symbols:co-present-rounded' },
+    { kw: ['escuela','instituto','school','centro','colegio','academia'], icon: 'material-symbols:school-rounded' },
+    { kw: ['calendario','agenda','horario','schedule','cita'], icon: 'material-symbols:calendar-month-rounded' },
+    { kw: ['biblioteca','library','libro','libros','book','lectura'], icon: 'material-symbols:menu-book-rounded' },
+    { kw: ['nota','apunte','note','cuaderno','libreta'], icon: 'material-symbols:sticky-note-2-rounded' },
+    { kw: ['examen','test','quiz','evaluacion','calificacion'], icon: 'material-symbols:quiz-rounded' },
+    { kw: ['registro','register','listado','lista','inventario'], icon: 'material-symbols:list-alt-rounded' },
+    // Comunicación
+    { kw: ['correo','mail','email','buzon'], icon: 'material-symbols:mail-rounded' },
+    { kw: ['chat','mensaje','comunic','whatsapp','telegram','mensajeria'], icon: 'material-symbols:chat-rounded' },
+    { kw: ['video','multimedia','youtube','stream'], icon: 'material-symbols:videocam-rounded' },
+    { kw: ['foto','photo','image','galeria','camara','imagen'], icon: 'material-symbols:photo-camera-rounded' },
+    { kw: ['noticia','news','periodico','blog','articulo'], icon: 'material-symbols:newspaper-rounded' },
+    { kw: ['llamada','call','telefono','phone','movil','celular'], icon: 'material-symbols:smartphone-rounded' },
+    // Utilidades
+    { kw: ['mapa','map','mapas','localizacion','gps'], icon: 'material-symbols:map-rounded' },
+    { kw: ['clima','weather','meteorolog','temperatura','lluvia'], icon: 'material-symbols:wb-sunny-rounded' },
+    { kw: ['hora','tiempo','reloj','time','cronometro','alarma'], icon: 'material-symbols:schedule-rounded' },
+    { kw: ['calculadora','calculator','conversion','conversor'], icon: 'material-symbols:calculate-rounded' },
+    { kw: ['comida','comedor','food','menu','almuerzo','receta','cocina'], icon: 'material-symbols:restaurant-rounded' },
+    { kw: ['deporte','sport','futbol','baloncesto','tenis','ejercicio','gimnasio'], icon: 'material-symbols:sports-soccer-rounded' },
+    { kw: ['juego','game','play','diversion','entretenimiento'], icon: 'material-symbols:sports-esports-rounded' },
+    { kw: ['dinero','money','pago','caja','tesoreria','factura','moneda'], icon: 'material-symbols:payments-rounded' },
+    // Tecnología / Sistema
+    { kw: ['tecnologia','tech','digital','app','software','aplicacion'], icon: 'material-symbols:devices-rounded' },
+    { kw: ['ordenador','portatil','computer','pc','laptop','sobremesa'], icon: 'material-symbols:computer-rounded' },
     { kw: ['imprimir','print','impresora'], icon: 'material-symbols:print-rounded' },
-    { kw: ['servicio','service','mantenimiento'], icon: 'material-symbols:build-rounded' },
-    { kw: ['registro','register','listado','lista'], icon: 'material-symbols:list-alt-rounded' },
-    { kw: ['grafico','graph','chart','estadistic'], icon: 'material-symbols:bar-chart-rounded' },
-    { kw: ['tecnologia','tech','digital','app','software'], icon: 'material-symbols:devices-rounded' },
-    { kw: ['programacion','code','codigo','developer'], icon: 'material-symbols:code-rounded' },
-    { kw: ['juego','game','play'], icon: 'material-symbols:sports-esports-rounded' },
-    { kw: ['herramienta','tool','utilidad'], icon: 'material-symbols:construction-rounded' },
+    { kw: ['servicio','service','mantenimiento','soporte','tecnico'], icon: 'material-symbols:build-rounded' },
+    { kw: ['herramienta','tool','utilidad','utility','instrumento'], icon: 'material-symbols:construction-rounded' },
+    { kw: ['ajustes','config','configuracion','preferencias','options'], icon: 'material-symbols:settings-rounded' },
+    { kw: ['inicio','home','portada','principal','landing'], icon: 'material-symbols:home-rounded' },
+    { kw: ['nube','cloud','drive','almacenamiento','backup'], icon: 'material-symbols:cloud-rounded' },
+    { kw: ['documento','doc','pdf','word','excel','powerpoint','texto'], icon: 'material-symbols:description-rounded' },
+    { kw: ['carpeta','folder','directorio','fichero','archivo'], icon: 'material-symbols:folder-rounded' },
+    { kw: ['enlace','link','acceso directo','url','acceso'], icon: 'material-symbols:link-rounded' },
+    { kw: ['grafico','graph','chart','estadistic','estadistica','diagrama'], icon: 'material-symbols:bar-chart-rounded' },
+    { kw: ['buscador','search','buscar','busqueda','lupa'], icon: 'material-symbols:search-rounded' },
+    { kw: ['ayuda','help','soporte','faq','tutorial','guia'], icon: 'material-symbols:help-rounded' },
+    { kw: ['info','informacion','about','acercade','detalle'], icon: 'material-symbols:info-rounded' },
+    { kw: ['usuario','user','perfil','account','cuenta','login'], icon: 'material-symbols:person-rounded' },
+    { kw: ['grupo','group','team','equipo','comunidad'], icon: 'material-symbols:groups-rounded' },
+    { kw: ['favorito','star','favoritos','destacado','marcar'], icon: 'material-symbols:star-rounded' },
+    { kw: ['alerta','warning','aviso','notificacion','alarm'], icon: 'material-symbols:notifications-rounded' },
+    { kw: ['descarga','download','bajar','exportar','save'], icon: 'material-symbols:download-rounded' },
+    { kw: ['subir','upload','cargar','importar'], icon: 'material-symbols:upload-rounded' },
+    { kw: ['compartir','share','enviar','distribuir'], icon: 'material-symbols:share-rounded' },
+    { kw: ['ia','ai','inteligencia artificial','machine learning','ml','neuronal','red neuronal'], icon: 'material-symbols:smart-toy-rounded' },
   ];
 
   // Devuelve el nombre de icono Iconify (p. ej. "material-symbols:mail-rounded")
@@ -659,19 +714,29 @@
     const wasRefreshed = _refreshedApps.has(urlKey);
 
     // Construccion de la cadena de fuentes (en orden de prioridad):
-    //   1. Icono cacheado en Firebase (si existe y no ha expirado)
-    //   2. Iconos de la propia app (favicon, manifest, Google, DuckDuckGo)
-    //   3. Icono Iconify tematico (si la descripcion/nombre coincide)
-    //   4. SVG auto-generado local (emoji/letra)
-    const sources = iconSources(safeUrl);
-    if (cachedSrc) sources.unshift(cachedSrc);
+    //   - Si la descripcion coincide con palabra clave:
+    //       1. Icono cacheado en Firebase (si existe y no ha expirado)
+    //       2. Icono Iconify tematico (PRIORIDAD ALTA)
+    //       3. Iconos de la propia app (favicon, manifest, Google, DuckDuckGo)
+    //       4. SVG auto-generado local (emoji/letra)
+    //   - Si NO coincide:
+    //       1. Icono cacheado en Firebase
+    //       2. Iconos de la propia app
+    //       3. SVG auto-generado local (sin Iconify porque no hay match)
+    //
+    // Razon: el usuario pidio explicitamente que el portal busque iconos
+    // relacionados con la funcionalidad. Si la descripcion dice "robotics",
+    // mostramos el icono de robot de Iconify ANTES que el favicon propio.
+    // El favicon propio pasa a ser fallback.
+    const sources = [];
+    if (cachedSrc) sources.push(cachedSrc);
     if (iconifyUrl) sources.push(iconifyUrl);
+    sources.push(...iconSources(safeUrl));
     sources.push(localSvg);
 
     // Si la app acaba de ser refrescada (boton 🔄), aplica cache-buster a
     // todas las URLs http(s) de la cadena. Se hace DESPUES de construir la
-    // cadena completa para evitar aplicar dos veces addCacheBuster a la
-    // URL cacheada (que se anade con unshift).
+    // cadena completa para evitar aplicar dos veces addCacheBuster.
     if (wasRefreshed) {
       for (let i = 0; i < sources.length; i++) {
         sources[i] = addCacheBuster(sources[i]);
@@ -1919,12 +1984,14 @@
       visibleCard.style.padding = '';
       visibleCard.style.borderRadius = '';
 
-      // Reconstruye la cadena de fuentes con cache-buster en cada URL
-      const sources = iconSources(url).map(addCacheBuster);
+      // Reconstruye la cadena de fuentes con cache-buster en cada URL.
+      // Si hay match de descripcion, Iconify va PRIMERO (igual que appCard).
+      const sources = [];
       const iconifyName = descriptionToIconifyIcon(a.desc) || descriptionToIconifyIcon(a.name);
       if (iconifyName) {
         sources.push(addCacheBuster(`https://api.iconify.design/${iconifyName}.svg?color=white&width=48&height=48`));
       }
+      sources.push(...iconSources(url).map(addCacheBuster));
       sources.push(generateAutoIcon(a));
       const first = sources[0] || DEFAULT_ICON_SVG;
       const rest = sources.slice(1);
@@ -1983,12 +2050,16 @@
 
       document.body.appendChild(tmpImg);
 
-      // Construye la lista completa de URLs candidatas (con cache-buster)
-      const candidateUrls = iconSources(url).map(addCacheBuster);
+      // Construye la lista completa de URLs candidatas (con cache-buster).
+      // IMPORTANTE: si la descripcion coincide con palabra clave, Iconify
+      // va PRIMERO. Asi, aunque la app tenga su propio favicon, prevalece
+      // el icono tematico (que es lo que el usuario quiere).
+      const candidateUrls = [];
       const iconifyName = descriptionToIconifyIcon(a.desc) || descriptionToIconifyIcon(a.name);
       if (iconifyName) {
         candidateUrls.push(addCacheBuster(`https://api.iconify.design/${iconifyName}.svg?color=white&width=48&height=48`));
       }
+      candidateUrls.push(...iconSources(url).map(addCacheBuster));
       // NO incluir el SVG local en la lista de URLs a persistir en Firebase
       // (es un fallback visual, no un icono "descubierto").
 
