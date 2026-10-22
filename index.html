@@ -1001,6 +1001,10 @@
     const isLocalFirst = (first === localSvg);
     const localAttr = isLocalFirst ? ' data-local-svg="true"' : '';
 
+    // Marca si se esta usando iconOverride (para que discoverIcons NO
+    // sobrescriba el icono manual del admin con URLs del manifest/HTML)
+    const overrideAttr = iconOverride ? ' data-icon-override="true"' : '';
+
     const fbAttr = rest.length
       ? ` data-fb="${escHtml(JSON.stringify(rest))}"`
       : "";
@@ -1013,7 +1017,7 @@
     return `
       <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="app-card"${descAttr}>
         <div class="app-card-icon-wrap">
-          <img src="${first}" alt="" loading="lazy"${fbAttr}${localAttr}${urlKeyAttr}
+          <img src="${first}" alt="" loading="lazy"${fbAttr}${localAttr}${overrideAttr}${urlKeyAttr}
                data-app-url="${safeUrl}"
                onerror="window.tecdea.iconFallback(this)"
                onload="window.tecdea.iconLoadHandler(this)">
@@ -1091,6 +1095,10 @@
 
       // Si es el SVG local, no persistir
       if (img.dataset.localSvg === 'true') return;
+      // Si la app tiene iconOverride, NO persistir el cache Firebase
+      // (el icono manual del admin tiene prioridad y no debe ser
+      // sobrescrito por el favicon propio u otros servicios externos)
+      if (img.dataset.iconOverride === 'true') return;
       if (src.startsWith('data:image/svg+xml')) return;
       if (!src.startsWith('http://') && !src.startsWith('https://')) return;
 
@@ -1425,6 +1433,10 @@
   // la cadena de fallbacks del <img>, para que se prueben antes que las
   // URLs estaticas de iconSourcesOwn.
   async function discoverIcons(img, appUrl) {
+    // Si la app tiene iconOverride (icono manual del admin), NO descubrir
+    // mas iconos: el admin eligio explicitamente este icono y no queremos
+    // que discoverIcons lo sobrescriba con URLs del manifest/HTML.
+    if (img.dataset.iconOverride === 'true') return;
     if (img.complete && img.naturalWidth > 0) return;
     if (img.dataset.iconProcessing === 'true') return;
     img.dataset.iconProcessing = 'true';
