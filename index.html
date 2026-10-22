@@ -1588,7 +1588,8 @@
         </td>
         <td data-label="" class="chk"><span class="row-actions">
           <button class="btn-launch" onclick="window._launchApp(${i})" title="Lanzar aplicación (abrir en una pestaña nueva)">🚀</button>
-          <button class="btn-refresh-icon" onclick="window._refreshAppIcon(${i})" title="Refrescar icono: borra el icono cacheado de la base de datos y vuelve a descubrirlo">🔄</button>
+          <button class="btn-refresh-icon" onclick="window._refreshAppIcon(${i})" title="Refrescar icono: borra el icono cacheado y vuelve a descubrirlo">🔄</button>
+          <button class="btn-clear-cache" onclick="window._clearAppCache(${i})" title="Borrar cache de icono de esta app en la base de datos">🗑️</button>
           <button class="btn-edit" onclick="window._editApp(${i})" title="Editar">✏️</button>
           <button class="btn-del" onclick="window._delApp(${i})" title="Eliminar">✕</button>
         </span></td>
@@ -2371,6 +2372,32 @@
       showToast(`🔄 Icono de «${a.name || 'app'}» borrado de la cache. Refrescando...`, 'ok', 3500);
     } else {
       showToast(`🔄 Forzando redescubrimiento del icono de «${a.name || 'app'}»...`, 'ok', 3500);
+    }
+  };
+
+  // Borra la cache de icono de una app concreta en Firebase.
+  window._clearAppCache = async function(i) {
+    if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i >= apps.length) return;
+    collectTableData();
+    const a = apps[i];
+    if (!a) return;
+    const urlKey = normUrlKey(a.url || '');
+    if (!urlKey) {
+      showToast('No se pudo determinar la clave de cache.', 'err', 4000);
+      return;
+    }
+    const wasCached = cachedIcons.has(urlKey);
+    if (!wasCached) {
+      showToast(`Esta app no tiene icono cacheado.`, 'ok', 3000);
+      return;
+    }
+    if (!window.confirm(`¿Borrar el icono cacheado de «${a.name || urlKey}» de la base de datos?`)) return;
+    try {
+      await withTimeout(set(ref(db, `${ROOT}/appIcons/${urlKey}`), null), 4000);
+      cachedIcons.delete(urlKey);
+      showToast(`🗑️ Cache de «${a.name || 'app'}» borrada`, 'ok', 3500);
+    } catch (e) {
+      showToast('Error: ' + (e.message || ''), 'err', 5000);
     }
   };
 
@@ -4583,6 +4610,7 @@
     showEditAppModal: (i) => window._editApp(i), closeEditAppModal, confirmEditApp,
     launchApp: (i) => window._launchApp(i),
     refreshAppIcon: (i) => window._refreshAppIcon(i),
+    clearAppCache: (i) => window._clearAppCache(i),
     openIconPicker, closeIconPicker, renderIconPicker, selectIcon,
     toggleIconOverrideEdit, toggleIconOverrideAdd, clearIconOverride,
     editAppNameInput, editAppFormChanged, editAppCajonChanged,
@@ -5521,6 +5549,23 @@
     color: var(--gold);
   }
   .btn-refresh-icon:active { transform: scale(1.1); }
+
+  .btn-clear-cache {
+    background: none; border: none; cursor: pointer;
+    color: #6b7280;
+    font-size: 1rem;
+    transition: transform .15s, background .15s, color .15s;
+    min-width: 40px; min-height: 40px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-clear-cache:hover {
+    transform: scale(1.3);
+    background: rgba(192,57,43,.18);
+    color: #c0392b;
+  }
+  .btn-clear-cache:active { transform: scale(1.1); }
   .row-actions { display: inline-flex; align-items: center; gap: 2px; }
 
   .restore-list {
