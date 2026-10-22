@@ -955,26 +955,41 @@
 
     // Construccion de la cadena de fuentes (en orden de prioridad):
     //   0. iconOverride: icono asignado MANUALMENTE por el admin (PRIORIDAD MAX)
-    //   1. Icono cacheado en Firebase (si existe y no ha expirado)
-    //   2. Favicon PROPIO de la app (favicon.ico, icon-192.png, manifest...)
+    //   1. Favicon PROPIO de la app (favicon.ico, icon-192.png, manifest...)
+    //   2. Icono cacheado en Firebase (si existe, no ha expirado y NO es un
+    //      servicio externo como Google favicon cuando la app tiene URL propia)
     //   3. Icono Iconify tematico (FALLBACK si el favicon propio falla)
     //   4. Icono Iconify generico 'apps-rounded' (si no hay match de palabra)
     //   5. Servicios externos (Google s2/favicons, DuckDuckGo) - ULTIMO recurso
     //   6. SVG auto-generado local (emoji/letra)
+    //
+    // CAMBIO: favicon propio VA PRIMERO, antes que la cache Firebase.
+    // Razon: si la cache tiene Google favicon (por un error anterior),
+    // queremos que la proxima visita intente el favicon propio primero.
+    // Si el favicon propio carga OK, se persiste y reemplaza Google.
+    // Si no existe, se cae a la cache (Google) y luego a Iconify.
     const sources = [];
     if (iconOverride) {
       sources.push(iconOverride);
       sources.push(localSvg);
     } else {
+      // 1. Favicon PROPIO de la app (prioridad maxima si la app tiene URL)
+      if (safeUrl && safeUrl !== '#') {
+        sources.push(...iconSourcesOwn(safeUrl));
+      }
+      // 2. Cache Firebase (si existe y no ha expirado)
       if (cachedSrc) sources.push(cachedSrc);
-      sources.push(...iconSourcesOwn(safeUrl));
+      // 3. Iconify tematico (si hay match de palabra clave)
       if (iconifyUrl) {
         sources.push(iconifyUrl);
       } else {
+        // 4. Iconify generico 'apps-rounded' (si no hay match)
         const genericIcon = ICONIFY_ICONS_INLINE['apps-rounded'];
         if (genericIcon) sources.push(genericIcon);
       }
+      // 5. Servicios externos (Google, DuckDuckGo) - ultimo recurso
       sources.push(...iconSourcesExternal(safeUrl));
+      // 6. SVG local (emoji/letra)
       sources.push(localSvg);
     }
 
@@ -1078,13 +1093,48 @@
       if (src.startsWith('data:image/svg+xml')) return;
       if (!src.startsWith('http://') && !src.startsWith('https://')) return;
 
-      // Si ya esta cacheado y es la misma URL (limpia), no hacer nada
       // Limpia el cache-buster `?_t=...` antes de comparar y guardar, para
-      // no acumular timestamps en Firebase. Asi la URL cacheada es la
-      // "canonica" (sin cache-buster) y las proximas visitas la usan tal
-      // cual; el navegador ya la tendra fresca en su cache HTTP si la
-      // peticion forzada (con cache-buster) acabo de pasar.
+      // no acumular timestamps en Firebase.
       const cleanSrc = src.replace(/([?&]_t=\d+)/, '').replace(/[?&]$/, '');
+
+      // SOLO persistir en Firebase URLs del propio dominio de la app
+      // (favicon propio). No persistir:
+      //   - Google s2/favicons (servicio externo, da iconos genericos)
+      //   - DuckDuckGo favicons (idem)
+      //   - Cualquier URL que no coincida con el dominio de la app
+      // Razon: si persistimos Google favicon, en la proxima visita se
+      // usara Google favicon en lugar de buscar el favicon propio. Y si
+      // la app SI tiene favicon propio, eso es un bug.
+      // Excepcion: si la app NO tiene favicon propio (todas las URLs
+      // propias devuelven 404), entonces SI persistimos Google favicon
+      // como ultimo recurso (mejor que nada).
+      const appUrl = img.getAttribute('data-app-url');
+      let appHostname = '';
+      try {
+        if (appUrl) appHostname = new URL(appUrl).hostname;
+      } catch {}
+
+      const isGoogleFavicon = cleanSrc.includes('google.com/s2/favicons') ||
+                              cleanSrc.includes('googleusercontent.com') ||
+                              cleanSrc.includes('gstatic.com/faviconV2');
+      const isDuckDuckGo = cleanSrc.includes('duckduckgo.com');
+      const isExternalService = isGoogleFavicon || isDuckDuckGo;
+
+      // Si es un servicio externo, solo persistir si no hay nada mejor
+      // en cache (es decir, si la cache esta vacia o tiene algo peor).
+      if (isExternalService) {
+        const cached = cachedIcons.get(urlKey);
+        if (cached && cached.src && !cached.src.includes('google.com/s2/favicons')
+            && !cached.src.includes('duckduckgo.com')
+            && !cached.src.startsWith('data:image/svg+xml')) {
+          // La cache ya tiene un favicon propio: NO persistir Google
+          return;
+        }
+        // Si la cache esta vacia o tiene algo peor, persistir Google
+        // (mejor que nada, pero se reemplazara en cuanto se encuentre
+        // el favicon propio en una proxima visita)
+      }
+
       const cached = cachedIcons.get(urlKey);
       if (cached && cached.src === cleanSrc) return;
 
@@ -4153,8 +4203,10 @@
     if (failed > 0) {
       showToast(`✓ ${ok} eliminado(s). ⚠ ${failed} no se pudieron borrar.`, "err", 5000);
     } else {
-      showToast(`✓ ${ok} icono(s) eliminado(s) de la cache`, "ok", 3500);
+      showToast(`✓ ${ok} icono(s) eliminado(s). Recargando tarjetas…`, "ok", 3500);
     }
+    // Re-renderizar las tarjetas visibles para que redescubran su icono
+    refreshVisibleCards();
   }
 
   async function clearAllIconCache() {
@@ -4169,10 +4221,31 @@
       await withTimeout(set(appIconsRef, null), 5000);
       cachedIcons = new Map();
       renderIconCacheModal();
-      showToast(`✓ Cache de iconos vaciada por completo (${cachedIcons.size} entradas)`, "ok", 4000);
+      showToast(`✓ Cache de iconos vaciada. Recargando tarjetas visibles…`, "ok", 3000);
+      // Re-renderizar las tarjetas visibles para que redescubran su icono
+      refreshVisibleCards();
     } catch (e) {
       console.error('[TecDeA] Error al vaciar cache de iconos:', e);
       showToast('Error al vaciar la cache: ' + (e.message || 'desconocido'), "err", 6000);
+    }
+  }
+
+  // Re-renderiza las tarjetas visibles en la vista de grupo para que
+  // redescubran su icono (util tras limpiar cache Firebase).
+  // Si no hay tarjetas visibles (estamos en Configuracion), no hace nada.
+  function refreshVisibleCards() {
+    const grid = document.getElementById('appGrid');
+    if (!grid) return;
+    const cards = grid.querySelectorAll('.app-card');
+    if (cards.length === 0) return;
+
+    // Re-renderizar las tarjetas volviendo a invocar showGroup
+    // con el contexto de navegacion actual
+    const group = currentNavigationContext.group;
+    const category = currentNavigationContext.category;
+    if (group) {
+      // showGroup aplica los filtros y re-renderiza
+      showGroup(group, category);
     }
   }
 
@@ -6887,17 +6960,25 @@
         <span class="accordion-icon">▼</span>
       </button>
       <div class="accordion-content">
-        <p class="hint" style="margin-top:0;margin-bottom:1rem">
-          💾 Los cambios se guardan automáticamente al salir de cada celda.
-          Las nuevas aplicaciones se dan de alta con el botón «＋ Añadir aplicación», que abre un modal de confirmación.<br>
-          La casilla <b>Act.</b> activa o desactiva cada aplicación: desmarcada, la app deja de mostrarse en los perfiles sin llegar a eliminarse (la fila aparece atenuada).<br>
-          Los filtros de la barra («TecnoApps», «Herramientas Tecno», «Departamento», «Cajón de sastre» y «Estado») son <b>combinables</b>: márcalos a la vez para afinar la búsqueda (p. ej. TecnoApps + Inactivas).<br>
-          La URL base fija es <code>https://tecdea.github.io/</code>. Añade el path final de cada aplicación (ejemplo: <code>miapp/</code>).
-          Si la aplicación no está en el dominio <code>https://tecdea.github.io</code>, introduce la ruta completa de la PWA.<br>
-          Las aplicaciones eliminadas <b>no se pierden</b>: quedan en la papelera de la base de datos y puedes recuperarlas con el botón «♻️ Restaurar aplicaciones borradas». Desde ese mismo listado también puedes borrarlas <b>definitivamente</b>.<br>
-          En <b>Cajón de sastre</b> puedes marcar <b>una o varias subcategorías</b> por aplicación: la app aparecerá en todos los subperfiles que marques. En la tabla solo se ve el emoji de cada subcategoría: pasa el ratón (o mantén pulsado en móvil) sobre él para ver su nombre.<br>
-          <b>Iconos</b>: si la app no tiene favicon propio, se intenta un icono temático (Material Symbols de Iconify) a partir de las <b>palabras clave de la descripción</b> («correo», «agenda», «matemáticas», «juego»…). Escribe descripciones claras para que el icono automático sea acertado. La primera vez puede tardar un poco en descubrirlo; luego queda cacheado en la base de datos y las próximas visitas son instantáneas. Si cambias el favicon de una app propia, usa «🧹 Limpiar cache de iconos» para forzar el redescubrimiento.
-        </p>
+        <div class="accordion-item leeme-accordion" style="margin-bottom:1rem">
+          <button class="accordion-header" onclick="tecdea.toggleAccordion(this)" aria-expanded="false">
+            <span>📖 Léeme</span>
+            <span class="accordion-icon">▼</span>
+          </button>
+          <div class="accordion-content">
+            <p class="hint" style="margin-top:0">
+              💾 Los cambios se guardan automáticamente al salir de cada celda.
+              Las nuevas aplicaciones se dan de alta con el botón «＋ Añadir aplicación», que abre un modal de confirmación.<br>
+              La casilla <b>Act.</b> activa o desactiva cada aplicación: desmarcada, la app deja de mostrarse en los perfiles sin llegar a eliminarse (la fila aparece atenuada).<br>
+              Los filtros de la barra («TecnoApps», «Herramientas Tecno», «Departamento», «Cajón de sastre» y «Estado») son <b>combinables</b>: márcalos a la vez para afinar la búsqueda (p. ej. TecnoApps + Inactivas).<br>
+              La URL base fija es <code>https://tecdea.github.io/</code>. Añade el path final de cada aplicación (ejemplo: <code>miapp/</code>).
+              Si la aplicación no está en el dominio <code>https://tecdea.github.io</code>, introduce la ruta completa de la PWA.<br>
+              Las aplicaciones eliminadas <b>no se pierden</b>: quedan en la papelera de la base de datos y puedes recuperarlas con el botón «♻️ Restaurar aplicaciones borradas». Desde ese mismo listado también puedes borrarlas <b>definitivamente</b>.<br>
+              En <b>Cajón de sastre</b> puedes marcar <b>una o varias subcategorías</b> por aplicación: la app aparecerá en todos los subperfiles que marques. En la tabla solo se ve el emoji de cada subcategoría: pasa el ratón (o mantén pulsado en móvil) sobre él para ver su nombre.<br>
+              <b>Iconos</b>: cada app muestra su favicon propio si lo tiene. Si no lo tiene, se intenta un icono temático (Material Symbols de Iconify) a partir de las <b>palabras clave de la descripción</b> («correo», «agenda», «matemáticas», «juego»…). Escribe descripciones claras para que el icono automático sea acertado. La primera vez puede tardar un poco en descubrirlo; luego queda cacheado en la base de datos y las próximas visitas son instantáneas. También puedes asignar manualmente un icono a cada app desde el botón ✏️ Editar → «Usar icono personalizado». Si cambias el favicon de una app propia, usa «🧹 Limpiar cache de iconos» para forzar el redescubrimiento.
+            </p>
+          </div>
+        </div>
         <div class="actions" style="margin-bottom:1rem">
           <button class="btn btn-gold" onclick="tecdea.showAddAppModal()">＋ Añadir aplicación</button>
           <button class="btn btn-ghost" onclick="tecdea.showRestoreModal()" title="Las apps borradas siguen en la base de datos: recupéralas aquí">♻️ Restaurar aplicaciones borradas</button>
