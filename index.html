@@ -883,7 +883,7 @@
       'icon-256x256.png', 'icon-144x144.png'
     ];
     // Subfolders mas comunes (ordenados por probabilidad)
-    const subFolders = ['', 'icons', 'img'];
+    const subFolders = ['', 'icons', 'img', 'images', 'assets', 'static', 'app'];
     for (const sub of subFolders) {
       const base = sub ? `${appUrl}/${sub}` : appUrl;
       for (const f of fileNames) {
@@ -1295,6 +1295,174 @@
     document.getElementById(modal + 'AppIconOverride').value = '';
     updateIconOverridePreview(modal, '', '');
     showToast('Icono personalizado quitado', 'ok', 2000);
+  }
+
+
+
+  // ════════════════════════════════════════════════════════
+  //  DESUBRIMIENTO DE ICONOS EN RUTAS NO ESTANDAR
+  // ════════════════════════════════════════════════════════
+  // Estas funciones leen el manifest y el HTML de la app para encontrar
+  // <link rel="icon"> declarados con rutas no estandar (p. ej. 'app/favicon.svg',
+  // './favicon.svg', 'assets/img/icon.png'). Sin estas funciones, muchas apps
+  // PWA que SI tienen favicon no lo muestran porque la lista estatica de
+  // iconSourcesOwn no prueba esas rutas.
+
+  async function tryManifestIcons(baseUrl) {
+    let appUrl, origin;
+    try {
+      const u = new URL(baseUrl);
+      origin = u.origin;
+      appUrl = baseUrl.replace(/\/+$/, '');
+    } catch { return []; }
+
+    const manifestCandidates = [
+      `${appUrl}/manifest.webmanifest`,
+      `${appUrl}/manifest.json`,
+      `${appUrl}/site.webmanifest`,
+      `${appUrl}/static/manifest.json`,
+      `${origin}/manifest.webmanifest`,
+      `${origin}/manifest.json`,
+    ];
+
+    const discovered = [];
+    for (const mUrl of manifestCandidates) {
+      try {
+        const resp = await fetchWithTimeout(mUrl, { mode: 'cors', redirect: 'follow' });
+        if (!resp.ok) continue;
+        const contentType = resp.headers.get('content-type') || '';
+        if (!contentType.includes('json') && !contentType.includes('text/plain')) {
+          continue;
+        }
+        const manifest = await resp.json();
+        if (manifest && Array.isArray(manifest.icons)) {
+          const iconList = manifest.icons
+            .filter(ic => ic && ic.src)
+            .map(ic => {
+              try {
+                const abs = new URL(ic.src, mUrl).href;
+                if (!abs.startsWith('http://') && !abs.startsWith('https://')) {
+                  return null;
+                }
+                let size = 0;
+                if (ic.sizes) {
+                  const sizes = String(ic.sizes).split(/\s+/);
+                  for (const s of sizes) {
+                    const m = s.match(/(\d+)x(\d+)/i);
+                    if (m) {
+                      const area = parseInt(m[1]) * parseInt(m[2]);
+                      if (area > size) size = area;
+                    }
+                  }
+                }
+                const isMaskable = ic.purpose === 'maskable';
+                return { url: abs, size, isMaskable };
+              } catch { return null; }
+            })
+            .filter(ic => ic !== null);
+
+          iconList.sort((a, b) => {
+            if (a.isMaskable !== b.isMaskable) return a.isMaskable ? 1 : -1;
+            return b.size - a.size;
+          });
+
+          for (const ic of iconList) {
+            discovered.push(ic.url);
+          }
+          if (discovered.length > 0) break;
+        }
+      } catch {
+        continue;
+      }
+    }
+    return discovered;
+  }
+
+  async function tryHtmlIcons(baseUrl) {
+    try {
+      const resp = await fetchWithTimeout(baseUrl, { mode: 'cors', redirect: 'follow' });
+      if (!resp.ok) return [];
+      const contentType = resp.headers.get('content-type') || '';
+      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+        return [];
+      }
+      const html = await resp.text();
+      if (html.length > 500000) {
+        console.warn('[TecDeA] HTML demasiado grande para parsear iconos');
+        return [];
+      }
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const icons = [];
+      const selectors = [
+        'link[rel="icon"]',
+        'link[rel="shortcut icon"]',
+        'link[rel="apple-touch-icon"]',
+        'link[rel="apple-touch-icon-precomposed"]',
+      ];
+      for (const sel of selectors) {
+        doc.querySelectorAll(sel).forEach(link => {
+          const href = link.getAttribute('href');
+          if (href) {
+            try {
+              const url = new URL(href, baseUrl).href;
+              if (url.startsWith('http://') || url.startsWith('https://')) {
+                icons.push(url);
+              }
+            } catch {}
+          }
+        });
+      }
+      return icons.slice(0, 10);
+    } catch {
+      return [];
+    }
+  }
+
+  // Descubrimiento de iconos via manifest y HTML. Se llama tras renderizar
+  // las tarjetas en showGroup. Si encuentra URLs, las pone al PRINCIPIO de
+  // la cadena de fallbacks del <img>, para que se prueben antes que las
+  // URLs estaticas de iconSourcesOwn.
+  async function discoverIcons(img, appUrl) {
+    if (img.complete && img.naturalWidth > 0) return;
+    if (img.dataset.iconProcessing === 'true') return;
+    img.dataset.iconProcessing = 'true';
+
+    try {
+      let discovered = await tryManifestIcons(appUrl);
+      const htmlIcons = await tryHtmlIcons(appUrl);
+      discovered = [...discovered, ...htmlIcons];
+
+      if (discovered.length === 0) return;
+      if (img.complete && img.naturalWidth > 0) {
+        if (!String(img.src).startsWith(DEFAULT_ICON_SVG.slice(0, 50))) return;
+      }
+
+      let currentRemaining = [];
+      try {
+        const raw = img.getAttribute('data-fb');
+        if (raw) currentRemaining = JSON.parse(raw);
+      } catch {}
+
+      // Poner las URLs descubiertas al PRINCIPIO (prioridad maxima)
+      const newChain = [...discovered, ...currentRemaining]
+        .filter((u, i, arr) => arr.indexOf(u) === i)
+        .slice(0, 15);
+
+      if (newChain.length > 0) {
+        const first = newChain.shift();
+        img.src = first;
+        if (newChain.length > 0) {
+          img.setAttribute('data-fb', JSON.stringify(newChain));
+        } else {
+          img.removeAttribute('data-fb');
+        }
+      }
+    } catch (error) {
+      console.warn('[TecDeA] Error en discoverIcons:', error.message);
+    } finally {
+      img.dataset.iconProcessing = 'false';
+    }
   }
 
   function showLoginModal() {
