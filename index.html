@@ -115,13 +115,12 @@
     return null;
   }
 
-  // ── Mapeo palabras-clave -> icono Iconify (Material Symbols) ──
-  // Iconify API publica: https://api.iconify.design/{icon}.svg?color=white&width=48
+  // ── Mapeo palabras-clave -> icono plantillas (Material Symbols) ──
   // Sin clave, con CORS habilitado y SVG vectorial nitido a cualquier resolucion.
   // Se usa como capa intermedia: si la app no expone su propio favicon, se
-  // intenta este icono tematico ANTES de caer en el SVG auto-generado local.
+  // intenta este icono de plantilla ANTES de caer en el SVG auto-generado local.
   // Mapa de iconos Material Symbols embebidos como data URIs.
-  // Descargados de la API JSON de Iconify y embebidos para evitar
+  // Descargados de la API JSON de plantillas y embebidos para evitar
   // depender de la API en runtime (que devuelve 404 para .svg).
   // Cada valor es un data:image/svg+xml URL-encoded con fill=white.
   // Mapa de iconos Material Symbols embebidos como data URIs.
@@ -129,8 +128,8 @@
   // Estos iconos se usan en dos casos:
   //   1. Cuando la descripcion de la app matchea una palabra clave
   //   2. Cuando el admin asigna manualmente un icono via el selector
-  // No dependen de la API de Iconify en runtime (los SVGs estan aqui).
-  const ICONIFY_ICONS_INLINE = {
+  // No dependen de la API de plantillas en runtime (los SVGs estan aqui).
+  const ICON_TEMPLATES = {
     'smart-toy-rounded': 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2248%22%20height%3D%2248%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cg%20fill%3D%22white%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M4%2015q-1.25%200-2.125-.875T1%2012t.875-2.125T4%209V7q0-.825.588-1.412T6%205h3q0-1.25.875-2.125T12%202t2.125.875T15%205h3q.825%200%201.413.588T20%207v2q1.25%200%202.125.875T23%2012t-.875%202.125T20%2015v4q0%20.825-.587%201.413T18%2021H6q-.825%200-1.412-.587T4%2019zm6.063-2.437q.437-.438.437-1.063t-.437-1.062T9%2010t-1.062.438T7.5%2011.5t.438%201.063T9%2013t1.063-.437m6%200q.437-.438.437-1.063t-.437-1.062T15%2010t-1.062.438T13.5%2011.5t.438%201.063T15%2013t1.063-.437M9%2017h6q.425%200%20.713-.288T16%2016t-.288-.712T15%2015H9q-.425%200-.712.288T8%2016t.288.713T9%2017%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E',
     'robot-outline-rounded': 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2248%22%20height%3D%2248%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cg%20fill%3D%22white%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M5%2021q-.825%200-1.412-.587T3%2019V9q0-2.5%201.75-4.25T9%203h6q2.5%200%204.25%201.75T21%209v10q0%20.825-.587%201.413T19%2021zm0-2h14V9q0-1.65-1.175-2.825T15%205H9Q7.35%205%206.175%206.175T5%209zm2.588-7.587Q7%2010.825%207%2010t.588-1.412T9%208t1.413.588T11%2010t-.587%201.413T9%2012t-1.412-.587m6%200Q13%2010.825%2013%2010t.588-1.412T15%208t1.413.588T17%2010t-.587%201.413T15%2012t-1.412-.587M7%2019v-2q0-.825.588-1.412T9%2015h6q.825%200%201.413.588T17%2017v2h-2v-2h-2v2h-2v-2H9v2zm-2%200h14z%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E',
     'precision-manufacturing-rounded': 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2248%22%20height%3D%2248%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cg%20fill%3D%22white%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M5.475%2021q-.625%200-1.062-.437T3.975%2019.5t.438-1.062T5.475%2018h1.6l-2.55-8.35q-.675-.375-1.112-1.1T2.975%207q0-1.25.875-2.125T5.975%204q.975%200%201.738.563T8.775%206h3.2V5q0-.425.288-.712T12.975%204q.225%200%20.438.1t.362.3l1.7-1.6q.225-.225.538-.288t.612.088l3.9%201.8q.3.15.413.438t-.013.562q-.15.3-.437.388t-.563-.038l-3.6-1.65l-2.35%202.2v1.4l2.35%202.15l3.6-1.65q.275-.125.575-.025t.425.375q.15.3.025.575t-.425.425l-3.9%201.85q-.3.15-.612.087t-.538-.287l-1.7-1.6q-.15.15-.362.275t-.438.125q-.425%200-.712-.287T11.975%209V8h-3.2q-.075.2-.162.375t-.238.375l5%209.25h2.1q.625%200%201.063.438t.437%201.062t-.437%201.063t-1.063.437zM6.688%207.712q.287-.287.287-.712t-.287-.712T5.975%206t-.712.288T4.975%207t.288.713t.712.287t.713-.288%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E',
@@ -234,7 +233,7 @@
 
   // Catalogo de iconos para el selector manual (en Editar aplicacion).
   // Cada entrada: { name, label }. 'name' coincide con una clave de
-  // ICONIFY_ICONS_INLINE.
+  // ICON_TEMPLATES.
   const ICON_CATALOG = [
     { name: 'smart-toy-rounded', label: 'Robot / IA' },
     { name: 'robot-outline-rounded', label: 'Robot (outline)' },
@@ -337,17 +336,16 @@
     { name: 'error-rounded', label: 'Error' },
   ];
 
-  // ── Mapeo palabras-clave → icono Iconify (Material Symbols) ──
-  // Iconify API publica: https://api.iconify.design/{icon}.svg?color=white&width=48
+  // ── Mapeo palabras-clave → icono plantillas (Material Symbols) ──
   // Sin clave, con CORS habilitado y SVG vectorial nítido a cualquier resolución.
   //
   // IMPORTANTE: Cuando la descripción de la app contiene una palabra clave,
-  // el icono Iconify temático PASA A SER LA PRIMERA OPCIÓN (antes que el
+  // el icono plantillas temático PASA A SER LA PRIMERA OPCIÓN (antes que el
   // favicon propio de la app). Esto es lo que pide el usuario: que el portal
   // busque iconos relacionados con la funcionalidad, no que se quede con el
   // favicon de la app (que a menudo es feo o no existe).
   //
-  // Si Iconify falla al cargar, se cae al favicon propio. Y si este también
+  // Si plantillas falla al cargar, se cae al favicon propio. Y si este también
   // falla, al SVG local con emoji/letra.
   const DESCRIPTION_ICONS = [
     // STEM - Robótica / Electrónica / Programación
@@ -436,27 +434,12 @@
     { kw: ['ia','ai','inteligencia artificial','machine learning','ml','neuronal','red neuronal'], icon: 'material-symbols:smart-toy-rounded' },
   ];
 
-  // Devuelve la DATA URI del SVG del icono Iconify correspondiente
+  // Devuelve la DATA URI del SVG del icono plantillas correspondiente
   // si la descripcion o el nombre contiene alguna palabra clave, o null si no.
   // IMPORTANTE: devuelve la data URI directamente (no el nombre del icono),
-  // para evitar depender de la API de Iconify en runtime (que devuelve 404
-  // para el endpoint .svg). Los SVGs estan embebidos en ICONIFY_ICONS_INLINE.
-  function descriptionToIconifyIcon(text) {
-    if (!text) return null;
-    const lower = text.toLowerCase();
-    for (const item of DESCRIPTION_ICONS) {
-      for (const k of item.kw) {
-        if (lower.includes(k)) {
-          const iconName = item.icon.replace('material-symbols:', '');
-          const dataUri = ICONIFY_ICONS_INLINE[iconName];
-          if (dataUri) return dataUri;
-          console.warn('[TecDeA] Icono no encontrado en ICONIFY_ICONS_INLINE:', iconName);
-          return null;
-        }
-      }
-    }
-    return null;
-  }
+  // para evitar depender de la API de plantillas en runtime (que devuelve 404
+  // para el endpoint .svg). Los SVGs estan embebidos en ICON_TEMPLATES.
+
 
   function generateAutoIcon(app) {
     const name = (app.name || "").trim();
@@ -855,7 +838,7 @@
   // NO incluye Google favicon ni DuckDuckGo (esos son servicios externos).
   // Se usa para distinguir "favicon propio" de "favicon de Google" en el
   // barrido de refresco: si la app tiene su propio favicon, persistirlo;
-  // si no, persistir Iconify (mejor que Google favicon generico).
+  // si no, persistir plantillas (mejor que Google favicon generico).
   function iconSourcesOwn(url) {
     const sources = [];
     let appUrl, origin;
@@ -901,24 +884,7 @@
     return sources;
   }
 
-  // Devuelve SOLO las URLs de servicios externos (Google s2/favicons y
-  // DuckDuckGo). Se usan como ULTIMO recurso cuando ni el favicon propio
-  // ni Iconify cargan OK.
-  function iconSourcesExternal(url) {
-    const sources = [];
-    if (!url || typeof url !== 'string' || url === '#') return sources;
-    let hostname;
-    try {
-      const u = new URL(url);
-      if (!['http:', 'https:'].includes(u.protocol)) return sources;
-      hostname = u.hostname;
-    } catch { return sources; }
-    if (hostname) {
-      sources.push(`https://www.google.com/s2/favicons?sz=128&domain=${hostname}`);
-      sources.push(`https://icons.duckduckgo.com/ip3/${hostname}.ico`);
-    }
-    return sources;
-  }
+
 
   const DEFAULT_ICON_SVG = "data:image/svg+xml," + encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><text y="18" font-size="20">🔗</text></svg>'
@@ -928,69 +894,32 @@
     const safeName = escHtml(a.name || 'Sin nombre');
     const safeUrl = sanitizeUrl(a.url);
 
-    // Icono Iconify basado en palabras clave de la descripcion o del nombre.
-    // descriptionToIconifyIcon devuelve la DATA URI del SVG embebido (o null).
-    // Ya no se usa la API de Iconify en runtime (daba 404 para .svg).
-    const iconifyUrl = descriptionToIconifyIcon(a.desc) || descriptionToIconifyIcon(a.name);
-
-    // Log de depuracion: ver que icono Iconify se ha seleccionado para esta app
-    if (iconifyUrl) {
-      let iconLogName = '?';
-      for (const [k, v] of Object.entries(ICONIFY_ICONS_INLINE)) {
-        if (v === iconifyUrl) { iconLogName = k; break; }
-      }
-      console.log(`[TecDeA] Icono Iconify para «${a.name || '(sin nombre)'}»: ${iconLogName}`);
-    }
-
-    // SVG auto-generado local (emoji/letra). Se marca con data-local-svg para
-    // que iconLoadHandler sepa que NO debe persistirlo en Firebase.
+    // SVG auto-generado local (emoji/letra). Placeholder si no hay favicon.
     const localSvg = generateAutoIcon(a);
 
-    // Cache Firebase: si ya tenemos un icono guardado para esta URL, lo
-    // ponemos primero para que se muestre al instante.
+    // Cache Firebase: si ya tenemos un icono guardado, lo usamos.
     const urlKey = normUrlKey(a.url || '');
     const cachedSrc = getCachedIcon(urlKey);
 
     // Icono asignado MANUALMENTE por el admin (tiene prioridad maxima).
     const iconOverride = (typeof a.iconOverride === 'string' && a.iconOverride) ? a.iconOverride : null;
 
-    // Construccion de la cadena de fuentes (en orden de prioridad):
-    //   0. iconOverride: icono asignado MANUALMENTE por el admin (PRIORIDAD MAX)
-    //   1. Favicon PROPIO de la app (favicon.ico, icon-192.png, manifest...)
-    //   2. Icono cacheado en Firebase (si existe, no ha expirado y NO es un
-    //      servicio externo como Google favicon cuando la app tiene URL propia)
-    //   3. Icono Iconify tematico (FALLBACK si el favicon propio falla)
-    //   4. Icono Iconify generico 'apps-rounded' (si no hay match de palabra)
-    //   5. Servicios externos (Google s2/favicons, DuckDuckGo) - ULTIMO recurso
-    //   6. SVG auto-generado local (emoji/letra)
-    //
-    // CAMBIO: favicon propio VA PRIMERO, antes que la cache Firebase.
-    // Razon: si la cache tiene Google favicon (por un error anterior),
-    // queremos que la proxima visita intente el favicon propio primero.
-    // Si el favicon propio carga OK, se persiste y reemplaza Google.
-    // Si no existe, se cae a la cache (Google) y luego a Iconify.
+    // Flujo simplificado (SIN busquedas en Internet):
+    //   0. iconOverride: icono asignado por el admin (PRIORIDAD MAX)
+    //   1. Favicon propio de la app (favicon.ico, icon-512.png, etc.)
+    //   2. Cache Firebase (si existe)
+    //   3. SVG local (placeholder con emoji/letra)
+    // No se busca en Google favicon, DuckDuckGo ni plantillas automaticas.
+    // Si la app no tiene favicon, el admin debe asignar uno manualmente.
     const sources = [];
     if (iconOverride) {
       sources.push(iconOverride);
       sources.push(localSvg);
     } else {
-      // 1. Favicon PROPIO de la app (prioridad maxima si la app tiene URL)
       if (safeUrl && safeUrl !== '#') {
         sources.push(...iconSourcesOwn(safeUrl));
       }
-      // 2. Cache Firebase (si existe y no ha expirado)
       if (cachedSrc) sources.push(cachedSrc);
-      // 3. Iconify tematico (si hay match de palabra clave)
-      if (iconifyUrl) {
-        sources.push(iconifyUrl);
-      } else {
-        // 4. Iconify generico 'apps-rounded' (si no hay match)
-        const genericIcon = ICONIFY_ICONS_INLINE['apps-rounded'];
-        if (genericIcon) sources.push(genericIcon);
-      }
-      // 5. Servicios externos (Google, DuckDuckGo) - ultimo recurso
-      sources.push(...iconSourcesExternal(safeUrl));
-      // 6. SVG local (emoji/letra)
       sources.push(localSvg);
     }
 
@@ -1078,7 +1007,6 @@
   // Se persisten:
   //   - Favicons de la propia app (http/https)
   //   - Iconos de Google s2/favicons y DuckDuckGo
-  //   - Iconos Iconify (URL https://api.iconify.design/...)
   //   - Iconos cacheados en Firebase (no se re-persisten, ya estan)
   function iconLoadHandler(img) {
     try {
@@ -1095,59 +1023,16 @@
 
       // Si es el SVG local, no persistir
       if (img.dataset.localSvg === 'true') return;
-      // Si la app tiene iconOverride, NO persistir el cache Firebase
-      // (el icono manual del admin tiene prioridad y no debe ser
-      // sobrescrito por el favicon propio u otros servicios externos)
+      // Si la app tiene iconOverride, NO persistir
       if (img.dataset.iconOverride === 'true') return;
       if (src.startsWith('data:image/svg+xml')) return;
       if (!src.startsWith('http://') && !src.startsWith('https://')) return;
 
-      // Limpia el cache-buster `?_t=...` antes de comparar y guardar, para
-      // no acumular timestamps en Firebase.
       const cleanSrc = src.replace(/([?&]_t=\d+)/, '').replace(/[?&]$/, '');
-
-      // SOLO persistir en Firebase URLs del propio dominio de la app
-      // (favicon propio). No persistir:
-      //   - Google s2/favicons (servicio externo, da iconos genericos)
-      //   - DuckDuckGo favicons (idem)
-      //   - Cualquier URL que no coincida con el dominio de la app
-      // Razon: si persistimos Google favicon, en la proxima visita se
-      // usara Google favicon en lugar de buscar el favicon propio. Y si
-      // la app SI tiene favicon propio, eso es un bug.
-      // Excepcion: si la app NO tiene favicon propio (todas las URLs
-      // propias devuelven 404), entonces SI persistimos Google favicon
-      // como ultimo recurso (mejor que nada).
-      const appUrl = img.getAttribute('data-app-url');
-      let appHostname = '';
-      try {
-        if (appUrl) appHostname = new URL(appUrl).hostname;
-      } catch {}
-
-      const isGoogleFavicon = cleanSrc.includes('google.com/s2/favicons') ||
-                              cleanSrc.includes('googleusercontent.com') ||
-                              cleanSrc.includes('gstatic.com/faviconV2');
-      const isDuckDuckGo = cleanSrc.includes('duckduckgo.com');
-      const isExternalService = isGoogleFavicon || isDuckDuckGo;
-
-      // Si es un servicio externo, solo persistir si no hay nada mejor
-      // en cache (es decir, si la cache esta vacia o tiene algo peor).
-      if (isExternalService) {
-        const cached = cachedIcons.get(urlKey);
-        if (cached && cached.src && !cached.src.includes('google.com/s2/favicons')
-            && !cached.src.includes('duckduckgo.com')
-            && !cached.src.startsWith('data:image/svg+xml')) {
-          // La cache ya tiene un favicon propio: NO persistir Google
-          return;
-        }
-        // Si la cache esta vacia o tiene algo peor, persistir Google
-        // (mejor que nada, pero se reemplazara en cuanto se encuentre
-        // el favicon propio en una proxima visita)
-      }
-
       const cached = cachedIcons.get(urlKey);
       if (cached && cached.src === cleanSrc) return;
 
-      // Persistir en Firebase (silencioso, sin bloquear UI)
+      // Persistir en Firebase (silencioso)
       saveCachedIcon(urlKey, cleanSrc);
     } catch (e) {
       console.warn('[TecDeA] iconLoadHandler: no se pudo persistir icono:', e);
@@ -1227,7 +1112,7 @@
     }
 
     grid.innerHTML = filtered.map(item => {
-      const dataUri = ICONIFY_ICONS_INLINE[item.name];
+      const dataUri = ICON_TEMPLATES[item.name];
       if (!dataUri) return '';
       const isSelected = dataUri === currentOverride;
       return '<button type="button" class="icon-picker-item' + (isSelected ? ' selected' : '') + '"'
@@ -1242,7 +1127,7 @@
   }
 
   function selectIcon(name) {
-    const dataUri = ICONIFY_ICONS_INLINE[name];
+    const dataUri = ICON_TEMPLATES[name];
     if (!dataUri) {
       showToast('Icono no encontrado: ' + name, 'err', 3000);
       return;
@@ -2290,7 +2175,7 @@
       const url = urls[i];
       if (!url) continue;
       // Permitir URLs http(s) Y data URIs (estas ultimas son los iconos
-      // Iconify embebidos en el propio index.html, no requieren red).
+      // plantillas embebidos en el propio index.html, no requieren red).
       // Saltar URLs vacias o invalidas.
       const isHttpUrl = /^https?:/.test(url);
       const isDataUri = url.startsWith('data:image/');
@@ -2385,22 +2270,14 @@
       visibleCard.style.borderRadius = '';
 
       // Reconstruye la cadena de fuentes.
-      // ORDEN: iconOverride (manual) -> favicon PROPIO -> Iconify -> Google
+      // ORDEN: iconOverride (manual) -> favicon propio -> SVG local
       const iconOverrideLocal = (typeof a.iconOverride === 'string' && a.iconOverride) ? a.iconOverride : null;
       const sources = [];
       if (iconOverrideLocal) {
-        sources.push(iconOverrideLocal);  // Icono manual del admin (PRIORIDAD MAX)
+        sources.push(iconOverrideLocal);
         sources.push(generateAutoIcon(a));
       } else {
         sources.push(...iconSourcesOwn(url));
-        const iconifyUrlLocal = descriptionToIconifyIcon(a.desc) || descriptionToIconifyIcon(a.name);
-        if (iconifyUrlLocal) {
-          sources.push(iconifyUrlLocal);
-        } else {
-          const genericIcon = ICONIFY_ICONS_INLINE['apps-rounded'];
-          if (genericIcon) sources.push(genericIcon);
-        }
-        sources.push(...iconSourcesExternal(url));
         sources.push(generateAutoIcon(a));
       }
       const first = sources[0] || DEFAULT_ICON_SVG;
@@ -2437,14 +2314,11 @@
         candidateUrls.push(iconOverrideLocal);  // Icono manual del admin
       } else {
         candidateUrls.push(...iconSourcesOwn(url));
-        const iconifyDataUri = descriptionToIconifyIcon(a.desc) || descriptionToIconifyIcon(a.name);
-        if (iconifyDataUri) {
-          candidateUrls.push(iconifyDataUri);
-        } else {
-          const genericIcon = ICONIFY_ICONS_INLINE['apps-rounded'];
-          if (genericIcon) candidateUrls.push(genericIcon);
-        }
-        candidateUrls.push(...iconSourcesExternal(url));
+  const iconOverrideLocal = (typeof a.iconOverride === 'string' && a.iconOverride) ? a.iconOverride : null;
+      // Sin busquedas en Internet: solo favicon propio o iconOverride
+      if (!iconOverrideLocal) {
+        // (iconOverrideLocal se usa arriba, este bloque ya esta manejado)
+      }
       }
 
       // Asigna la primera URL y deja el resto como fallback via data-fb
@@ -2508,7 +2382,7 @@
     if (hasIconOverride) {
       // Buscar el nombre del icono para mostrarlo en la preview
       let iconName = '?';
-      for (const [k, v] of Object.entries(ICONIFY_ICONS_INLINE)) {
+      for (const [k, v] of Object.entries(ICON_TEMPLATES)) {
         if (v === a.iconOverride) { iconName = k; break; }
       }
       updateIconOverridePreview('edit', iconName, a.iconOverride);
@@ -4305,7 +4179,7 @@
         ? ` · <span style="color:#c0392b;font-weight:700">${expired} expirado(s) (>30 días)</span>`
         : '') +
       (total > 0
-        ? `<br><span style="font-size:.75rem;color:var(--muted)">Los iconos se cachean la primera vez que se descubre uno válido para una app. Si limpias la cache, la próxima visita volverá a hacer el descubrimiento (lento la primera vez, rápido en adelante).</span>`
+        ? `<br><span style="font-size:.75rem;color:var(--muted)">El admin asigna iconos manualmente desde las plantillas para una app. Si limpias la cache, la próxima visita volverá a hacer el descubrimiento (lento la primera vez, rápido en adelante).</span>`
         : `<br><span style="font-size:.75rem;color:var(--muted)">Aún no hay iconos cacheados. Se cachearán automáticamente la primera vez que se visite cada app.</span>`);
 
     if (total === 0) {
@@ -7167,7 +7041,7 @@
               Si la aplicación no está en el dominio <code>https://tecdea.github.io</code>, introduce la ruta completa de la PWA.<br>
               Las aplicaciones eliminadas <b>no se pierden</b>: quedan en la papelera de la base de datos y puedes recuperarlas con el botón «♻️ Restaurar aplicaciones borradas». Desde ese mismo listado también puedes borrarlas <b>definitivamente</b>.<br>
               En <b>Cajón de sastre</b> puedes marcar <b>una o varias subcategorías</b> por aplicación: la app aparecerá en todos los subperfiles que marques. En la tabla solo se ve el emoji de cada subcategoría: pasa el ratón (o mantén pulsado en móvil) sobre él para ver su nombre.<br>
-              <b>Iconos</b>: cada app muestra su favicon propio si lo tiene. Si no lo tiene, se intenta un icono temático (Material Symbols de Iconify) a partir de las <b>palabras clave de la descripción</b> («correo», «agenda», «matemáticas», «juego»…). Escribe descripciones claras para que el icono automático sea acertado. La primera vez puede tardar un poco en descubrirlo; luego queda cacheado en la base de datos y las próximas visitas son instantáneas. También puedes asignar manualmente un icono a cada app desde el botón ✏️ Editar → «Usar icono personalizado». Si cambias el favicon de una app propia, usa «🧹 Limpiar cache de iconos» para forzar el redescubrimiento.
+              <b>Iconos</b>: cada app muestra su favicon propio si lo tiene. Si no lo tiene, se intenta un icono de plantilla (plantillas de iconos) a partir de las <b>palabras clave de la descripción</b> («correo», «agenda», «matemáticas», «juego»…). Escribe descripciones claras para que el icono automático sea acertado. La primera vez puede tardar un poco en descubrirlo; luego queda cacheado en la base de datos y las próximas visitas son instantáneas. También puedes asignar manualmente un icono a cada app desde el botón ✏️ Editar → «Usar icono personalizado». Si cambias el favicon de una app, usa «🧹 Limpiar cache de iconos» para borrar la cache.
             </p>
           </div>
         </div>
@@ -7435,7 +7309,7 @@
     <div class="tutorial-step"><span class="tut-icon">🔄</span><div class="tut-body"><span class="tut-title">Cambio de sesión</span><p>Mantén pulsado el botón ⚙️ Configuración durante 1,5 segundos para reiniciar la sesión: se volverán a pedir todas las contraseñas.</p></div></div>
     <div class="tutorial-step"><span class="tut-icon">♻️</span><div class="tut-body"><span class="tut-title">Restaurar aplicaciones borradas</span><p>Al eliminar una aplicación no se pierde: queda en la papelera de la base de datos. En Configuración › Aplicaciones, el botón «♻️ Restaurar aplicaciones borradas» muestra el listado para recuperarla (si carecía de categoría, se te pedirá asignarle una). Desde ese mismo listado también puedes eliminarla para siempre con «🗑️ Borrar definitivamente», una acción irreversible que la borra de la base de datos.</p></div></div>
     <div class="tutorial-step"><span class="tut-icon">🔎</span><div class="tut-body"><span class="tut-title">Buscar aplicaciones</span><p>Con muchas aplicaciones, en Configuración › Aplicaciones usa «🔎 Buscar aplicación»: escribe una o varias palabras y se buscarán en el título y la descripción, sin distinguir mayúsculas ni acentos, con las coincidencias resaltadas. Al pulsar un resultado, la fila queda marcada en dorado en la tabla hasta que elijas otra.</p></div></div>
-    <div class="tutorial-step"><span class="tut-icon">🖼️</span><div class="tut-body"><span class="tut-title">Iconos de las aplicaciones</span><p>Cada tarjeta muestra el icono de la app siguiendo este orden de prioridad: <b>1)</b> icono ya descubierto y cacheado en la base de datos (instantáneo), <b>2)</b> favicon o icono PWA de la propia app, <b>3)</b> icono temático de <b>Iconify</b> (repositorio público de iconos vectoriales) elegido a partir de las <b>palabras clave de la descripción</b>, y <b>4)</b> como último recurso, un SVG auto-generado con un <b>emoji</b> o la <b>letra inicial</b> sobre un fondo de color.</p><p>Cuando una app no tiene favicon propio, en lugar de mostrar un icono feo se intenta un icono Material Symbols de Iconify ( correo, calendario, calculadora, biblioteca…) que coincide con su funcionalidad. Por eso es importante escribir una <b>descripción clara</b>: palabras como «correo», «agenda», «matemáticas» o «juego» disparan automáticamente el icono temático adecuado.</p><p>La <b>primera vez</b> que se visita una app puede tardar un poco en descubrir su icono (hace varias pruebas en paralelo). Una vez encontrado, se guarda en <code>portal-tecdea/appIcons</code> y las próximas visitas —tuyas y de cualquier otro usuario— lo muestran al instante.</p><p>Si cambias el favicon de <b>una sola app</b> propia y quieres forzar el redescubrimiento sin borrar toda la cache, usa el botón <b>🔄</b> de su fila en Configuración › Aplicaciones (entre 🚀 y ✏️): borra solo su entrada en la base de datos y la próxima visita la redescubre. Si por el contrario quieres limpiar varios a la vez, usa «🧹 Limpiar cache de iconos».</p></div></div>
+    <div class="tutorial-step"><span class="tut-icon">🖼️</span><div class="tut-body"><span class="tut-title">Iconos de las aplicaciones</span><p>Cada tarjeta muestra el icono de la app siguiendo este orden de prioridad: <b>1)</b> icono ya descubierto y cacheado en la base de datos (instantáneo), <b>2)</b> favicon o icono PWA de la propia app, <b>3)</b> icono de plantilla de <b>plantillas</b> (repositorio público de iconos vectoriales) elegido a partir de las <b>palabras clave de la descripción</b>, y <b>4)</b> como último recurso, un SVG auto-generado con un <b>emoji</b> o la <b>letra inicial</b> sobre un fondo de color.</p><p>Cuando una app no tiene favicon propio, en lugar de mostrar un icono feo se intenta un icono plantillas de iconos ( correo, calendario, calculadora, biblioteca…) que coincide con su funcionalidad. Por eso es importante escribir una <b>descripción clara</b>: palabras como «correo», «agenda», «matemáticas» o «juego» disparan automáticamente el icono de plantilla adecuado.</p><p>La <b>primera vez</b> que se visita una app puede tardar un poco en descubrir su icono (hace varias pruebas en paralelo). Una vez encontrado, se guarda en <code>portal-tecdea/appIcons</code> y las próximas visitas —tuyas y de cualquier otro usuario— lo muestran al instante.</p><p>Si cambias el favicon de <b>una sola app</b> propia y quieres forzar el redescubrimiento sin borrar toda la cache, usa el botón <b>🔄</b> de su fila en Configuración › Aplicaciones (entre 🚀 y ✏️): borra solo su entrada en la base de datos y la próxima visita la redescubre. Si por el contrario quieres limpiar varios a la vez, usa «🧹 Limpiar cache de iconos».</p></div></div>
     <div class="tutorial-step"><span class="tut-icon">🧹</span><div class="tut-body"><span class="tut-title">Limpiar cache de iconos</span><p>La primera vez que se descubre el icono de una app, se guarda en la base de datos (<code>portal-tecdea/appIcons</code>) para que las próximas visitas sean instantáneas. Si en algún momento cambias el icono de una app propia (o si simplemente quieres forzar el redescubrimiento), pulsa «🧹 Limpiar cache de iconos» en Configuración › Aplicaciones: verás el listado completo, podrás filtrar solo los expirados (>30 días) y borrar los que quieras —individualmente, en bloque o todos a la vez—.</p></div></div>
   </div>
 </div>
@@ -7638,8 +7512,8 @@
 
 <div id="iconPickerModal" class="modal-bg hidden">
   <div class="modal modal-wide">
-    <h2>🖼️ Seleccionar icono</h2>
-    <p class="hint" style="margin-top:0">Busca un icono por nombre o categoría. Los iconos son de Material Symbols (Iconify) y están embebidos en el portal, no requieren conexión a Internet.</p>
+    <h2>🖼️ Seleccionar icono de plantilla</h2>
+    <p class="hint" style="margin-top:0">Busca un icono por nombre o categoría. Los iconos son de plantillas de iconos y están embebidos en el portal, no requieren conexión a Internet.</p>
     <input type="search" id="iconPickerSearch" class="fi" style="width:100%;margin-bottom:.8rem" placeholder="🔎 Buscar icono (ej: robot, casa, calendario...)" autocomplete="off" oninput="tecdea.renderIconPicker()">
     <div id="iconPickerGrid" class="icon-picker-grid"></div>
     <div class="modal-actions">
