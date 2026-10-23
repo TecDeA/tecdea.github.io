@@ -858,18 +858,24 @@
     // Lista de nombres de icono mas comunes en apps PWA.
     // ORDENADO por probabilidad de exito: favicon.ico/svg en raiz primero,
     // despues icon-512/192 (los mas usados en tecdea.github.io), etc.
+    // Ordenados por TAMANO (mayor primero): los favicon.ico son 16x16 o 32x32
+    // y se ven pixelados en tarjetas de 72x72. Priorizamos iconos grandes.
     const fileNames = [
-      // Favicon en raiz (lo mas comun)
-      'favicon.ico', 'favicon.png', 'favicon.svg',
-      // Iconos PNG mas comunes en tecdea.github.io
-      'icon-512.png', 'icon-512x512.png', 'icon-192.png', 'icon-192x192.png',
-      'icon.svg',
-      // Apple touch icon
+      // Iconos grandes PWA (512px, 384px, 256px) - mejor calidad visual
+      'icon-512.png', 'icon-512x512.png', 'icon-384x384.png',
+      'icon-256x256.png', 'icon-256.png', 'icon-310x310.png',
+      // Iconos medianos PWA (192px, 180px) - calidad aceptable
+      'icon-192.png', 'icon-192x192.png', 'icon-180x180.png',
+      'icon-167x167.png', 'icon-152x152.png', 'icon-150x150.png',
+      'icon-144x144.png', 'icon-128x128.png',
+      // Apple touch icon (suele ser 180x180 o 152x152)
       'apple-touch-icon.png', 'apple-touch-icon-precomposed.png',
-      // Icono generico
-      'icon.png',
-      // Otros tamanos PWA
-      'icon-256x256.png', 'icon-144x144.png'
+      // SVG vectorial (nítido a cualquier tamaño)
+      'icon.svg', 'favicon.svg',
+      // Icono genérico PNG (tamaño variable, a veces grande)
+      'icon.png', 'favicon.png',
+      // Favicon ICO (último recurso: pequeño y pixelado)
+      'favicon.ico'
     ];
     // Subfolders mas comunes (ordenados por probabilidad)
     const subFolders = ['', 'icons', 'img', 'images', 'assets', 'static', 'app'];
