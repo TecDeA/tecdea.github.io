@@ -960,9 +960,12 @@
 
     const urlKeyAttr = urlKey ? ` data-url-key="${escHtml(urlKey)}"` : '';
 
-    // Boton de edicion: solo se muestra si el admin esta logueado
+    // Boton de edicion: solo se muestra si el admin esta logueado.
+    // En PC aparece al hover; en móvil al long-press sobre el icono (clase
+    // .show-edit). Al pulsarlo, se quita .show-edit para que desaparezca
+    // inmediatamente y no se vea al volver del modal de edición.
     const editBtn = (passwordSession.admin && typeof appIndex === 'number' && appIndex >= 0)
-      ? `<button class="app-card-edit" onclick="event.preventDefault();event.stopPropagation();window._editApp(${appIndex})" title="Editar aplicación">✏️</button>`
+      ? `<button class="app-card-edit" onclick="event.preventDefault();event.stopPropagation();var c=this.closest('.app-card');if(c)c.classList.remove('show-edit');window._editApp(${appIndex})" title="Editar aplicación">✏️</button>`
       : '';
 
     return `
@@ -1172,8 +1175,11 @@
       showToast('Icono no encontrado: ' + name, 'err', 3000);
       return;
     }
-    // Guardar en el input hidden
+    // Guardar en el input hidden (data URI)
     document.getElementById(_iconPickerTarget + 'AppIconOverride').value = dataUri;
+    // Al elegir un icono del catálogo, borrar cualquier URL previa:
+    // el origen del icono pasa a ser "catálogo", no "URL".
+    document.getElementById(_iconPickerTarget + 'AppIconUrl').value = '';
     // Actualizar la vista previa
     updateIconOverridePreview(_iconPickerTarget, name, dataUri);
     closeIconPicker();
@@ -1227,8 +1233,122 @@
 
   function clearIconOverride(modal) {
     document.getElementById(modal + 'AppIconOverride').value = '';
+    document.getElementById(modal + 'AppIconUrl').value = '';
     updateIconOverridePreview(modal, '', '');
     showToast('Icono personalizado quitado', 'ok', 2000);
+  }
+
+  // ════════════════════════════════════════════════════════
+  //  CARGAR ICONO DESDE URL
+  // ════════════════════════════════════════════════════════
+  // Descarga la imagen de la URL indicada por el usuario, la convierte a
+  // data URI y la almacena en `iconOverride` (igual que un icono de
+  // catálogo). Además guarda la URL original en `iconUrl` para poder
+  // "sincronizar" (recargar) el icono más adelante desde el modal de
+  // edición de la app.
+  //
+  // Estrategia de descarga (por si acaso la URL no permite CORS):
+  //   1. fetch() + blob() + FileReader.readAsDataURL() — respeta CORS
+  //   2. Image + canvas.toDataURL() — también requiere CORS, pero a
+  //      veces funciona con crossOrigin='anonymous' cuando fetch falla
+  //   3. Si ambos fallan, se muestra un error y se sugiere usar un
+  //      icono del catálogo o descargar la imagen manualmente.
+  async function loadIconFromUrl() {
+    const urlInput = document.getElementById('iconPickerUrl');
+    const errorEl = document.getElementById('iconPickerUrlError');
+    const url = (urlInput && urlInput.value || '').trim();
+    if (errorEl) errorEl.textContent = '';
+
+    if (!url) {
+      if (errorEl) errorEl.textContent = 'Introduce una URL.';
+      return;
+    }
+    if (!/^https:\/\//i.test(url) && !/^http:\/\//i.test(url)) {
+      if (errorEl) errorEl.textContent = 'La URL debe empezar por http:// o https://';
+      return;
+    }
+
+    const btn = document.getElementById('iconPickerUrlBtn');
+    if (btn) btn.disabled = true;
+    showToast('Descargando icono…', 'ok', 1500);
+
+    let dataUri = null;
+    let lastError = '';
+
+    // Intento 1: fetch + blob + FileReader
+    try {
+      const resp = await fetchWithTimeout(url, { mode: 'cors', redirect: 'follow' }, 9000);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const ct = resp.headers.get('content-type') || '';
+      if (ct && !ct.startsWith('image/') && !ct.includes('octet-stream')) {
+        throw new Error('La URL no apunta a una imagen (tipo: ' + (ct || 'desconocido') + ')');
+      }
+      const blob = await resp.blob();
+      if (!blob || blob.size === 0) throw new Error('La respuesta está vacía');
+      if (blob.size > 500 * 1024) {
+        throw new Error('La imagen es demasiado grande (máx. 500 KB). Usa una más pequeña.');
+      }
+      dataUri = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('No se pudo procesar la imagen descargada'));
+        reader.readAsDataURL(blob);
+      });
+    } catch (fetchErr) {
+      lastError = (fetchErr && fetchErr.message) || String(fetchErr);
+      console.warn('[TecDeA] fetch URL falló (' + lastError + '); probando Image+canvas');
+    }
+
+    // Intento 2: Image + canvas (a veces pasa CORS donde fetch no)
+    if (!dataUri) {
+      try {
+        dataUri = await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          const timer = setTimeout(() => reject(new Error('Timeout cargando imagen')), 9000);
+          img.onload = () => {
+            clearTimeout(timer);
+            try {
+              const canvas = document.createElement('canvas');
+              const size = 128;
+              canvas.width = size;
+              canvas.height = size;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, size, size);
+              const uri = canvas.toDataURL('image/png');
+              if (uri && uri.startsWith('data:image/')) resolve(uri);
+              else reject(new Error('No se pudo generar data URI desde canvas'));
+            } catch (e) {
+              reject(new Error('Canvas tainted (CORS): el servidor no permite descargar la imagen'));
+            }
+          };
+          img.onerror = () => {
+            clearTimeout(timer);
+            reject(new Error('No se pudo cargar la imagen (URL inválida o CORS bloqueado)'));
+          };
+          img.src = url;
+        });
+      } catch (imgErr) {
+        lastError = (imgErr && imgErr.message) || String(imgErr);
+        console.error('[TecDeA] Image+canvas también falló:', lastError);
+      }
+    }
+
+    if (btn) btn.disabled = false;
+
+    if (!dataUri || !dataUri.startsWith('data:image/')) {
+      const msg = 'No se pudo descargar la imagen. Causa: ' + lastError + '. Prueba con otra URL, descarga el icono manualmente, o elige uno del catálogo.';
+      if (errorEl) errorEl.textContent = msg;
+      showToast('Error: ' + msg, 'err', 7000);
+      return;
+    }
+
+    // Guardar en inputs hidden del modal destino
+    document.getElementById(_iconPickerTarget + 'AppIconOverride').value = dataUri;
+    document.getElementById(_iconPickerTarget + 'AppIconUrl').value = url;
+    updateIconOverridePreview(_iconPickerTarget, 'URL: ' + url, dataUri);
+    closeIconPicker();
+    showToast('✓ Icono cargado desde URL y guardado', 'ok', 2500);
   }
 
 
@@ -1423,16 +1543,60 @@
     }
   }
 
-  // Borra la cache de icono de la app que se esta editando actualmente
+  // Borra el icono de la app que se está editando actualmente.
+  //  - Si la app tiene `iconUrl` (icono cargado desde URL): borra `iconUrl`
+  //    y `iconOverride`, volviendo al comportamiento por defecto (favicon
+  //    propio o placeholder con letra).
+  //  - Si la app tiene solo `iconOverride` (icono de catálogo): lo borra.
+  //  - Si no tiene iconOverride: borra la caché de favicon en Firebase
+  //    (comportamiento original).
   function clearCurrentAppCache() {
     if (_editAppIndex < 0 || _editAppIndex >= apps.length) {
       showToast('No hay aplicación seleccionada para editar.', 'err', 3000);
       return;
     }
     const a = apps[_editAppIndex];
+    if (!a) return;
+
+    // Caso 1: la app tiene iconUrl (icono cargado desde URL)
+    if (a.iconUrl && typeof a.iconUrl === 'string' && a.iconUrl.trim()) {
+      if (!window.confirm(`¿Quitar el icono cargado desde URL de «${a.name || 'app'}»? Se borrará el icono y se volverá al comportamiento por defecto (favicon propio o placeholder).`)) return;
+      a.iconUrl = null;
+      a.iconOverride = null;
+      const savedName = a.name || 'app';
+      closeEditAppModal();
+      buildConfigTable();
+      persistAppsChanges().then(res => {
+        notifyPersistResult(res);
+        if (res && res.ok) {
+          showToast('🗑️ Icono de URL de «' + savedName + '» borrado. Vuelve al comportamiento por defecto.', 'ok', 3500);
+        } else {
+          showToast('Error al guardar los cambios en la base de datos.', 'err', 5000);
+        }
+      });
+      return;
+    }
+
+    // Caso 2: la app tiene solo iconOverride (icono de catálogo, sin URL)
+    if (a.iconOverride && typeof a.iconOverride === 'string' && a.iconOverride.trim()) {
+      if (!window.confirm(`¿Quitar el icono personalizado de «${a.name || 'app'}»? Se volverá al comportamiento por defecto (favicon propio o placeholder).`)) return;
+      a.iconOverride = null;
+      const savedName = a.name || 'app';
+      closeEditAppModal();
+      buildConfigTable();
+      persistAppsChanges().then(res => {
+        notifyPersistResult(res);
+        if (res && res.ok) {
+          showToast('🗑️ Icono personalizado de «' + savedName + '» borrado.', 'ok', 3500);
+        }
+      });
+      return;
+    }
+
+    // Caso 3: sin iconOverride — borrar caché de favicon (comportamiento original)
     const urlKey = normUrlKey(a.url || '');
     if (!urlKey) {
-      showToast('No se pudo determinar la clave de cache.', 'err', 4000);
+      showToast('No se pudo determinar la clave de caché.', 'err', 4000);
       return;
     }
     const wasCached = cachedIcons.has(urlKey);
@@ -1451,18 +1615,134 @@
       });
   }
 
-  // Sincroniza (refresca) el icono de la app que se esta editando
+  // Sincroniza (refresca) el icono de la app que se está editando.
+  //  - Si la app tiene `iconUrl`: re-descarga la imagen desde la URL y
+  //    actualiza `iconOverride` (los datos en la base de datos).
+  //  - Si no: refresca el favicon propio (comportamiento original).
+  // Importante: captura el índice ANTES de cerrar el modal, porque
+  // closeEditAppModal() pone _editAppIndex = -1 (bug preexistente que
+  // hacía que syncCurrentAppIcon no funcionara nunca).
   function syncCurrentAppIcon() {
     if (_editAppIndex < 0 || _editAppIndex >= apps.length) {
       showToast('No hay aplicación seleccionada para editar.', 'err', 3000);
       return;
     }
-    // Cerrar el modal de edicion primero, luego llamar a _refreshAppIcon
+    const idx = _editAppIndex;
+    const a = apps[idx];
+
+    if (a && a.iconUrl && typeof a.iconUrl === 'string' && a.iconUrl.trim()) {
+      // Recargar desde URL
+      closeEditAppModal();
+      setTimeout(() => {
+        window._refreshUrlAppIcon(idx);
+      }, 200);
+      return;
+    }
+
+    // Refresco de favicon propio (comportamiento original, ahora con
+    // índice correcto en vez de -1)
     closeEditAppModal();
     setTimeout(() => {
-      window._refreshAppIcon(_editAppIndex);
+      window._refreshAppIcon(idx);
     }, 200);
   }
+
+  // Re-descarga el icono de una app desde su URL original (iconUrl).
+  // Actualiza `iconOverride` en la base de datos con la nueva imagen.
+  // Si la URL ya no responde o bloquea CORS, mantiene el icono anterior
+  // y avisa al usuario.
+  window._refreshUrlAppIcon = async function(i) {
+    if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i >= apps.length) {
+      console.warn('[TecDeA] _refreshUrlAppIcon: indice invalido:', i);
+      return;
+    }
+    const a = apps[i];
+    if (!a || !a.iconUrl || typeof a.iconUrl !== 'string' || !a.iconUrl.trim()) {
+      showToast('Esta app no tiene icono cargado desde URL.', 'err', 4000);
+      return;
+    }
+    const url = a.iconUrl;
+    const savedName = a.name || 'app';
+    showToast('🔄 Recargando icono desde URL…', 'ok', 2000);
+
+    let dataUri = null;
+    let lastError = '';
+
+    // Intento 1: fetch + blob + FileReader (con cache-buster)
+    try {
+      const bustUrl = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+      const resp = await fetchWithTimeout(bustUrl, { mode: 'cors', redirect: 'follow', bustCache: true }, 9000);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const ct = resp.headers.get('content-type') || '';
+      if (ct && !ct.startsWith('image/') && !ct.includes('octet-stream')) {
+        throw new Error('La URL ya no apunta a una imagen (tipo: ' + (ct || 'desconocido') + ')');
+      }
+      const blob = await resp.blob();
+      if (!blob || blob.size === 0) throw new Error('La respuesta está vacía');
+      if (blob.size > 500 * 1024) {
+        throw new Error('La imagen es demasiado grande (máx. 500 KB)');
+      }
+      dataUri = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('No se pudo procesar la imagen'));
+        reader.readAsDataURL(blob);
+      });
+    } catch (fetchErr) {
+      lastError = (fetchErr && fetchErr.message) || String(fetchErr);
+      console.warn('[TecDeA] re-fetch URL falló (' + lastError + '); probando Image+canvas');
+    }
+
+    // Intento 2: Image + canvas con cache-buster
+    if (!dataUri) {
+      try {
+        dataUri = await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          const timer = setTimeout(() => reject(new Error('Timeout')), 9000);
+          img.onload = () => {
+            clearTimeout(timer);
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = 128;
+              canvas.height = 128;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, 128, 128);
+              const uri = canvas.toDataURL('image/png');
+              if (uri && uri.startsWith('data:image/')) resolve(uri);
+              else reject(new Error('No se pudo generar data URI'));
+            } catch (e) {
+              reject(new Error('Canvas tainted (CORS)'));
+            }
+          };
+          img.onerror = () => {
+            clearTimeout(timer);
+            reject(new Error('No se pudo cargar la imagen'));
+          };
+          img.src = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+        });
+      } catch (imgErr) {
+        lastError = (imgErr && imgErr.message) || String(imgErr);
+        console.error('[TecDeA] re-carga URL falló:', lastError);
+      }
+    }
+
+    if (!dataUri || !dataUri.startsWith('data:image/')) {
+      showToast('❌ No se pudo recargar desde la URL: ' + lastError + '. Se mantiene el icono actual.', 'err', 6000);
+      return;
+    }
+
+    // Actualizar la app con el nuevo iconOverride (iconUrl se mantiene)
+    a.iconOverride = dataUri;
+
+    const result = await persistAppsChanges();
+    if (result && result.ok) {
+      showToast('🔄 Icono de «' + savedName + '» recargado desde URL.', 'ok', 3500);
+      buildConfigTable();
+    } else {
+      showToast('Error al guardar el icono recargado en la base de datos.', 'err', 5000);
+    }
+  };
 
   function showLoginModal() {
     const configView = document.getElementById("view-config");
@@ -2070,9 +2350,10 @@
     document.getElementById("addAppActiva").checked = true;
     document.querySelectorAll('.addAppCat').forEach(c => c.checked = false);
     document.getElementById("addAppCajonWrap").classList.add("hidden");
-    // Reset iconOverride (icono personalizado)
+    // Reset iconOverride (icono personalizado) e iconUrl
     document.getElementById("addAppUseIconOverride").checked = false;
     document.getElementById("addAppIconOverride").value = '';
+    document.getElementById("addAppIconUrl").value = '';
     document.getElementById("addAppIconOverridePreview").classList.add("hidden");
     document.getElementById("addAppIconOverrideImg").innerHTML = '';
     document.getElementById("addAppIconOverrideName").textContent = 'Ninguno';
@@ -2087,9 +2368,10 @@
 
   function closeAddAppModal() {
     document.getElementById("addAppModal").classList.add("hidden");
-    // Reset iconOverride (evita residuos al reabrir)
+    // Reset iconOverride e iconUrl (evita residuos al reabrir)
     document.getElementById("addAppUseIconOverride").checked = false;
     document.getElementById("addAppIconOverride").value = '';
+    document.getElementById("addAppIconUrl").value = '';
     document.getElementById("addAppIconOverridePreview").classList.add("hidden");
     document.getElementById("addAppIconOverrideImg").innerHTML = '';
     document.getElementById("addAppIconOverrideName").textContent = 'Ninguno';
@@ -2186,7 +2468,8 @@
 
     const useIconOverrideAdd = document.getElementById("addAppUseIconOverride").checked;
     const iconOverrideValueAdd = useIconOverrideAdd ? (document.getElementById("addAppIconOverride").value || '') : '';
-    apps.push({ name, desc, url, tecnoApps: tec, herramientasTecno: her, departamento: dep, cajonDeSastre: caj, categories: caj ? cats : [], activa: act, iconOverride: iconOverrideValueAdd || null });
+    const iconUrlValueAdd = useIconOverrideAdd ? (document.getElementById("addAppIconUrl").value || '') : '';
+    apps.push({ name, desc, url, tecnoApps: tec, herramientasTecno: her, departamento: dep, cajonDeSastre: caj, categories: caj ? cats : [], activa: act, iconOverride: iconOverrideValueAdd || null, iconUrl: iconUrlValueAdd || null });
 
     resetAppsFilterUI();
     buildConfigTable();
@@ -2476,10 +2759,11 @@
     });
     document.getElementById("editAppCajonWrap").classList.toggle("hidden", !a.cajonDeSastre);
     document.getElementById("editAppActiva").checked = isAppActive(a);
-    // Cargar iconOverride (icono personalizado)
+    // Cargar iconOverride (icono personalizado) e iconUrl (URL original si vino de URL)
     const hasIconOverride = !!(a.iconOverride && typeof a.iconOverride === 'string');
     document.getElementById("editAppUseIconOverride").checked = hasIconOverride;
     document.getElementById("editAppIconOverride").value = hasIconOverride ? a.iconOverride : '';
+    document.getElementById("editAppIconUrl").value = (typeof a.iconUrl === 'string' && a.iconUrl) ? a.iconUrl : '';
     if (hasIconOverride) {
       // Buscar el nombre del icono para mostrarlo en la preview
       let iconName = '?';
@@ -2503,9 +2787,10 @@
   function closeEditAppModal() {
     document.getElementById("editAppModal").classList.add("hidden");
     _editAppIndex = -1;
-    // Reset iconOverride (evita residuos al reabrir)
+    // Reset iconOverride e iconUrl (evita residuos al reabrir)
     document.getElementById("editAppUseIconOverride").checked = false;
     document.getElementById("editAppIconOverride").value = '';
+    document.getElementById("editAppIconUrl").value = '';
     document.getElementById("editAppIconOverridePreview").classList.add("hidden");
     document.getElementById("editAppIconOverrideImg").innerHTML = '';
     document.getElementById("editAppIconOverrideName").textContent = 'Ninguno';
@@ -2572,7 +2857,8 @@
 
     const useIconOverrideEdit = document.getElementById("editAppUseIconOverride").checked;
     const iconOverrideValue = useIconOverrideEdit ? (document.getElementById("editAppIconOverride").value || '') : '';
-    apps[_editAppIndex] = { name, desc, url, tecnoApps: tec, herramientasTecno: her, departamento: dep, cajonDeSastre: caj, categories: caj ? cats : [], activa: act, iconOverride: iconOverrideValue || null };
+    const iconUrlValue = useIconOverrideEdit ? (document.getElementById("editAppIconUrl").value || '') : '';
+    apps[_editAppIndex] = { name, desc, url, tecnoApps: tec, herramientasTecno: her, departamento: dep, cajonDeSastre: caj, categories: caj ? cats : [], activa: act, iconOverride: iconOverrideValue || null, iconUrl: iconUrlValue || null };
 
     buildConfigTable();
     closeEditAppModal();
@@ -3958,32 +4244,79 @@
     el.addEventListener("contextmenu", (e) => e.preventDefault());
   }
 
-  // ── Descripción en las tarjetas de apps (hover / long-press) ──
+  // ── Interacciones en las tarjetas de apps (hover / long-press) ──
+  // PC: hover muestra la descripción (si existe).
+  // Móvil/tablet:
+  //   - Si admin logueado: long-press sobre el ICONO muestra el botón ✏️
+  //     de edición (clase `.show-edit` en la tarjeta). Se auto-oculta a los
+  //     5 s si no se pulsa. El botón, al pulsarlo, abre el modal de edición
+  //     (mismo comportamiento que en PC).
+  //   - Si hay descripción: long-press sobre el resto de la tarjeta muestra
+  //     la descripción (comportamiento anterior, conservado).
   const APP_DESC_LONGPRESS_MS = 600;
   let _appDescLongPressFired = false;
+  let _appEditRevealTimer = null;
 
   function wireAppCardDesc(card) {
     const desc = card.getAttribute("data-desc") || "";
-    if (!desc.trim()) return;
-    card.addEventListener("mouseenter", () => {
-      if (window.matchMedia("(hover: hover)").matches) showDescModal(desc);
-    });
-    card.addEventListener("mouseleave", () => {
-      if (window.matchMedia("(hover: hover)").matches) hideDescModal();
-    });
+    const hasDesc = !!desc.trim();
+    const isAdmin = !!passwordSession.admin;
+
+    // PC: hover para descripción (solo si hay descripción)
+    if (hasDesc) {
+      card.addEventListener("mouseenter", () => {
+        if (window.matchMedia("(hover: hover)").matches) showDescModal(desc);
+      });
+      card.addEventListener("mouseleave", () => {
+        if (window.matchMedia("(hover: hover)").matches) hideDescModal();
+      });
+    }
+
+    // Si no hay descripción y no hay admin, no hay long-press
+    if (!hasDesc && !isAdmin) return;
+
     let lpTimer = null;
+    let lpType = null; // 'desc' | 'edit'
     const cancelLongPress = () => { clearTimeout(lpTimer); lpTimer = null; };
-    card.addEventListener("touchstart", () => {
+
+    card.addEventListener("touchstart", (e) => {
       _appDescLongPressFired = false;
+      lpType = null;
+
+      // ¿El touch empezó en el icono?
+      const touchedIcon = e.target.closest('.app-card-icon-wrap');
+
+      if (isAdmin && touchedIcon) {
+        lpType = 'edit';
+      } else if (hasDesc) {
+        lpType = 'desc';
+      } else {
+        return;
+      }
+
       lpTimer = setTimeout(() => {
         lpTimer = null;
         _appDescLongPressFired = true;
-        showDescModal(desc);
-        if (navigator.vibrate) { try { navigator.vibrate(30); } catch (err) {} }
+
+        if (lpType === 'edit') {
+          // Mostrar botón de edición en la tarjeta
+          card.classList.add('show-edit');
+          if (navigator.vibrate) { try { navigator.vibrate(30); } catch (err) {} }
+          // Auto-ocultar después de 5 s si no se pulsa
+          clearTimeout(_appEditRevealTimer);
+          _appEditRevealTimer = setTimeout(() => {
+            card.classList.remove('show-edit');
+          }, 5000);
+        } else if (lpType === 'desc') {
+          showDescModal(desc);
+          if (navigator.vibrate) { try { navigator.vibrate(30); } catch (err) {} }
+        }
       }, APP_DESC_LONGPRESS_MS);
     }, { passive: true });
+
     ["touchmove", "touchend", "touchcancel"].forEach(ev =>
       card.addEventListener(ev, cancelLongPress, { passive: true }));
+
     card.addEventListener("click", (e) => {
       if (_appDescLongPressFired) {
         e.preventDefault();
@@ -3997,6 +4330,7 @@
         hideDescModal(true);
       }
     });
+
     card.addEventListener("contextmenu", (e) => e.preventDefault());
   }
 
@@ -4493,7 +4827,7 @@
     clearCurrentAppCache,
     syncCurrentAppIcon,
     launchCurrentApp,
-    openIconPicker, closeIconPicker, renderIconPicker, selectIcon,
+    openIconPicker, closeIconPicker, renderIconPicker, selectIcon, loadIconFromUrl,
     toggleIconOverrideEdit, toggleIconOverrideAdd, clearIconOverride,
     editAppNameInput, editAppFormChanged, editAppCajonChanged,
     showRestoreModal: openRestoreModal, closeRestoreModal, confirmRestoreApp,
@@ -4741,6 +5075,29 @@
     font-style: italic;
   }
 
+  /* Sección para cargar icono desde URL dentro del selector de iconos */
+  .icon-url-section {
+    margin-top: 1rem;
+    padding-top: .85rem;
+    border-top: 1px dashed #d1d5db;
+  }
+  .icon-url-row {
+    display: flex;
+    gap: .5rem;
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+  .icon-url-input {
+    flex: 1;
+    min-width: 200px;
+  }
+  .icon-url-row .btn {
+    white-space: nowrap;
+  }
+  .icon-url-row .btn:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+  }
 
   .edit-icon-actions {
     display: flex;
@@ -5192,11 +5549,11 @@
   .app-card-edit:active {
     transform: scale(1.1);
   }
-  /* En movil (sin hover), siempre visible */
-  @media (hover: none) {
-    .app-card-edit {
-      opacity: .7;
-    }
+  /* En movil (sin hover), el botón de edición NO se muestra por defecto.
+     Aparece al mantener pulsado el icono (long-press) si el admin está
+     logueado. La clase `.show-edit` la añade el JS de wireAppCardDesc. */
+  .app-card.show-edit .app-card-edit {
+    opacity: 1;
   }
 
   .empty {
@@ -7225,6 +7582,7 @@
           </div>
         </div>
         <input type="hidden" id="addAppIconOverride" value="">
+        <input type="hidden" id="addAppIconUrl" value="">
       </div>
 
       <div class="fi-label">Perfiles <span class="req">*</span></div>
@@ -7292,6 +7650,7 @@
           </div>
         </div>
         <input type="hidden" id="editAppIconOverride" value="">
+        <input type="hidden" id="editAppIconUrl" value="">
       </div>
 
       <div class="fi-label">Perfiles <span class="req">*</span></div>
@@ -7382,9 +7741,20 @@
 <div id="iconPickerModal" class="modal-bg hidden">
   <div class="modal modal-wide">
     <h2>🖼️ Seleccionar icono de plantilla</h2>
-    <p class="hint" style="margin-top:0">Busca un icono por nombre o categoría. Los iconos son de plantillas de iconos y están embebidos en el portal, no requieren conexión a Internet.</p>
+    <p class="hint" style="margin-top:0">Busca un icono por nombre o categoría, o introduce una URL para cargar un icono personalizado. Los iconos de plantilla están embebidos en el portal; los de URL se descargan y se guardan en la base de datos.</p>
     <input type="search" id="iconPickerSearch" class="fi" style="width:100%;margin-bottom:.8rem" placeholder="🔎 Buscar icono (ej: robot, casa, calendario...)" autocomplete="off" oninput="tecdea.renderIconPicker()">
     <div id="iconPickerGrid" class="icon-picker-grid"></div>
+
+    <div class="icon-url-section">
+      <div class="fi-label">O añadir icono desde URL:</div>
+      <div class="icon-url-row">
+        <input type="url" id="iconPickerUrl" class="fi icon-url-input" placeholder="https://ejemplo.com/icono.png" autocomplete="off">
+        <button type="button" class="btn btn-gold" id="iconPickerUrlBtn" onclick="tecdea.loadIconFromUrl()">⬇ Cargar desde URL</button>
+      </div>
+      <div id="iconPickerUrlError" class="modal-error"></div>
+      <p class="hint" style="margin:.4rem 0 0">La imagen se descarga y se guarda en la base de datos como data URI. Si la URL original cambia, usa «🔄 Sincronizar icono» en el modal de edición para volver a cargarla. Tamaño máximo: 500 KB. Si el servidor bloquea CORS, descarga el icono manualmente o elige uno de la plantilla.</p>
+    </div>
+
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" onclick="tecdea.closeIconPicker()">Cancelar</button>
     </div>
