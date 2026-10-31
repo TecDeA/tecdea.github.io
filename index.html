@@ -4080,11 +4080,13 @@
       activa: c.activa !== false
     }));
     apps = apps.concat(imported);
+    imported.forEach(normalizeAppCategories);
     const ok = await saveApps();
     if (!ok) {
       showToast('Error al guardar en Firebase. No se ha importado nada.', 'err', 7000);
       return;
     }
+    markAppsAsSaved(imported);
     _lastSavedAppsJson = JSON.stringify(apps);
     const omitted = _importCandidates.length - imported.length;
     closeImportModal();
