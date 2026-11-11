@@ -4358,6 +4358,43 @@
     }
   });
 
+  /* ── Teclado con el «app shell» ──
+     La página ya no scrollea (lo hace #appScroll) y los navegadores solo
+     desplazan con el teclado el contenedor que tiene el foco. Para que
+     AvPág/RePág, Inicio/Fin, flechas y Espacio sigan funcionando sin tener que
+     hacer clic antes, reenviamos esas teclas al contenedor cuando el foco no
+     está en un campo de texto, un botón o dentro de otra zona con scroll. */
+  document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+    const scroller = document.getElementById("appScroll");
+    if (!scroller || scroller.scrollHeight <= scroller.clientHeight + 1) return;
+    if (document.querySelector(".modal-bg:not(.hidden)")) return;
+    const t = e.target;
+    if (t && t.nodeType === 1) {
+      if (t.isContentEditable) return;
+      if (/^(INPUT|TEXTAREA|SELECT|OPTION)$/.test(t.tagName)) return;
+      if (t.closest(".tbl-wrap, .app-sel-list, .icon-picker-grid, .restore-list, .import-preview-wrap")) return;
+    }
+    const page = scroller.clientHeight * 0.9;
+    let dy;
+    switch (e.key) {
+      case "PageDown": dy = page; break;
+      case "PageUp": dy = -page; break;
+      case "ArrowDown": dy = 48; break;
+      case "ArrowUp": dy = -48; break;
+      case "Home": dy = -scroller.scrollHeight; break;
+      case "End": dy = scroller.scrollHeight; break;
+      case " ":
+        if (t && t.closest && t.closest("button, a, summary, label, [role='button']")) return;
+        dy = e.shiftKey ? -page : page;
+        break;
+      default: return;
+    }
+    e.preventDefault();
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    scroller.scrollBy({ top: dy, behavior: reduce ? "auto" : "smooth" });
+  });
+
   function toggleAccordion(headerBtn) {
     const item = headerBtn.parentElement;
     const content = item.querySelector('.accordion-content');
@@ -4896,6 +4933,7 @@
   }
 
   html {
+    height: 100%;
     -webkit-text-size-adjust: 100%;
     -moz-text-size-adjust: 100%;
     text-size-adjust: 100%;
@@ -4903,12 +4941,6 @@
     tap-highlight-color: transparent;
     scroll-behavior: smooth;
     -webkit-scroll-behavior: smooth;
-    --dvh: dvh;
-    --dvw: dvw;
-  }
-
-  @supports not (height: 100dvh) {
-    :root { --dvh: 100vh; --dvw: 100vw; }
   }
 
   body {
@@ -4916,10 +4948,15 @@
     font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
     background: var(--cream);
     color: var(--text);
-    min-height: 100vh;
-    min-height: var(--dvh, 100vh);
-    overflow-x: hidden;
-    overflow-y: auto;
+    /* ── Estructura tipo «app shell» ──
+       La PÁGINA ya no scrollea: cabecera fija arriba y un único contenedor
+       con scroll (.app-scroll) que empieza justo debajo de ella. Así la barra
+       de desplazamiento vertical arranca bajo el banner y no lo atraviesa. */
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     overscroll-behavior-y: none;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -4931,6 +4968,26 @@
     -webkit-user-select: none;
     user-select: none;
   }
+
+  /* Altura real del viewport móvil (con la barra de direcciones) cuando el
+     navegador soporta unidades dvh; si no, se mantiene el height: 100%. */
+  @supports (height: 100dvh) {
+    html, body { height: 100dvh; }
+  }
+
+  /* Contenedor de scroll de la app: ocupa todo el alto disponible BAJO la
+     cabecera, de modo que su barra de desplazamiento empieza justo debajo del
+     banner. Es el único elemento que scrollea (la página no). */
+  .app-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    scroll-behavior: smooth;
+  }
+  .app-scroll:focus { outline: none; }
 
   input, textarea, [contenteditable] {
     -webkit-user-select: text;
@@ -5143,7 +5200,10 @@
     align-items: center;
     justify-content: space-between;
     box-shadow: 0 2px 12px rgba(0,0,0,.3);
-    position: sticky; top: 0; z-index: 100;
+    /* Ya no necesita ser sticky: queda fija porque el body no scrollea
+       (es el flex container y .app-scroll es el único que lo hace). */
+    position: relative; z-index: 100;
+    flex-shrink: 0;
     gap: .75rem;
   }
   header h1 {
@@ -6618,6 +6678,10 @@
 
   @media print {
     body { background: white; color: black; }
+    /* En impresión se deshace el «app shell»: si no, solo saldría la primera
+       pantalla del área con scroll. */
+    html, body { height: auto !important; display: block !important; overflow: visible !important; }
+    .app-scroll { overflow: visible !important; height: auto !important; }
     header, .btn-config, .toast, .modal-bg, .back-btn { display: none !important; }
     .app-grid { grid-template-columns: repeat(4, 1fr); }
     .app-card { break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
@@ -7191,6 +7255,9 @@
   </div>
 </header>
 
+<!-- Área con scroll: empieza justo debajo de la cabecera, así la barra de
+     desplazamiento vertical arranca bajo el banner (ver .app-scroll). -->
+<div class="app-scroll" id="appScroll" tabindex="-1">
 <main>
 
   <section id="view-home">
@@ -7452,6 +7519,7 @@
   </section>
 
 </main>
+</div><!-- /.app-scroll -->
 
 <div id="loginModal" class="modal-bg hidden">
   <div class="modal">
